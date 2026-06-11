@@ -1,0 +1,36 @@
+{
+  "startedAt": "2026-06-10T11:56:50.646Z",
+  "completedAt": "2026-06-10T11:57:14.399Z",
+  "elapsedSeconds": 23.74,
+  "endpoint": "https://api.siliconflow.cn/v1/images/generations",
+  "traceId": "ti_xjdngraecuksqq06ra",
+  "inputImage": "D:\\vibe coding\\easy_Buy\\resources\\closet\\微信图片_20260610124204_332_2.jpg",
+  "outputDir": "D:\\vibe coding\\easy_Buy\\resources\\closet-siliconflow-route-debug",
+  "savedImages": [
+    "D:\\vibe coding\\easy_Buy\\resources\\closet-siliconflow-route-debug\\siliconflow-qwen-image-edit-01.png"
+  ],
+  "request": {
+    "model": "Qwen/Qwen-Image-Edit-2509",
+    "prompt": "任务：把参考照片中的单件衣服整理成衣橱 App 可用的白底商品展示图。请把它当作“忠实图像编辑/整理”，不是重新设计衣服。\n\n必须保留：\n- 只保留参考图里这件衣服本身，保持同一件衣服的真实身份。\n- 严格保留原衣服的主色、材质质感、洗旧/磨白纹理、缝线、领型、肩线、袖长、衣长、下摆形状、门襟、纽扣数量与位置、口袋形状与位置。\n- 保留自然布料质感和少量真实褶皱，不要把衣服变成全新的硬挺样衣。\n\n需要处理：\n- 移除衣架、夹子、挂钩、床架、柜子、门、墙面、杂物、阴影、环境反光和所有无关背景。\n- 将衣服摆正为正面自然垂挂/平铺的电商商品图，完整居中，不裁切领口、袖口、下摆。\n- 对拍摄造成的倾斜、遮挡感、随意堆叠感和明显杂乱褶皱做轻度整理，让衣服看起来接近它原本自然展开的样子。\n- 如果某些不可见区域需要补全，只能根据参考图的同款结构做保守补全，不能发明新设计。\n- 背景为纯白或极浅灰摄影棚背景，柔和真实光线，清晰边缘。\n\n禁止：\n- 不要添加模特、人体、手、衣架、吊牌、品牌 logo、文字、水印、价格、额外配饰。\n- 不要改变颜色、面料、版型、袖长、衣长、领型、口袋、纽扣、下摆、装饰线或图案。\n- 不要把衣服改成更时髦、更修身、更宽松、更厚、更薄或另一个商品。\n- 不要过度磨皮、过度熨平、过度美化，不要产生塑料感或假电商图。\n\n输出风格：真实电商平铺/挂拍商品图，front view, centered full garment, white studio background, high fidelity to the reference garment, faithful garment restoration.",
+    "negative_prompt": "model, person, mannequin, human body, hands, hanger, hook, clip, tag, logo, watermark, text, price, extra accessories,\nchanged color, changed material, changed pocket, changed collar, changed buttons, changed hem, changed sleeve length, changed fit,\nnew design, different garment, fantasy fashion, over-smoothed fabric, plastic texture, blurry edges, cropped garment, messy background",
+    "image": "[image data url omitted]"
+  },
+  "response": {
+    "images": [
+      {
+        "url": "[temporary image url omitted]"
+      }
+    ],
+    "timings": {
+      "inference": 22.354
+    },
+    "seed": 102216146,
+    "shared_id": "0",
+    "data": [
+      {
+        "url": "[temporary image url omitted]"
+      }
+    ],
+    "created": 1781092632
+  }
+}

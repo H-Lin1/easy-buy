@@ -1,0 +1,46 @@
+{
+  "fileName": "微信图片_20260610124157_324_2.jpg",
+  "raw": "{\n  \"itemName\": \"灰绿色长袖衬衫\",\n  \"category\": \"衬衫\",\n  \"color\": \"灰绿\",\n  \"secondaryColors\": [\"白色（纽扣）\"],\n  \"fit\": \"regular\",\n  \"length\": \"regular\",\n  \"sleeveLength\": \"long\",\n  \"materialGuess\": \"棉质或棉混纺（视觉可见织物纹理与轻微褶皱）\",\n  \"styleTags\": [\"简约\", \"休闲\"],\n  \"season\": [\"spring\", \"autumn\", \"all-season\"],\n  \"formality\": 2,\n  \"scenarioTags\": [\"日常\", \"通勤\", \"居家\"],\n  \"imageQualityFlags\": [\"background_complex\", \"color_cast\"],\n  \"needsUserReview\": true,\n  \"reviewReasons\": [\"颜色受室内灯光影响可能偏灰，实际为灰绿或浅橄榄绿需确认\", \"下摆有磨损/毛边细节，不确定是否设计特征或损耗\", \"领型为标准翻领但无领标可见，无法确认是否为工装风变体\"],\n  \"summary\": \"一件灰绿色长袖纽扣衬衫，正面单胸袋、标准翻领、白色纽扣，下摆略不规整；材质似棉质，版型常规休闲；背景杂乱且光线偏黄，影响颜色与细节判断。\",\n  \"embeddingText\": \"长袖衬衫 灰绿色 棉质 简约休闲风格 常规版型 日常通勤居家场景 春秋及四季可穿\",\n  \"aiConfidence\": 0.85\n}",
+  "parsed": {
+    "itemName": "灰绿色长袖衬衫",
+    "category": "衬衫",
+    "color": "灰绿",
+    "secondaryColors": [
+      "白色（纽扣）"
+    ],
+    "fit": "regular",
+    "length": "regular",
+    "sleeveLength": "long",
+    "materialGuess": "棉质或棉混纺（视觉可见织物纹理与轻微褶皱）",
+    "styleTags": [
+      "简约",
+      "休闲"
+    ],
+    "season": [
+      "spring",
+      "autumn",
+      "all-season"
+    ],
+    "formality": 2,
+    "scenarioTags": [
+      "日常",
+      "通勤",
+      "居家"
+    ],
+    "imageQualityFlags": [
+      "background_complex",
+      "color_cast"
+    ],
+    "needsUserReview": true,
+    "reviewReasons": [
+      "颜色受室内灯光影响可能偏灰，实际为灰绿或浅橄榄绿需确认",
+      "下摆有磨损/毛边细节，不确定是否设计特征或损耗",
+      "领型为标准翻领但无领标可见，无法确认是否为工装风变体"
+    ],
+    "summary": "一件灰绿色长袖纽扣衬衫，正面单胸袋、标准翻领、白色纽扣，下摆略不规整；材质似棉质，版型常规休闲；背景杂乱且光线偏黄，影响颜色与细节判断。",
+    "embeddingText": "长袖衬衫 灰绿色 棉质 简约休闲风格 常规版型 日常通勤居家场景 春秋及四季可穿",
+    "aiConfidence": 0.85
+  },
+  "model": "qwen3-vl-plus",
+  "analyzedAt": "2026-06-10T04:49:55.836Z"
+}

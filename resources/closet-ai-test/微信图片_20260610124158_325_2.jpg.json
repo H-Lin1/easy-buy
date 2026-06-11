@@ -1,0 +1,41 @@
+{
+  "fileName": "微信图片_20260610124158_325_2.jpg",
+  "raw": "{\n  \"itemName\": \"浅灰蓝运动短袖T恤\",\n  \"category\": \"T恤\",\n  \"color\": \"浅灰蓝\",\n  \"secondaryColors\": [\"黑色\"],\n  \"fit\": \"regular\",\n  \"length\": \"regular\",\n  \"sleeveLength\": \"short\",\n  \"materialGuess\": \"速干网眼面料\",\n  \"styleTags\": [\"运动\", \"休闲\"],\n  \"season\": [\"summer\", \"all-season\"],\n  \"formality\": 1,\n  \"scenarioTags\": [\"运动\", \"日常\"],\n  \"imageQualityFlags\": [\"background_complex\"],\n  \"needsUserReview\": true,\n  \"reviewReasons\": [\"领口为半开襟拉链设计，需确认是否为运动功能款；肩部与侧缝的深色线迹为装饰还是结构缝线不确定；品牌文字为印刷图案，非刺绣，但具体工艺需用户确认\"],\n  \"summary\": \"一件浅灰蓝色短袖T恤，正面印有'Outbrave Running Club'黑色字样，领口为小半开襟拉链设计，肩部与侧缝有深色明线装饰，整体为运动风格；材质目测为透气网眼织物，版型常规，背景为柜门与杂物，主体清晰但细节需用户复核\",\n  \"embeddingText\": \"运动T恤，浅灰蓝色主调配黑色印花与缝线，常规版型短袖，速干网眼材质，适合夏季运动与日常穿着\",\n  \"aiConfidence\": 0.85\n}",
+  "parsed": {
+    "itemName": "浅灰蓝运动短袖T恤",
+    "category": "T恤",
+    "color": "浅灰蓝",
+    "secondaryColors": [
+      "黑色"
+    ],
+    "fit": "regular",
+    "length": "regular",
+    "sleeveLength": "short",
+    "materialGuess": "速干网眼面料",
+    "styleTags": [
+      "运动",
+      "休闲"
+    ],
+    "season": [
+      "summer",
+      "all-season"
+    ],
+    "formality": 1,
+    "scenarioTags": [
+      "运动",
+      "日常"
+    ],
+    "imageQualityFlags": [
+      "background_complex"
+    ],
+    "needsUserReview": true,
+    "reviewReasons": [
+      "领口为半开襟拉链设计，需确认是否为运动功能款；肩部与侧缝的深色线迹为装饰还是结构缝线不确定；品牌文字为印刷图案，非刺绣，但具体工艺需用户确认"
+    ],
+    "summary": "一件浅灰蓝色短袖T恤，正面印有'Outbrave Running Club'黑色字样，领口为小半开襟拉链设计，肩部与侧缝有深色明线装饰，整体为运动风格；材质目测为透气网眼织物，版型常规，背景为柜门与杂物，主体清晰但细节需用户复核",
+    "embeddingText": "运动T恤，浅灰蓝色主调配黑色印花与缝线，常规版型短袖，速干网眼材质，适合夏季运动与日常穿着",
+    "aiConfidence": 0.85
+  },
+  "model": "qwen3-vl-plus",
+  "analyzedAt": "2026-06-10T04:50:06.093Z"
+}

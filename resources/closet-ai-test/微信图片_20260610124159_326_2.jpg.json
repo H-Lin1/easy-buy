@@ -1,0 +1,42 @@
+{
+  "fileName": "微信图片_20260610124159_326_2.jpg",
+  "raw": "{\n  \"itemName\": \"深灰色圆领短袖T恤\",\n  \"category\": \"T恤\",\n  \"color\": \"深灰\",\n  \"secondaryColors\": [],\n  \"fit\": \"oversized\",\n  \"length\": \"regular\",\n  \"sleeveLength\": \"short\",\n  \"materialGuess\": \"棉质\",\n  \"styleTags\": [\"简约\", \"休闲\"],\n  \"season\": [\"spring\", \"summer\", \"autumn\"],\n  \"formality\": 1,\n  \"scenarioTags\": [\"日常\", \"居家\", \"旅行\"],\n  \"imageQualityFlags\": [\"background_complex\", \"color_cast\"],\n  \"needsUserReview\": true,\n  \"reviewReasons\": [\"衣领标签显示 'Xanvas'，但无法确认是否为品牌或尺码标；版型宽松但具体肩宽/下摆尺寸不可测；材质仅凭视觉推测为棉，无纹理细节确认\"],\n  \"summary\": \"一件深灰色圆领短袖T恤，挂于蓝色衣架上，版型宽松（oversized），衣领内侧有白色标签印'Xanvas'字样；背景为柜门与杂物，存在轻微色偏，整体清晰但细节受限。\",\n  \"embeddingText\": \"T恤 深灰色 简约休闲风格 日常居家场景 宽松oversized版型 短袖 圆领 棉质感\",\n  \"aiConfidence\": 0.85\n}",
+  "parsed": {
+    "itemName": "深灰色圆领短袖T恤",
+    "category": "T恤",
+    "color": "深灰",
+    "secondaryColors": [],
+    "fit": "oversized",
+    "length": "regular",
+    "sleeveLength": "short",
+    "materialGuess": "棉质",
+    "styleTags": [
+      "简约",
+      "休闲"
+    ],
+    "season": [
+      "spring",
+      "summer",
+      "autumn"
+    ],
+    "formality": 1,
+    "scenarioTags": [
+      "日常",
+      "居家",
+      "旅行"
+    ],
+    "imageQualityFlags": [
+      "background_complex",
+      "color_cast"
+    ],
+    "needsUserReview": true,
+    "reviewReasons": [
+      "衣领标签显示 'Xanvas'，但无法确认是否为品牌或尺码标；版型宽松但具体肩宽/下摆尺寸不可测；材质仅凭视觉推测为棉，无纹理细节确认"
+    ],
+    "summary": "一件深灰色圆领短袖T恤，挂于蓝色衣架上，版型宽松（oversized），衣领内侧有白色标签印'Xanvas'字样；背景为柜门与杂物，存在轻微色偏，整体清晰但细节受限。",
+    "embeddingText": "T恤 深灰色 简约休闲风格 日常居家场景 宽松oversized版型 短袖 圆领 棉质感",
+    "aiConfidence": 0.85
+  },
+  "model": "qwen3-vl-plus",
+  "analyzedAt": "2026-06-10T04:50:15.659Z"
+}
