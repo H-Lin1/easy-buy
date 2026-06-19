@@ -47,11 +47,12 @@ export async function generateDecisionJson(prompt: string) {
       {
         role: "system",
         content:
-          "你是一个衣服购买决策助手，只输出严格 JSON，不要输出 Markdown。表达要温和，不做身材羞辱或绝对审美判断。",
+          "你是一个衣服购买决策助手，只输出严格 JSON，不要输出 Markdown。不要展开推理过程，直接给出结论和结构化理由。表达要温和，不做身材羞辱或绝对审美判断。",
       },
       { role: "user", content: prompt },
     ],
-    temperature: 0.2,
+    temperature: 0.1,
+    max_tokens: appEnv.aiDecisionMaxTokens,
     response_format: { type: "json_object" as const },
   });
 
@@ -97,18 +98,25 @@ export async function embedText(text: string) {
     return createDeterministicEmbedding(text, appEnv.embeddingDimensions);
   }
 
-  const client = createSiliconFlowClient();
-  const result = await client.embeddings.create({
-    model: appEnv.embeddingModel,
-    input: text,
-  });
+  try {
+    const client = createSiliconFlowClient();
+    const result = await client.embeddings.create({
+      model: appEnv.embeddingModel,
+      input: text,
+    });
 
-  const embedding = result.data[0]?.embedding;
-  if (!embedding?.length) {
+    const embedding = result.data[0]?.embedding;
+    if (!embedding?.length) {
+      return createDeterministicEmbedding(text, appEnv.embeddingDimensions);
+    }
+
+    return normalizeEmbedding(embedding, appEnv.embeddingDimensions);
+  } catch (error) {
+    console.warn("[ai-provider] embedding fallback used", {
+      message: error instanceof Error ? error.message : "Embedding request failed.",
+    });
     return createDeterministicEmbedding(text, appEnv.embeddingDimensions);
   }
-
-  return normalizeEmbedding(embedding, appEnv.embeddingDimensions);
 }
 
 function createDeterministicEmbedding(text: string, dimensions: number) {

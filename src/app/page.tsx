@@ -33,17 +33,11 @@ import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { PurchaseDecisionReport } from "@/lib/ai/types";
-import {
-  closetItems as mockClosetItems,
-  decisionItems as initialDecisionItems,
-  outfitIdeas,
-  recentChats,
-  scoreItems,
-} from "@/lib/mock-data";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import type {
   AppView,
   BudgetSensitivity,
+  ChatSession,
   ClothingItem,
   DecisionItem,
   DecisionStatus,
@@ -121,6 +115,62 @@ type ClosetConfirmationDraft = {
   seasonTags: string[];
   wearFrequency: ClothingItem["wearFrequency"];
 };
+
+type ChatSessionRow = {
+  id: string;
+  title: string | null;
+  status: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+type ChatMessageRow = {
+  id: string;
+  session_id: string;
+  role: "user" | "assistant" | "system";
+  content: string | null;
+  image_path: string | null;
+  candidate_id: string | null;
+  report_id: string | null;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+};
+
+type DecisionItemRow = {
+  id: string;
+  status: DecisionStatus;
+  snapshot_summary: string | null;
+  snapshot_outfit_tips: string[] | null;
+  snapshot_risks: string[] | null;
+  reminder_at: string | null;
+  created_at: string;
+  updated_at: string;
+  candidate:
+    | {
+        id: string;
+        summary: string | null;
+        category: string | null;
+        color: string | null;
+        estimated_price: number | string | null;
+        screenshot_path: string | null;
+      }
+    | null;
+};
+
+type DecisionChatState = {
+  message: string;
+  lastUserMessage: string;
+  purchaseImageDataUrl?: string;
+  purchaseImageName?: string;
+  assessment: PurchaseDecisionReport | null;
+  selectedDecisionStatus?: DecisionStatus;
+  candidateId?: string;
+  reportId?: string;
+  error: string;
+  notice: string;
+};
+
+const defaultChatPrompt = "这件米色西装外套适合我通勤穿吗？价格 399，值得买吗？";
 
 const fitOptions: Array<{ value: ClothingItem["fit"]; label: string }> = [
   { value: "slim", label: "修身" },
@@ -230,6 +280,16 @@ async function mapClosetItemFromDb(
   };
 }
 
+async function createStorageSignedUrl(
+  supabase: SupabaseClient,
+  bucket: "closet-images" | "purchase-screenshots",
+  path?: string | null,
+) {
+  if (!path) return undefined;
+  const { data } = await supabase.storage.from(bucket).createSignedUrl(path, 60 * 60);
+  return data?.signedUrl;
+}
+
 function getPaletteByColor(color?: string | null) {
   if (!color) return "from-[#f2eee7] to-[#d7c4ad]";
   if (color.includes("黑")) return "from-[#171313] to-[#77706b]";
@@ -252,6 +312,58 @@ function createConfirmationDraft(item: ClothingItem): ClosetConfirmationDraft {
     seasonTags: item.seasonTags ?? [],
     wearFrequency: item.wearFrequency,
   };
+}
+
+function createEmptyChatState(): DecisionChatState {
+  return {
+    message: defaultChatPrompt,
+    lastUserMessage: "",
+    assessment: null,
+    error: "",
+    notice: "",
+  };
+}
+
+function createChatTitle(message: string, hasImage?: boolean) {
+  const normalized = message.replace(/\s+/g, " ").trim();
+  if (!normalized) return hasImage ? "图片购买决策" : "新的决策对话";
+  return normalized.length > 16 ? `${normalized.slice(0, 16)}...` : normalized;
+}
+
+function getMessagePreview(message: string | null | undefined) {
+  const normalized = message?.replace(/\s+/g, " ").trim();
+  if (!normalized) return "图片购买决策";
+  return normalized.length > 18 ? `${normalized.slice(0, 18)}...` : normalized;
+}
+
+function formatRelativeTime(value?: string | null) {
+  if (!value) return "刚刚";
+  const timestamp = new Date(value).getTime();
+  if (!Number.isFinite(timestamp)) return "刚刚";
+  const diffMs = Date.now() - timestamp;
+  const minutes = Math.max(0, Math.floor(diffMs / 60000));
+  if (minutes < 1) return "刚刚";
+  if (minutes < 60) return `${minutes} 分钟前`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} 小时前`;
+  const days = Math.floor(hours / 24);
+  if (days === 1) return "昨天";
+  if (days < 7) return `${days} 天前`;
+  return new Date(value).toLocaleDateString("zh-CN", {
+    month: "numeric",
+    day: "numeric",
+  });
+}
+
+function formatReminderLabel(value?: string | null) {
+  if (!value) return undefined;
+  const timestamp = new Date(value).getTime();
+  if (!Number.isFinite(timestamp)) return undefined;
+  const diffMs = timestamp - Date.now();
+  if (diffMs <= 0) return "现在";
+  const hours = Math.ceil(diffMs / 3600000);
+  if (hours <= 24) return `${hours} 小时后`;
+  return `${Math.ceil(hours / 24)} 天后`;
 }
 
 function splitTags(value: string) {
@@ -354,6 +466,19 @@ function getBmiBand(bmi: number | null): UserProfile["bmiBand"] {
   return "obese";
 }
 
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string) {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => {
+      reject(new Error(`${label} timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+  });
+
+  return Promise.race([promise, timeout]).finally(() => {
+    if (timeoutId) clearTimeout(timeoutId);
+  });
+}
+
 function getBmiLabel(bmi: number | null) {
   if (!bmi) return "待完善";
   const band = getBmiBand(bmi);
@@ -377,8 +502,11 @@ export default function Home() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [view, setView] = useState<AppView>("chat");
-  const [decisionItems, setDecisionItems] = useState(initialDecisionItems);
+  const [decisionItems, setDecisionItems] = useState<DecisionItem[]>([]);
   const [filter, setFilter] = useState<DecisionStatus | "all">("all");
+  const [chatSessions, setChatSessions] = useState<ChatSession[]>([]);
+  const [activeChatId, setActiveChatId] = useState<string | undefined>();
+  const [chatState, setChatState] = useState<DecisionChatState>(() => createEmptyChatState());
   const [userClosetItems, setUserClosetItems] = useState<ClothingItem[]>([]);
   const [closetLoading, setClosetLoading] = useState(false);
   const [closetMessage, setClosetMessage] = useState("");
@@ -442,41 +570,213 @@ export default function Home() {
     [supabase],
   );
 
+  const loadChatSessions = useCallback(
+    async (userId: string) => {
+      const { data: sessionsData, error: sessionsError } = await supabase
+        .from("chat_sessions")
+        .select("id,title,status,created_at,updated_at")
+        .eq("user_id", userId)
+        .eq("status", "active")
+        .order("updated_at", { ascending: false })
+        .limit(30);
+
+      if (sessionsError) {
+        console.error(sessionsError);
+        setChatSessions([]);
+        return;
+      }
+
+      const sessions = (sessionsData ?? []) as ChatSessionRow[];
+      const sessionIds = sessions.map((session) => session.id);
+      let messages: ChatMessageRow[] = [];
+
+      if (sessionIds.length) {
+        const { data: messagesData, error: messagesError } = await supabase
+          .from("chat_messages")
+          .select("id,session_id,role,content,image_path,candidate_id,report_id,metadata,created_at")
+          .in("session_id", sessionIds)
+          .order("created_at", { ascending: false });
+
+        if (messagesError) {
+          console.error(messagesError);
+        } else {
+          messages = (messagesData ?? []) as ChatMessageRow[];
+        }
+      }
+
+      const messagesBySession = new Map<string, ChatMessageRow[]>();
+      messages.forEach((message) => {
+        const list = messagesBySession.get(message.session_id) ?? [];
+        list.push(message);
+        messagesBySession.set(message.session_id, list);
+      });
+
+      const mappedSessions = await Promise.all(
+        sessions.map(async (session) => {
+          const sessionMessages = messagesBySession.get(session.id) ?? [];
+          const latestUserMessage = sessionMessages.find((message) => message.role === "user");
+          const latestAssistantMessage = sessionMessages.find((message) => message.role === "assistant");
+          const imagePath = latestUserMessage?.image_path;
+          const thumbnailUrl = await createStorageSignedUrl(
+            supabase,
+            "purchase-screenshots",
+            imagePath,
+          );
+
+          return {
+            id: session.id,
+            title: session.title || createChatTitle(latestUserMessage?.content ?? "", Boolean(imagePath)),
+            subtitle: `${getMessagePreview(latestAssistantMessage?.content ?? latestUserMessage?.content)} · ${formatRelativeTime(session.updated_at)}`,
+            palette: getPaletteByColor(undefined),
+            thumbnailUrl,
+            imagePath: imagePath ?? undefined,
+            updatedAt: session.updated_at,
+          } satisfies ChatSession;
+        }),
+      );
+
+      setChatSessions(mappedSessions);
+    },
+    [supabase],
+  );
+
+  const loadDecisionItems = useCallback(
+    async (userId: string) => {
+      const { data, error } = await supabase
+        .from("decision_items")
+        .select(
+          "id,status,snapshot_summary,snapshot_outfit_tips,snapshot_risks,reminder_at,created_at,updated_at,candidate:purchase_candidates(id,summary,category,color,estimated_price,screenshot_path)",
+        )
+        .eq("user_id", userId)
+        .order("updated_at", { ascending: false })
+        .limit(80);
+
+      if (error) {
+        console.error(error);
+        setDecisionItems([]);
+        return;
+      }
+
+      const mappedItems = await Promise.all(
+        ((data ?? []) as unknown as DecisionItemRow[]).map(async (item) => {
+          const candidate = item.candidate;
+          const imageUrl = await createStorageSignedUrl(
+            supabase,
+            "purchase-screenshots",
+            candidate?.screenshot_path,
+          );
+          const price = Number(candidate?.estimated_price ?? 0);
+          const productName =
+            candidate?.summary || candidate?.category || item.snapshot_summary || "咨询商品";
+
+          return {
+            id: item.id,
+            productName,
+            merchant: "AI 决策记录",
+            price: Number.isFinite(price) ? price : 0,
+            status: item.status,
+            color: candidate?.color ?? "待确认",
+            size: "待确认",
+            summary: item.snapshot_summary ?? "已保存一次购买决策，建议后续结合真实穿着场景复盘。",
+            outfitTips: item.snapshot_outfit_tips?.length
+              ? item.snapshot_outfit_tips
+              : ["回看当时的搭配证据", "结合已有衣橱判断复用率"],
+            risks: item.snapshot_risks?.length
+              ? item.snapshot_risks
+              : ["信息不足时建议先收藏观察"],
+            lastAskedAt: formatRelativeTime(item.updated_at),
+            reminderAt: formatReminderLabel(item.reminder_at),
+            imagePath: candidate?.screenshot_path ?? undefined,
+            imageUrl,
+            palette: getPaletteByColor(candidate?.color),
+          } satisfies DecisionItem;
+        }),
+      );
+
+      setDecisionItems(mappedItems);
+    },
+    [supabase],
+  );
+
   useEffect(() => {
     let active = true;
+    const authFallbackId = setTimeout(() => {
+      if (!active) return;
+      console.warn("Auth initialization fallback fired.");
+      setAuthLoading(false);
+      setClosetLoading(false);
+    }, 10000);
 
     async function loadSession() {
-      const { data } = await supabase.auth.getSession();
-      if (!active) return;
+      try {
+        const { data } = await withTimeout(
+          supabase.auth.getSession(),
+          5000,
+          "Supabase session initialization",
+        );
+        if (!active) return;
 
-      setUser(data.session?.user ?? null);
-      if (data.session?.user) {
-        await Promise.all([
-          loadProfile(data.session.user.id),
-          loadClosetItems(data.session.user.id),
-        ]);
+        setUser(data.session?.user ?? null);
+        if (data.session?.user) {
+          const results = await Promise.allSettled([
+            withTimeout(loadProfile(data.session.user.id), 8000, "profile load"),
+            withTimeout(loadClosetItems(data.session.user.id), 8000, "closet load"),
+            withTimeout(loadChatSessions(data.session.user.id), 8000, "chat sessions load"),
+            withTimeout(loadDecisionItems(data.session.user.id), 8000, "decision items load"),
+          ]);
+
+          results.forEach((result, index) => {
+            if (result.status === "rejected") {
+              if (index === 0) setProfile(createEmptyProfile(data.session.user.id));
+              if (index === 1) {
+                setClosetLoading(false);
+                setClosetMessage("衣橱加载较慢，已先进入页面。你可以稍后刷新或重新打开衣橱。");
+              }
+              if (index === 2) setChatSessions([]);
+              if (index === 3) setDecisionItems([]);
+              console.error(
+                ["profile", "closet", "chats", "decisions"][index],
+                result.reason,
+              );
+            }
+          });
+        }
+      } catch (error) {
+        console.error(error);
+      } finally {
+        if (active) {
+          clearTimeout(authFallbackId);
+          setAuthLoading(false);
+        }
       }
-      setAuthLoading(false);
     }
 
     loadSession();
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
+      setAuthLoading(false);
       if (session?.user) {
         loadProfile(session.user.id);
         loadClosetItems(session.user.id);
+        loadChatSessions(session.user.id);
+        loadDecisionItems(session.user.id);
       } else {
         setProfile(null);
         setUserClosetItems([]);
+        setChatSessions([]);
+        setDecisionItems([]);
+        setActiveChatId(undefined);
+        setChatState(createEmptyChatState());
       }
     });
 
     return () => {
       active = false;
+      clearTimeout(authFallbackId);
       listener.subscription.unsubscribe();
     };
-  }, [loadClosetItems, loadProfile, supabase]);
+  }, [loadChatSessions, loadClosetItems, loadDecisionItems, loadProfile, supabase]);
 
   const filteredDecisions = useMemo(() => {
     if (filter === "all") return decisionItems;
@@ -513,6 +813,10 @@ export default function Home() {
     setUser(null);
     setProfile(null);
     setUserClosetItems([]);
+    setChatSessions([]);
+    setDecisionItems([]);
+    setActiveChatId(undefined);
+    setChatState(createEmptyChatState());
     setBusyClosetItemIds([]);
     setQueuedAnalysisItemIds([]);
     activeAnalysisIdsRef.current.clear();
@@ -1065,18 +1369,232 @@ export default function Home() {
     }
   }
 
-  function updateDecisionStatus(id: string, status: DecisionStatus) {
+  async function startNewChat() {
+    setActiveChatId(undefined);
+    setChatState(createEmptyChatState());
+    setView("chat");
+  }
+
+  async function ensureChatSession(title: string) {
+    if (activeChatId) return activeChatId;
+    if (!user) throw new Error("登录状态已过期，请重新登录。");
+
+    const { data, error } = await supabase
+      .from("chat_sessions")
+      .insert({
+        user_id: user.id,
+        title,
+        status: "active",
+      })
+      .select("id,title,status,created_at,updated_at")
+      .single();
+
+    if (error) throw error;
+    const session = data as ChatSessionRow;
+    setActiveChatId(session.id);
+    await loadChatSessions(user.id);
+    return session.id;
+  }
+
+  async function saveChatTurn({
+    sessionId,
+    userMessage,
+    imagePath,
+    imageName,
+    report,
+    candidateId,
+    reportId,
+  }: {
+    sessionId: string;
+    userMessage: string;
+    imagePath?: string;
+    imageName?: string;
+    report: PurchaseDecisionReport;
+    candidateId?: string;
+    reportId?: string;
+  }) {
+    if (!user) throw new Error("登录状态已过期，请重新登录。");
+
+    const { error: messageError } = await supabase.from("chat_messages").insert([
+      {
+        session_id: sessionId,
+        user_id: user.id,
+        role: "user",
+        content: userMessage || "我想判断这件衣服是否值得买。",
+        image_path: imagePath ?? null,
+        candidate_id: candidateId ?? null,
+        report_id: reportId ?? null,
+        metadata: {
+          imageName,
+        },
+      },
+      {
+        session_id: sessionId,
+        user_id: user.id,
+        role: "assistant",
+        content: report.summary,
+        image_path: null,
+        candidate_id: candidateId ?? null,
+        report_id: reportId ?? null,
+        metadata: {
+          report,
+        },
+      },
+    ]);
+
+    if (messageError) throw messageError;
+
+    const { error: sessionError } = await supabase
+      .from("chat_sessions")
+      .update({
+        last_candidate_id: candidateId ?? null,
+        last_report_id: reportId ?? null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", sessionId);
+
+    if (sessionError) throw sessionError;
+    await loadChatSessions(user.id);
+  }
+
+  async function openChatSession(sessionId: string) {
+    if (!user) return;
+
+    const { data, error } = await supabase
+      .from("chat_messages")
+      .select("id,session_id,role,content,image_path,candidate_id,report_id,metadata,created_at")
+      .eq("session_id", sessionId)
+      .order("created_at", { ascending: true });
+
+    if (error) {
+      console.error(error);
+      setChatState((current) => ({
+        ...current,
+        error: "聊天记录读取失败，请稍后再试。",
+      }));
+      setView("chat");
+      return;
+    }
+
+    const messages = (data ?? []) as ChatMessageRow[];
+    const latestUserMessage = [...messages].reverse().find((message) => message.role === "user");
+    const latestAssistantMessage = [...messages].reverse().find((message) => message.role === "assistant");
+    const restoredReport = latestAssistantMessage?.metadata?.report as
+      | PurchaseDecisionReport
+      | undefined;
+    const signedImageUrl = await createStorageSignedUrl(
+      supabase,
+      "purchase-screenshots",
+      latestUserMessage?.image_path,
+    );
+
+    if (restoredReport?.candidate && signedImageUrl) {
+      restoredReport.candidate = {
+        ...restoredReport.candidate,
+        screenshotUrl: signedImageUrl,
+      };
+    }
+
+    setActiveChatId(sessionId);
+    setChatState({
+      message: "",
+      lastUserMessage: latestUserMessage?.content ?? "",
+      purchaseImageDataUrl: signedImageUrl,
+      purchaseImageName: latestUserMessage?.metadata?.imageName as string | undefined,
+      assessment: restoredReport ?? null,
+      candidateId:
+        latestAssistantMessage?.candidate_id ?? latestUserMessage?.candidate_id ?? undefined,
+      reportId: latestAssistantMessage?.report_id ?? latestUserMessage?.report_id ?? undefined,
+      error: "",
+      notice: "",
+    });
+    setView("chat");
+  }
+
+  async function saveCurrentDecision(status: DecisionStatus) {
+    if (!user || !chatState.assessment) return;
+    const candidateId = chatState.candidateId;
+
+    if (!candidateId) {
+      setChatState((current) => ({
+        ...current,
+        error: "这次决策还没有可保存的商品记录，请上传商品截图后再加入决策清单。",
+        notice: "",
+      }));
+      return;
+    }
+
+    const reminderAt =
+      status === "saved_for_later" ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() : null;
+    const report = chatState.assessment;
+    const { error } = await supabase.from("decision_items").upsert(
+      {
+        user_id: user.id,
+        candidate_id: candidateId,
+        report_id: chatState.reportId ?? null,
+        session_id: activeChatId ?? null,
+        status,
+        snapshot_summary: report.summary,
+        snapshot_outfit_tips: report.outfitCombinations
+          .map((item) => `${item.title}：${item.summary}`)
+          .slice(0, 4),
+        snapshot_risks: report.risks,
+        reminder_at: reminderAt,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "user_id,candidate_id" },
+    );
+
+    if (error) {
+      setChatState((current) => ({
+        ...current,
+        error: error.message,
+        notice: "",
+      }));
+      return;
+    }
+
+    await loadDecisionItems(user.id);
+    setChatState((current) => ({
+      ...current,
+      selectedDecisionStatus: status,
+      error: "",
+      notice: `已加入决策清单：${statusConfig[status].label}`,
+    }));
+  }
+
+  async function updateDecisionStatus(id: string, status: DecisionStatus) {
+    const reminderAt =
+      status === "saved_for_later" ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() : null;
+
     setDecisionItems((items) =>
       items.map((item) =>
         item.id === id
           ? {
               ...item,
               status,
-              reminderAt: status === "saved_for_later" ? "24 小时后" : undefined,
+              reminderAt: reminderAt ? formatReminderLabel(reminderAt) : undefined,
             }
           : item,
       ),
     );
+
+    if (!user) return;
+
+    const { error } = await supabase
+      .from("decision_items")
+      .update({
+        status,
+        reminder_at: reminderAt,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", id)
+      .eq("user_id", user.id);
+
+    if (error) {
+      console.error(error);
+      await loadDecisionItems(user.id);
+    }
   }
 
   if (authLoading) {
@@ -1092,13 +1610,34 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-[#f6f0eb] p-3 text-stone-800 md:p-4">
       <div className="mx-auto flex min-h-[calc(100vh-2rem)] max-w-[1600px] gap-4">
-        <Sidebar currentView={activeView} user={user} onViewChange={setView} />
+        <Sidebar
+          currentView={activeView}
+          user={user}
+          counts={{
+            chats: chatSessions.length,
+            closet: userClosetItems.length,
+            decisions: decisionItems.length,
+          }}
+          chats={chatSessions}
+          onViewChange={setView}
+          onNewChat={() => void startNewChat()}
+          onOpenChat={(sessionId) => void openChatSession(sessionId)}
+        />
         <section className="flex min-w-0 flex-1 overflow-hidden rounded-[18px] border border-[#ead9d0] bg-[#fffdfb] shadow-[0_18px_60px_rgba(92,55,42,0.08)]">
           {activeView === "chat" && (
             <ChatView
               profile={profile ?? createEmptyProfile(user.id)}
+              chatState={chatState}
+              activeChatId={activeChatId}
+              onChatStateChange={setChatState}
+              onEnsureChatSession={ensureChatSession}
+              onSaveChatTurn={saveChatTurn}
+              onClearConversation={() => {
+                setActiveChatId(undefined);
+                setChatState(createEmptyChatState());
+              }}
               onOpenDecisions={() => setView("decisions")}
-              onDecision={(status) => updateDecisionStatus("decision-1", status)}
+              onDecision={saveCurrentDecision}
             />
           )}
           {activeView === "closet" && (
@@ -1304,16 +1843,28 @@ function AuthInput({
 function Sidebar({
   currentView,
   user,
+  counts,
+  chats,
   onViewChange,
+  onNewChat,
+  onOpenChat,
 }: {
   currentView: AppView;
   user: User;
+  counts: {
+    chats: number;
+    closet: number;
+    decisions: number;
+  };
+  chats: ChatSession[];
   onViewChange: (view: AppView) => void;
+  onNewChat: () => void;
+  onOpenChat: (sessionId: string) => void;
 }) {
   const navItems = [
-    { id: "chat" as const, label: "决策聊天", count: 12, icon: MessageCircle },
-    { id: "closet" as const, label: "衣橱", count: 28, icon: Shirt },
-    { id: "decisions" as const, label: "决策清单", count: 8, icon: ClipboardList },
+    { id: "chat" as const, label: "决策聊天", count: counts.chats, icon: MessageCircle },
+    { id: "closet" as const, label: "衣橱", count: counts.closet, icon: Shirt },
+    { id: "decisions" as const, label: "决策清单", count: counts.decisions, icon: ClipboardList },
     { id: "settings" as const, label: "设置", icon: Settings },
   ];
 
@@ -1330,7 +1881,7 @@ function Sidebar({
       </div>
 
       <button
-        onClick={() => onViewChange("chat")}
+        onClick={onNewChat}
         className="mt-8 flex h-14 items-center justify-center gap-3 rounded-[10px] bg-gradient-to-r from-[#cf6f70] to-[#e6a094] text-base font-medium text-white shadow-lg shadow-rose-200/70 transition hover:scale-[1.01]"
       >
         <Sparkles className="size-5" />
@@ -1367,20 +1918,33 @@ function Sidebar({
       <div className="mt-7 border-t border-[#ead9d0] pt-6">
         <p className="mb-4 text-sm text-[#a08278]">最近对话</p>
         <div className="space-y-4">
-          {recentChats.map((chat) => (
-            <button
-              key={chat.id}
-              onClick={() => onViewChange("chat")}
-              className="flex w-full items-center gap-3 rounded-[10px] p-1.5 text-left transition hover:bg-[#f8efea]"
-            >
-              <MockThumb palette={chat.palette} className="size-14" />
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-[15px] font-medium text-[#50382f]">{chat.title}</p>
-                <p className="mt-1 truncate text-xs text-[#a08278]">{chat.subtitle}</p>
-              </div>
-              {chat.favorite && <Star className="size-4 fill-[#d58883] text-[#d58883]" />}
-            </button>
-          ))}
+          {chats.length ? (
+            chats.map((chat) => (
+              <button
+                key={chat.id}
+                onClick={() => onOpenChat(chat.id)}
+                className="flex w-full items-center gap-3 rounded-[10px] p-1.5 text-left transition hover:bg-[#f8efea]"
+              >
+                {chat.thumbnailUrl ? (
+                  <div
+                    className="size-14 shrink-0 rounded-[10px] bg-[#f8f3ef] bg-cover bg-center"
+                    style={{ backgroundImage: `url(${chat.thumbnailUrl})` }}
+                  />
+                ) : (
+                  <MockThumb palette={chat.palette} className="size-14" />
+                )}
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[15px] font-medium text-[#50382f]">{chat.title}</p>
+                  <p className="mt-1 truncate text-xs text-[#a08278]">{chat.subtitle}</p>
+                </div>
+                {chat.favorite && <Star className="size-4 fill-[#d58883] text-[#d58883]" />}
+              </button>
+            ))
+          ) : (
+            <div className="rounded-[10px] border border-dashed border-[#ead9d0] px-4 py-5 text-sm leading-6 text-[#a08278]">
+              完成一次购买决策后，这里会保存对话记录。
+            </div>
+          )}
         </div>
       </div>
 
@@ -1400,22 +1964,49 @@ function Sidebar({
 
 function ChatView({
   profile,
+  chatState,
+  activeChatId,
+  onChatStateChange,
+  onEnsureChatSession,
+  onSaveChatTurn,
+  onClearConversation,
   onOpenDecisions,
   onDecision,
 }: {
   profile: UserProfile;
+  chatState: DecisionChatState;
+  activeChatId?: string;
+  onChatStateChange: (
+    updater: DecisionChatState | ((current: DecisionChatState) => DecisionChatState),
+  ) => void;
+  onEnsureChatSession: (title: string) => Promise<string>;
+  onSaveChatTurn: (payload: {
+    sessionId: string;
+    userMessage: string;
+    imagePath?: string;
+    imageName?: string;
+    report: PurchaseDecisionReport;
+    candidateId?: string;
+    reportId?: string;
+  }) => Promise<void>;
+  onClearConversation: () => void;
   onOpenDecisions: () => void;
-  onDecision: (status: DecisionStatus) => void;
+  onDecision: (status: DecisionStatus) => Promise<void>;
 }) {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
-  const [message, setMessage] = useState("这件米色西装外套适合我通勤穿吗？价格 399，值得买吗？");
-  const [lastUserMessage, setLastUserMessage] = useState(message);
-  const [purchaseImageDataUrl, setPurchaseImageDataUrl] = useState<string | undefined>();
-  const [purchaseImageName, setPurchaseImageName] = useState<string | undefined>();
-  const [assessment, setAssessment] = useState<PurchaseDecisionReport | null>(null);
   const [isAssessing, setIsAssessing] = useState(false);
   const [decisionProgressIndex, setDecisionProgressIndex] = useState(0);
-  const [error, setError] = useState("");
+  const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
+  const {
+    message,
+    lastUserMessage,
+    purchaseImageDataUrl,
+    purchaseImageName,
+    assessment,
+    error,
+    notice,
+  } = chatState;
+  const hasUserTurn = Boolean(lastUserMessage.trim() || purchaseImageDataUrl);
   const progressSteps = useMemo(
     () => [
       purchaseImageDataUrl ? "识别待买商品截图" : "整理待买商品信息",
@@ -1434,17 +2025,28 @@ function ChatView({
     return () => window.clearInterval(interval);
   }, [isAssessing, progressSteps.length]);
 
+  function updateChatState(patch: Partial<DecisionChatState>) {
+    onChatStateChange((current) => ({ ...current, ...patch }));
+  }
+
   async function handleSubmit() {
     const trimmedMessage = message.trim();
     if ((!trimmedMessage && !purchaseImageDataUrl) || isAssessing) return;
 
-    setLastUserMessage(trimmedMessage);
+    updateChatState({
+      lastUserMessage: trimmedMessage,
+      assessment: null,
+      selectedDecisionStatus: undefined,
+      error: "",
+      notice: "",
+    });
     setIsAssessing(true);
     setDecisionProgressIndex(0);
-    setAssessment(null);
-    setError("");
 
     try {
+      const sessionId =
+        activeChatId ??
+        (await onEnsureChatSession(createChatTitle(trimmedMessage, Boolean(purchaseImageDataUrl))));
       const { data } = await supabase.auth.getSession();
       const token = data.session?.access_token;
       if (!token) throw new Error("登录状态已过期，请重新登录。");
@@ -1458,6 +2060,7 @@ function ChatView({
         body: JSON.stringify({
           message: trimmedMessage,
           imageDataUrl: purchaseImageDataUrl,
+          sessionId,
           userProfile: {
             heightCm: profile.heightCm ?? undefined,
             weightKg: profile.weightKg ?? undefined,
@@ -1470,16 +2073,55 @@ function ChatView({
       });
 
       if (!response.ok) {
-        throw new Error("AI 决策接口暂时不可用，请稍后再试。");
+        let errorMessage = "AI 决策接口暂时不可用，请稍后再试。";
+        try {
+          const errorData = (await response.json()) as { message?: string };
+          if (errorData.message) {
+            errorMessage = `AI 决策接口返回错误：${errorData.message}`;
+          }
+        } catch {
+          // Keep the friendly fallback when the server does not return JSON.
+        }
+        throw new Error(errorMessage);
       }
 
-      const assessmentData = (await response.json()) as { report: PurchaseDecisionReport };
-      setAssessment(assessmentData.report);
+      const assessmentData = (await response.json()) as {
+        report: PurchaseDecisionReport;
+        candidateId?: string;
+        reportId?: string;
+      };
+      updateChatState({
+        message: "",
+        assessment: assessmentData.report,
+        selectedDecisionStatus: undefined,
+        candidateId: assessmentData.candidateId,
+        reportId: assessmentData.reportId,
+        error: "",
+        notice: "已保存到最近对话，可从左侧继续打开。",
+      });
+      await onSaveChatTurn({
+        sessionId,
+        userMessage: trimmedMessage,
+        imagePath: assessmentData.report.candidate.screenshotPath,
+        imageName: purchaseImageName,
+        report: assessmentData.report,
+        candidateId: assessmentData.candidateId,
+        reportId: assessmentData.reportId,
+      });
     } catch (currentError) {
-      setError(currentError instanceof Error ? currentError.message : "生成报告失败");
+      updateChatState({
+        error: currentError instanceof Error ? currentError.message : "生成报告失败",
+        notice: "",
+      });
     } finally {
       setIsAssessing(false);
     }
+  }
+
+  function handleClearConversation() {
+    if (isAssessing) return;
+    onClearConversation();
+    setDecisionProgressIndex(0);
   }
 
   return (
@@ -1488,7 +2130,12 @@ function ChatView({
         title="决策聊天"
         subtitle="结合你的衣橱和偏好，给出理性的购买建议"
         action={
-          <button className="inline-flex h-11 items-center gap-2 rounded-[10px] border border-[#ead9d0] px-4 text-sm text-[#8b6258] transition hover:bg-[#fbf3ef]">
+          <button
+            type="button"
+            disabled={isAssessing || (!hasUserTurn && !assessment && !error)}
+            onClick={handleClearConversation}
+            className="inline-flex h-11 items-center gap-2 rounded-[10px] border border-[#ead9d0] px-4 text-sm text-[#8b6258] transition hover:bg-[#fbf3ef] disabled:cursor-not-allowed disabled:opacity-50"
+          >
             <Trash2 className="size-4" />
             清空对话
           </button>
@@ -1496,18 +2143,27 @@ function ChatView({
       />
 
       <div className="flex-1 overflow-y-auto px-7 pb-6">
-        <div className="ml-auto mt-2 flex max-w-[520px] items-start gap-3">
-          <div className="rounded-[14px] bg-[#f2dfd8] px-5 py-3 text-[#4c342d]">
-            {lastUserMessage || "我想判断这件衣服是否值得买。"}
-            {purchaseImageDataUrl && (
-              <div
-                className="mt-3 h-28 w-24 rounded-[10px] bg-cover bg-center shadow-inner"
-                style={{ backgroundImage: `url(${purchaseImageDataUrl})` }}
-              />
-            )}
+        {hasUserTurn ? (
+          <div className="ml-auto mt-2 flex max-w-[520px] items-start gap-3">
+            <div className="rounded-[14px] bg-[#f2dfd8] px-5 py-3 text-[#4c342d]">
+              {lastUserMessage || "我想判断这件衣服是否值得买。"}
+              {purchaseImageDataUrl && (
+                <button
+                  type="button"
+                  onClick={() => setPreviewImageUrl(purchaseImageDataUrl)}
+                  className="relative mt-3 h-28 w-24 overflow-hidden rounded-[10px] bg-cover bg-center text-left shadow-inner transition hover:scale-[1.02] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#cf6f70]"
+                  style={{ backgroundImage: `url(${purchaseImageDataUrl})` }}
+                  aria-label="查看上传图片大图"
+                >
+                  <span className="absolute bottom-1.5 right-1.5 rounded-full bg-[#3d281f]/75 px-2 py-0.5 text-[10px] text-white">
+                    查看
+                  </span>
+                </button>
+              )}
+            </div>
+            <Avatar />
           </div>
-          <Avatar />
-        </div>
+        ) : null}
 
         <div className="mt-8 flex items-center gap-3">
           <div className="flex size-12 items-center justify-center rounded-full bg-gradient-to-br from-[#c85c64] to-[#e6aaa0] text-2xl font-semibold text-white">
@@ -1561,10 +2217,17 @@ function ChatView({
           </div>
         )}
 
+        {notice && (
+          <div className="mt-5 rounded-[12px] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+            {notice}
+          </div>
+        )}
+
         <DecisionReportCard
           assessment={assessment}
           isAssessing={isAssessing}
           candidateImageDataUrl={purchaseImageDataUrl}
+          selectedDecisionStatus={chatState.selectedDecisionStatus}
           onDecision={onDecision}
           onOpenDecisions={onOpenDecisions}
         />
@@ -1575,17 +2238,49 @@ function ChatView({
         value={message}
         imageDataUrl={purchaseImageDataUrl}
         imageName={purchaseImageName}
-        onChange={setMessage}
+        onChange={(nextMessage) => updateChatState({ message: nextMessage, notice: "" })}
         onImageSelect={async (file) => {
-          setPurchaseImageDataUrl(await fileToDataUrl(file));
-          setPurchaseImageName(file.name);
+          updateChatState({
+            purchaseImageDataUrl: await fileToDataUrl(file),
+            purchaseImageName: file.name,
+            notice: "",
+          });
         }}
         onClearImage={() => {
-          setPurchaseImageDataUrl(undefined);
-          setPurchaseImageName(undefined);
+          updateChatState({
+            purchaseImageDataUrl: undefined,
+            purchaseImageName: undefined,
+            notice: "",
+          });
         }}
         onSubmit={handleSubmit}
       />
+
+      {previewImageUrl && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-[#241813]/70 px-6 py-8"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setPreviewImageUrl(null)}
+        >
+          <div
+            className="relative max-h-[88vh] w-full max-w-3xl rounded-[18px] bg-white p-3 shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => setPreviewImageUrl(null)}
+              className="absolute right-4 top-4 z-10 rounded-full bg-white/90 px-3 py-1.5 text-sm text-[#6e5148] shadow-sm transition hover:bg-[#fbf3ef]"
+            >
+              关闭
+            </button>
+            <div
+              className="h-[78vh] w-full rounded-[12px] bg-[#f8f3ef] bg-contain bg-center bg-no-repeat"
+              style={{ backgroundImage: `url(${previewImageUrl})` }}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1594,51 +2289,77 @@ function DecisionReportCard({
   assessment,
   isAssessing,
   candidateImageDataUrl,
+  selectedDecisionStatus,
   onDecision,
   onOpenDecisions,
 }: {
   assessment: PurchaseDecisionReport | null;
   isAssessing: boolean;
   candidateImageDataUrl?: string;
-  onDecision: (status: DecisionStatus) => void;
+  selectedDecisionStatus?: DecisionStatus;
+  onDecision: (status: DecisionStatus) => Promise<void>;
   onOpenDecisions: () => void;
 }) {
-  const reportScoreItems = assessment
-    ? [
-        { label: "衣橱适配度", value: assessment.scores.wardrobeFit },
-        { label: "搭配潜力", value: assessment.scores.outfitPotential },
-        { label: "重复购买风险", value: assessment.scores.duplicateRisk },
-        { label: "风格一致性", value: assessment.scores.styleConsistency },
-        { label: "价格与使用频率", value: assessment.scores.priceValue },
-        { label: "体型/版型友好度", value: assessment.scores.fitComfort },
-        { label: "舒适与维护成本", value: assessment.scores.careCost },
-      ]
-    : scoreItems;
-  const decisionLabel = assessment?.decisionLabel ?? "建议决定买";
-  const reportSummary =
-    assessment?.summary ??
-    "与已有衣橱高度适配，通勤使用频率高，搭配潜力强，可提升日常穿搭质感，值得入手。";
-  const reportConfidence = assessment?.confidence ?? 92;
-  const dynamicOutfits = assessment?.outfitCombinations.slice(0, 2);
-  const candidate = assessment?.candidate;
-  const candidateTitle = candidate?.productName ?? "通勤西装外套女春秋";
-  const candidateSubtitle = candidate?.summary ?? "宽松休闲小西装";
-  const candidatePrice = candidate?.estimatedPrice ? `¥${candidate.estimatedPrice}` : "价格待确认";
-  const candidateTags = candidate
-    ? [
-        candidate.color,
-        candidate.category,
-        ...candidate.styleTags.slice(0, 2),
-        ...candidate.possibleScenarios.slice(0, 2),
-      ].filter(Boolean)
-    : ["米色", "百搭外套", "通勤 / 日常"];
+  const [savingStatus, setSavingStatus] = useState<DecisionStatus | null>(null);
+
+  async function handleDecisionClick(status: DecisionStatus) {
+    if (savingStatus) return;
+    setSavingStatus(status);
+    try {
+      await onDecision(status);
+    } finally {
+      setSavingStatus(null);
+    }
+  }
+
+  if (!assessment) {
+    return (
+      <article className="mt-5 rounded-[16px] border border-dashed border-[#ead9d0] bg-[#fffaf7] p-8 text-center">
+        <div className="mx-auto flex size-14 items-center justify-center rounded-full bg-[#fbf0ec] text-[#b2605e]">
+          {isAssessing ? <Sparkles className="size-6" /> : <MessageCircle className="size-6" />}
+        </div>
+        <h3 className="mt-4 text-xl font-semibold text-[#3d281f]">
+          {isAssessing ? "正在生成购买决策" : "等待你的购买决策问题"}
+        </h3>
+        <p className="mx-auto mt-2 max-w-xl leading-7 text-[#8b6258]">
+          {isAssessing
+            ? "AI 正在识别商品、检索衣橱并组合搭配证据。完成后这里会展示真实决策报告。"
+            : "上传一张想买衣服的截图，或者直接描述商品、价格和使用场景，我会结合你的衣橱给出判断。"}
+        </p>
+      </article>
+    );
+  }
+
+  const reportScoreItems = [
+    { label: "衣橱适配度", value: assessment.scores.wardrobeFit },
+    { label: "搭配潜力", value: assessment.scores.outfitPotential },
+    { label: "重复购买风险", value: assessment.scores.duplicateRisk },
+    { label: "风格一致性", value: assessment.scores.styleConsistency },
+    { label: "价格与使用频率", value: assessment.scores.priceValue },
+    { label: "体型/版型友好度", value: assessment.scores.fitComfort },
+    { label: "舒适与维护成本", value: assessment.scores.careCost },
+  ];
+  const decisionLabel = assessment.decisionLabel;
+  const reportSummary = assessment.summary;
+  const reportConfidence = assessment.confidence;
+  const dynamicOutfits = assessment.outfitCombinations.slice(0, 2);
+  const candidate = assessment.candidate;
+  const candidateTitle = candidate.productName ?? "待买商品";
+  const candidateSubtitle = candidate.summary ?? "AI 已根据截图和描述生成候选商品信息";
+  const candidatePrice = candidate.estimatedPrice ? `¥${candidate.estimatedPrice}` : "价格待确认";
+  const candidateTags = [
+    candidate.color,
+    candidate.category,
+    ...candidate.styleTags.slice(0, 2),
+    ...candidate.possibleScenarios.slice(0, 2),
+  ].filter((tag): tag is string => Boolean(tag));
 
   return (
     <article className={cn("mt-5 rounded-[16px] border border-[#ead9d0] bg-white p-4 shadow-sm", isAssessing && "opacity-75")}>
       <p className="px-1 text-[16px] leading-8 text-[#5e473e]">
         {assessment
           ? "我已经结合你的衣橱、穿搭知识和长期主义消费框架，生成了这次购买决策报告："
-          : "这是一件米色基础西装外套，版型简洁利落，非常适合通勤场景。我结合你的衣橱单品、搭配潜力和使用频率进行了综合分析："}
+          : ""}
       </p>
 
       <div className="mt-4 grid gap-4 xl:grid-cols-[1.1fr_0.9fr_1.2fr]">
@@ -1697,70 +2418,66 @@ function DecisionReportCard({
 
         <section className="rounded-[14px] border border-[#ead9d0] p-4">
           <div className="flex items-center justify-between">
-            <h3 className="font-semibold text-[#3d281f]">2-3 套已有衣橱搭配建议</h3>
-            <button className="text-sm text-[#8b6258]">查看全部 &gt;</button>
+            <h3 className="font-semibold text-[#3d281f]">2-3 套真实衣橱搭配板</h3>
+            <span className="text-xs text-[#a08278]">基于真实图片，非 AI 重绘</span>
           </div>
           <div className="mt-4 space-y-4">
-            {dynamicOutfits
-              ? dynamicOutfits.map((idea, ideaIndex) => (
-                  <div key={idea.title} className="rounded-[12px] bg-[#fffaf7] p-3">
-                    <div className="mb-2 flex items-center justify-between">
-                      <p className="font-medium text-[#50382f]">{idea.title}</p>
-                      <span className="text-xs text-[#a08278]">{idea.scenario}</span>
-                    </div>
-                    <div className="flex gap-2">
-                      {idea.items.slice(0, 4).map((itemName, index) => (
-                        <MockThumb
-                          key={`${idea.title}-${itemName}`}
-                          palette={mockClosetItems[(ideaIndex + index) % mockClosetItems.length].palette}
-                          className="h-16 w-14"
-                        />
-                      ))}
-                    </div>
-                    <p className="mt-2 text-sm leading-6 text-[#7b5b51]">{idea.summary}</p>
-                  </div>
+            {dynamicOutfits.length
+              ? dynamicOutfits.map((idea) => (
+                  <OutfitEvidenceBoard
+                    key={idea.title}
+                    idea={idea}
+                    candidateName={candidateTitle}
+                    candidateCategory={candidate?.category ?? "待买商品"}
+                    candidateImageUrl={candidateImageDataUrl ?? candidate?.screenshotUrl}
+                    candidateTags={candidateTags.slice(0, 4)}
+                  />
                 ))
-              : outfitIdeas.slice(0, 2).map((idea) => (
-                  <div key={idea.id} className="rounded-[12px] bg-[#fffaf7] p-3">
-                    <div className="mb-2 flex items-center justify-between">
-                      <p className="font-medium text-[#50382f]">{idea.title}</p>
-                      <span className="text-xs text-[#a08278]">{idea.scenario}</span>
-                    </div>
-                    <div className="flex gap-2">
-                      {idea.itemIds.map((id) => {
-                        const item = mockClosetItems.find((closet) => closet.id === id);
-                        return item ? <MockThumb key={id} palette={item.palette} className="h-16 w-14" /> : null;
-                      })}
-                    </div>
-                    <p className="mt-2 text-sm leading-6 text-[#7b5b51]">{idea.summary}</p>
+              : (
+                  <div className="rounded-[12px] border border-dashed border-[#ead9d0] bg-[#fffaf7] px-4 py-8 text-center text-sm leading-6 text-[#8b6258]">
+                    衣橱证据还不够稳定，建议先确认更多衣服标签后再生成搭配板。
                   </div>
-                ))}
+                )}
           </div>
         </section>
       </div>
 
       <div className="mt-4 grid gap-4 lg:grid-cols-3">
-        <button
-          onClick={() => onDecision("decided_to_buy")}
-          className="inline-flex h-14 items-center justify-center gap-3 rounded-[10px] bg-gradient-to-r from-[#cf6f70] to-[#e6a094] text-lg font-medium text-white shadow-lg shadow-rose-200/70 transition hover:scale-[1.01]"
-        >
-          <ShoppingCart className="size-5" />
-          决定买
-        </button>
-        <button
-          onClick={() => onDecision("saved_for_later")}
-          className="inline-flex h-14 items-center justify-center gap-3 rounded-[10px] border border-[#e5b9b0] bg-white text-lg font-medium text-[#b2605e] transition hover:bg-[#fbf3ef]"
-        >
-          <Bookmark className="size-5" />
-          先收藏
-        </button>
-        <button
-          onClick={() => onDecision("not_considering")}
-          className="inline-flex h-14 items-center justify-center gap-3 rounded-[10px] border border-[#e5b9b0] bg-white text-lg font-medium text-[#b2605e] transition hover:bg-[#fbf3ef]"
-        >
-          <XCircle className="size-5" />
-          暂不考虑
-        </button>
+        {(
+          [
+            { status: "decided_to_buy", icon: ShoppingCart },
+            { status: "saved_for_later", icon: Bookmark },
+            { status: "not_considering", icon: XCircle },
+          ] satisfies Array<{ status: DecisionStatus; icon: LucideIcon }>
+        ).map(({ status, icon: ActionIcon }) => {
+          const isSelected = selectedDecisionStatus === status;
+          const isSaving = savingStatus === status;
+          const LabelIcon = isSelected ? CheckCircle2 : ActionIcon;
+
+          return (
+            <button
+              key={status}
+              type="button"
+              onClick={() => void handleDecisionClick(status)}
+              disabled={Boolean(savingStatus)}
+              className={cn(
+                "inline-flex h-14 items-center justify-center gap-3 rounded-[10px] border text-lg font-medium transition disabled:cursor-wait disabled:opacity-70",
+                isSelected
+                  ? `${statusConfig[status].tone} border-current shadow-sm`
+                  : status === "decided_to_buy"
+                    ? "border-transparent bg-gradient-to-r from-[#cf6f70] to-[#e6a094] text-white shadow-lg shadow-rose-200/70 hover:scale-[1.01]"
+                    : "border-[#e5b9b0] bg-white text-[#b2605e] hover:bg-[#fbf3ef]",
+              )}
+            >
+              <LabelIcon className="size-5" />
+              {isSaving
+                ? "保存中..."
+                : isSelected
+                  ? `已选择：${statusConfig[status].label}`
+                  : statusConfig[status].label}
+            </button>
+          );
+        })}
       </div>
 
       <div className="mt-4 flex justify-end">
@@ -1769,6 +2486,102 @@ function DecisionReportCard({
         </button>
       </div>
     </article>
+  );
+}
+
+function OutfitEvidenceBoard({
+  idea,
+  candidateName,
+  candidateCategory,
+  candidateImageUrl,
+  candidateTags,
+}: {
+  idea: PurchaseDecisionReport["outfitCombinations"][number];
+  candidateName: string;
+  candidateCategory: string;
+  candidateImageUrl?: string;
+  candidateTags: string[];
+}) {
+  const evidenceItems = idea.visualItems ?? [];
+
+  return (
+    <div className="overflow-hidden rounded-[12px] border border-[#ead9d0] bg-[#fffaf7]">
+      <div className="flex items-center justify-between border-b border-[#f0e1da] px-3 py-2">
+        <div className="min-w-0">
+          <p className="truncate font-medium text-[#50382f]">{idea.title}</p>
+          <p className="mt-0.5 text-xs text-[#a08278]">{idea.scenario}</p>
+        </div>
+        <span className="rounded-full bg-white px-2.5 py-1 text-[11px] text-[#8b6258]">
+          证据搭配
+        </span>
+      </div>
+
+      <div className="grid gap-3 p-3 md:grid-cols-[0.9fr_1.25fr]">
+        <div className="rounded-[10px] bg-white p-2">
+          <div className="relative">
+            {candidateImageUrl ? (
+              <div
+                className="h-44 rounded-[9px] bg-[#f8f3ef] bg-cover bg-center"
+                style={{ backgroundImage: `url(${candidateImageUrl})` }}
+              />
+            ) : (
+              <MockProductImage palette="from-[#c9a58e] to-[#f4ded4]" className="h-44 w-full" />
+            )}
+            <span className="absolute left-2 top-2 rounded-full bg-[#3d281f]/80 px-2.5 py-1 text-[11px] text-white">
+              待买
+            </span>
+          </div>
+          <p className="mt-2 line-clamp-1 text-sm font-medium text-[#3d281f]">{candidateName}</p>
+          <p className="mt-0.5 text-xs text-[#8b6258]">{candidateCategory}</p>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {candidateTags.slice(0, 3).map((tag) => (
+              <span key={tag} className="rounded-full bg-[#f8efea] px-2 py-1 text-[11px] text-[#8b6258]">
+                {tag}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <div className="grid grid-cols-2 gap-2">
+            {evidenceItems.length ? (
+              evidenceItems.slice(0, 4).map((item) => (
+                <div key={item.id} className="rounded-[10px] bg-white p-2">
+                  <div className="relative">
+                    {item.imageUrl ? (
+                      <div
+                        className="h-24 rounded-[8px] bg-[#f8f3ef] bg-cover bg-center"
+                        style={{ backgroundImage: `url(${item.imageUrl})` }}
+                      />
+                    ) : (
+                      <MockThumb palette="from-[#f2eee7] to-[#d7c4ad]" className="h-24 w-full" />
+                    )}
+                    <span className="absolute left-1.5 top-1.5 rounded-full bg-white/90 px-2 py-0.5 text-[10px] text-[#6e5148] shadow-sm">
+                      {item.badge}
+                    </span>
+                  </div>
+                  <p className="mt-1.5 line-clamp-1 text-xs font-medium text-[#3d281f]">{item.name}</p>
+                  <p className="mt-0.5 line-clamp-1 text-[11px] text-[#8b6258]">{item.category}</p>
+                </div>
+              ))
+            ) : (
+              <div className="col-span-2 rounded-[10px] border border-dashed border-[#ead9d0] bg-white px-3 py-6 text-center text-sm leading-6 text-[#8b6258]">
+                当前衣橱证据不足，建议先确认更多衣服标签。
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="border-t border-[#f0e1da] px-3 py-3">
+        <p className="text-sm leading-6 text-[#7b5b51]">{idea.summary}</p>
+        {evidenceItems[0]?.reason && (
+          <p className="mt-2 line-clamp-2 text-xs leading-5 text-[#a08278]">
+            选择依据：{evidenceItems[0].reason}
+          </p>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -2563,9 +3376,21 @@ function DecisionListView({
       </div>
 
       <div className="mt-5 space-y-4">
-        {items.map((item) => (
-          <DecisionCard key={item.id} item={item} onStatusChange={onStatusChange} />
-        ))}
+        {items.length ? (
+          items.map((item) => (
+            <DecisionCard key={item.id} item={item} onStatusChange={onStatusChange} />
+          ))
+        ) : (
+          <div className="rounded-[16px] border border-dashed border-[#ead9d0] bg-[#fffaf7] p-10 text-center">
+            <div className="mx-auto flex size-14 items-center justify-center rounded-full bg-[#fbf0ec] text-[#b2605e]">
+              <ClipboardList className="size-6" />
+            </div>
+            <h3 className="mt-4 text-xl font-semibold text-[#3d281f]">暂无决策记录</h3>
+            <p className="mx-auto mt-2 max-w-md leading-7 text-[#8b6258]">
+              在决策报告中选择“决定买 / 先收藏 / 暂不考虑”后，商品会出现在这里。
+            </p>
+          </div>
+        )}
       </div>
 
       <p className="mt-8 text-center text-sm text-[#a08278]">
@@ -2587,7 +3412,14 @@ function DecisionCard({
     <article className="rounded-[16px] border border-[#ead9d0] bg-white p-4">
       <div className="grid gap-5 xl:grid-cols-[180px_1fr_1fr_1fr]">
         <div className="flex gap-4 xl:block">
-          <MockProductImage palette={item.palette} className="h-40 w-36 xl:w-full" />
+          {item.imageUrl ? (
+            <div
+              className="h-40 w-36 rounded-[12px] bg-[#f8f3ef] bg-cover bg-center xl:w-full"
+              style={{ backgroundImage: `url(${item.imageUrl})` }}
+            />
+          ) : (
+            <MockProductImage palette={item.palette} className="h-40 w-36 xl:w-full" />
+          )}
           <div className="xl:mt-4">
             <h3 className="text-lg font-semibold text-[#3d281f]">{item.productName}</h3>
             <p className="mt-1 text-sm text-[#8b6258]">{item.merchant}</p>
@@ -2602,16 +3434,16 @@ function DecisionCard({
         </div>
         <div className="border-l border-[#f0e1da] pl-5">
           <p className="font-medium text-[#3d281f]">核心搭配建议</p>
-          <div className="mt-3 flex gap-2">
-            {item.outfitTips.slice(0, 3).map((tip, index) => (
-              <MockThumb key={tip} palette={mockClosetItems[index]?.palette ?? item.palette} className="h-16 w-14" />
+          <div className="mt-3 flex flex-wrap gap-2">
+            {item.outfitTips.slice(0, 4).map((tip) => (
+              <span
+                key={tip}
+                className="rounded-full bg-[#f8efea] px-3 py-1.5 text-sm leading-6 text-[#7b5b51]"
+              >
+                {tip}
+              </span>
             ))}
           </div>
-          <ul className="mt-3 space-y-2 text-sm text-[#7b5b51]">
-            {item.outfitTips.slice(0, 2).map((tip) => (
-              <li key={tip}>· {tip}</li>
-            ))}
-          </ul>
         </div>
         <div className="border-l border-[#f0e1da] pl-5">
           <p className="font-medium text-[#3d281f]">主要风险提醒</p>

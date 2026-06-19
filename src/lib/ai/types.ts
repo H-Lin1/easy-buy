@@ -33,6 +33,7 @@ export type PurchaseCandidateAIProfile = {
   embeddingText?: string;
   aiConfidence?: number;
   screenshotPath?: string;
+  screenshotUrl?: string;
 };
 
 export type ClosetMatch = {
@@ -43,16 +44,37 @@ export type ClosetMatch = {
 };
 
 export type FashionKnowledgeSnippet = {
+  cardId?: string;
   topic: string;
+  knowledgeType?: string;
   tags: string[];
   content: string;
+  decisionPoints?: string[];
+  outfitSuggestions?: string[];
+  riskSignals?: string[];
+  decisionBias?: Record<string, string>;
+  sourceRefs?: string[];
+  score?: number;
 };
 
 export type OutfitCombination = {
   title: string;
   scenario: string;
   items: string[];
+  closetItemIds?: string[];
   summary: string;
+  visualType?: "evidence_board";
+  visualItems?: OutfitEvidenceItem[];
+};
+
+export type OutfitEvidenceItem = {
+  id: string;
+  name: string;
+  category: string;
+  imageUrl?: string;
+  badge: string;
+  reason: string;
+  tags: string[];
 };
 
 export type PurchaseDecisionReport = {

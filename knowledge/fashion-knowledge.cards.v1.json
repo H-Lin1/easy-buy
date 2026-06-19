@@ -1,0 +1,7574 @@
+{
+  "version": "v1",
+  "locale": "zh-CN",
+  "status": "local_review",
+  "notes": "第一版本地穿搭知识卡，仅供人工 review；MVP v1 聚焦衣服、裤装/裙装、连衣裙/套装和功能外套，暂不写入 Supabase，暂不生成 embedding。",
+  "cards": [
+    {
+      "card_id": "lt-001-30-day-real-scene",
+      "topic": "30 天真实穿着场景判断",
+      "knowledge_type": "long_term_purchase",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "上衣",
+        "外套",
+        "下装"
+      ],
+      "color_tags": [],
+      "style_tags": [
+        "极简",
+        "通勤",
+        "休闲"
+      ],
+      "scenario_tags": [
+        "通勤",
+        "日常出街",
+        "约会"
+      ],
+      "fit_tags": [],
+      "fabric_tags": [],
+      "risk_tags": [
+        "低利用率风险",
+        "趋势风险"
+      ],
+      "value_tags": [
+        "基础款",
+        "过渡款"
+      ],
+      "applicable_items": [
+        "所有服饰"
+      ],
+      "not_applicable_items": [],
+      "content": "购买前优先判断未来 30 天是否有明确场景，而不是只看商品图是否好看。能说出具体日期、地点和搭配对象，才说明它真的进入生活。",
+      "decision_points": [
+        "未来 30 天是否至少能穿 2 次",
+        "是否能与现有衣橱组成完整造型",
+        "是否只是折扣或图片氛围触发的短期心动"
+      ],
+      "outfit_suggestions": [
+        "先用已有上衣、下装、鞋包各选 1 件模拟一套真实造型"
+      ],
+      "risk_signals": [
+        "只能说喜欢但说不出穿到哪里",
+        "需要额外再买多件单品才能成立",
+        "与近期天气和日程不匹配"
+      ],
+      "decision_bias": {
+        "buy": "有明确高频场景且能搭 2 套以上",
+        "save": "喜欢但场景不够清晰",
+        "skip": "无法进入近期生活"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "capsule-wardrobe",
+        "cost-per-wear"
+      ],
+      "embedding_text": "长期主义购买判断：未来30天真实场景、已有衣橱搭配、避免冲动消费。"
+    },
+    {
+      "card_id": "lt-002-three-outfit-threshold",
+      "topic": "至少三套搭配门槛",
+      "knowledge_type": "long_term_purchase",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "上衣",
+        "外套"
+      ],
+      "color_tags": [
+        "黑",
+        "白",
+        "米白"
+      ],
+      "style_tags": [
+        "通勤",
+        "休闲"
+      ],
+      "scenario_tags": [
+        "通勤",
+        "日常出街",
+        "旅行"
+      ],
+      "fit_tags": [],
+      "fabric_tags": [],
+      "risk_tags": [
+        "低利用率风险"
+      ],
+      "value_tags": [
+        "基础款",
+        "风格锚点"
+      ],
+      "applicable_items": [
+        "外套",
+        "基础上衣"
+      ],
+      "not_applicable_items": [
+        "一次性礼服"
+      ],
+      "content": "MVP 决策中可以把三套真实搭配作为推荐购买的基础门槛。三套不必完全不同，但至少要覆盖不同场景或不同下装。",
+      "decision_points": [
+        "是否能搭出通勤、休闲或约会中的至少两个场景",
+        "搭配是否依赖同一条裤子或同一双鞋",
+        "是否有替代的已有单品"
+      ],
+      "outfit_suggestions": [
+        "通勤套、周末套、轻正式套各模拟一套"
+      ],
+      "risk_signals": [
+        "只能搭出一套固定造型",
+        "每套都需要新买配件",
+        "搭配过于依赖模特图"
+      ],
+      "decision_bias": {
+        "buy": "已有衣橱可组成 3 套",
+        "save": "目前只能搭 1-2 套",
+        "skip": "需要额外补齐太多单品"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "five-outfit-rule",
+        "capsule-wardrobe"
+      ],
+      "embedding_text": "购买门槛：至少三套已有衣橱搭配，覆盖多个真实场景。"
+    },
+    {
+      "card_id": "lt-003-cost-per-wear",
+      "topic": "使用频率比单价更重要",
+      "knowledge_type": "long_term_purchase",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "外套"
+      ],
+      "color_tags": [
+        "黑",
+        "棕",
+        "灰"
+      ],
+      "style_tags": [
+        "通勤",
+        "极简",
+        "正式"
+      ],
+      "scenario_tags": [
+        "通勤",
+        "正式活动",
+        "日常出街"
+      ],
+      "fit_tags": [],
+      "fabric_tags": [
+        "皮革",
+        "毛呢"
+      ],
+      "risk_tags": [
+        "维护成本",
+        "低利用率风险"
+      ],
+      "value_tags": [
+        "基础款",
+        "风格锚点"
+      ],
+      "applicable_items": [
+        "外套",
+        "高单价单品"
+      ],
+      "not_applicable_items": [],
+      "content": "高单价不一定不值得，关键是预计穿着次数、维护成本和风格寿命。能长期高频使用的外套、鞋、包往往比低价低频单品更理性。",
+      "decision_points": [
+        "预计一年穿几次",
+        "维护成本是否可接受",
+        "款式是否容易过季"
+      ],
+      "outfit_suggestions": [
+        "用一件高频外套分别搭通勤裤装、牛仔裤和半身裙"
+      ],
+      "risk_signals": [
+        "只适合一次活动",
+        "需要频繁干洗或特殊护理",
+        "明显依赖短期流行元素"
+      ],
+      "decision_bias": {
+        "buy": "高频、耐穿、维护合理",
+        "save": "价格高但使用场景仍需验证",
+        "skip": "低频且维护成本高"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "cost-per-wear"
+      ],
+      "embedding_text": "长期主义：用穿着频率、维护成本、风格寿命评估价格合理性。"
+    },
+    {
+      "card_id": "lt-004-avoid-sale-only",
+      "topic": "避免只因折扣购买",
+      "knowledge_type": "long_term_purchase",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "上衣",
+        "下装"
+      ],
+      "color_tags": [],
+      "style_tags": [
+        "休闲",
+        "甜酷",
+        "复古"
+      ],
+      "scenario_tags": [
+        "日常出街",
+        "聚会"
+      ],
+      "fit_tags": [],
+      "fabric_tags": [],
+      "risk_tags": [
+        "低利用率风险",
+        "重复购买风险"
+      ],
+      "value_tags": [
+        "亮点款",
+        "低利用率款"
+      ],
+      "applicable_items": [
+        "促销商品",
+        "季末折扣商品"
+      ],
+      "not_applicable_items": [],
+      "content": "折扣只能降低试错成本，不能创造真实需求。若原价时不会考虑，折扣后也应重新检查场景、搭配和重复度。",
+      "decision_points": [
+        "没有折扣时是否仍想买",
+        "是否能替代已有单品的空缺",
+        "是否会因为便宜而忽略版型或材质问题"
+      ],
+      "outfit_suggestions": [
+        "先用现有衣橱模拟三套，若搭配牵强则暂缓"
+      ],
+      "risk_signals": [
+        "用户明确说只是被折扣吸引",
+        "尺码或颜色并非理想选择",
+        "与已有单品高度相似"
+      ],
+      "decision_bias": {
+        "buy": "折扣只是加分，不是购买主因",
+        "save": "先收藏 24 小时再看",
+        "skip": "折扣掩盖了低利用率"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "cost-per-wear",
+        "five-outfit-rule"
+      ],
+      "embedding_text": "冲动消费拦截：不能只因折扣购买，需验证真实需求和搭配。"
+    },
+    {
+      "card_id": "lt-005-style-direction-fit",
+      "topic": "是否符合长期风格方向",
+      "knowledge_type": "long_term_purchase",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "上衣",
+        "外套"
+      ],
+      "color_tags": [
+        "黑",
+        "白",
+        "卡其",
+        "藏蓝"
+      ],
+      "style_tags": [
+        "极简",
+        "通勤",
+        "松弛感",
+        "老钱风"
+      ],
+      "scenario_tags": [
+        "通勤",
+        "日常出街"
+      ],
+      "fit_tags": [
+        "合体",
+        "宽松"
+      ],
+      "fabric_tags": [
+        "挺括",
+        "垂坠"
+      ],
+      "risk_tags": [
+        "趋势风险"
+      ],
+      "value_tags": [
+        "风格锚点",
+        "基础款"
+      ],
+      "applicable_items": [
+        "高频可见单品",
+        "外套"
+      ],
+      "not_applicable_items": [],
+      "content": "每次购买都在塑造衣橱语言。若用户长期偏好极简通勤，新单品应增强这种方向，而不是把衣橱拉向另一个难以复用的风格。",
+      "decision_points": [
+        "是否与用户常穿风格一致",
+        "是否能成为风格锚点或基础补充",
+        "是否只是短期尝鲜"
+      ],
+      "outfit_suggestions": [
+        "将候选单品放入用户最常穿的两套造型中检查协调度"
+      ],
+      "risk_signals": [
+        "风格标签与衣橱主风格差异很大",
+        "需要完整换一套风格才能成立",
+        "买后很难自然穿出门"
+      ],
+      "decision_bias": {
+        "buy": "加强长期风格方向",
+        "save": "作为小比例风格探索",
+        "skip": "与衣橱主线割裂"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "capsule-wardrobe",
+        "chinese-style-context"
+      ],
+      "embedding_text": "长期风格判断：候选单品是否符合用户已有衣橱和长期风格方向。"
+    },
+    {
+      "card_id": "lt-006-closet-gap-before-new",
+      "topic": "先判断衣橱缺口再购买",
+      "knowledge_type": "long_term_purchase",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "外套",
+        "下装"
+      ],
+      "color_tags": [
+        "黑",
+        "白",
+        "灰",
+        "棕"
+      ],
+      "style_tags": [
+        "通勤",
+        "休闲"
+      ],
+      "scenario_tags": [
+        "通勤",
+        "日常出街",
+        "面试"
+      ],
+      "fit_tags": [
+        "合体"
+      ],
+      "fabric_tags": [
+        "挺括"
+      ],
+      "risk_tags": [
+        "重复购买风险"
+      ],
+      "value_tags": [
+        "基础款",
+        "过渡款"
+      ],
+      "applicable_items": [
+        "基础补充型商品"
+      ],
+      "not_applicable_items": [
+        "明显风格尝鲜商品"
+      ],
+      "content": "理性购买不是看单品孤立好不好，而是看它是否补足衣橱缺口。缺口可以是场景缺口、颜色缺口、正式度缺口或季节缺口。",
+      "decision_points": [
+        "衣橱是否缺少同类场景单品",
+        "已有相似单品是否已能满足需求",
+        "新单品是否提升搭配完整度"
+      ],
+      "outfit_suggestions": [
+        "列出候选单品能补上的 2 个缺口，并用已有衣服验证"
+      ],
+      "risk_signals": [
+        "缺口说不清",
+        "已有同类单品足够多",
+        "只是想换新但功能重复"
+      ],
+      "decision_bias": {
+        "buy": "明确补足缺口",
+        "save": "缺口存在但不紧急",
+        "skip": "不补缺口且重复"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "capsule-wardrobe",
+        "wardrobe-utilization"
+      ],
+      "embedding_text": "衣橱缺口判断：购买应补足场景、颜色、正式度或季节缺口。"
+    },
+    {
+      "card_id": "lt-007-comfort-as-floor",
+      "topic": "舒适度是购买底线",
+      "knowledge_type": "long_term_purchase",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "上衣",
+        "下装"
+      ],
+      "color_tags": [],
+      "style_tags": [
+        "通勤",
+        "休闲"
+      ],
+      "scenario_tags": [
+        "通勤",
+        "旅行",
+        "轻运动"
+      ],
+      "fit_tags": [
+        "修身",
+        "合体",
+        "宽松"
+      ],
+      "fabric_tags": [
+        "轻薄",
+        "运动面料",
+        "皮革"
+      ],
+      "risk_tags": [
+        "版型舒适度风险"
+      ],
+      "value_tags": [
+        "基础款"
+      ],
+      "applicable_items": [
+        "贴身上衣",
+        "裤装"
+      ],
+      "not_applicable_items": [],
+      "content": "再好看的单品，如果活动受限、勒感明显、磨脚或材质不亲肤，长期利用率会快速下降。舒适度应作为底线而不是附加分。",
+      "decision_points": [
+        "活动余量是否足够",
+        "材质是否适合季节和皮肤触感",
+        "鞋履是否支持真实步行场景"
+      ],
+      "outfit_suggestions": [
+        "优先搭配用户已确认舒适的下装或鞋，降低整体穿着负担"
+      ],
+      "risk_signals": [
+        "过紧、过硬、易闷热",
+        "只能短时间穿",
+        "需要频繁整理衣摆或领口"
+      ],
+      "decision_bias": {
+        "buy": "舒适度明确达标",
+        "save": "需要试穿或确认尺码",
+        "skip": "舒适风险高"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "retail-care-labels",
+        "wardrobe-utilization"
+      ],
+      "embedding_text": "舒适度底线：活动余量、触感、鞋履步行能力决定长期利用率。"
+    },
+    {
+      "card_id": "lt-008-maintenance-before-beauty",
+      "topic": "维护成本会影响真实利用率",
+      "knowledge_type": "long_term_purchase",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "上衣",
+        "连衣裙/套装",
+        "外套"
+      ],
+      "color_tags": [
+        "白",
+        "米白",
+        "黑"
+      ],
+      "style_tags": [
+        "通勤",
+        "法式",
+        "轻熟"
+      ],
+      "scenario_tags": [
+        "通勤",
+        "约会",
+        "正式活动"
+      ],
+      "fit_tags": [],
+      "fabric_tags": [
+        "雪纺",
+        "缎面",
+        "亚麻",
+        "毛呢"
+      ],
+      "risk_tags": [
+        "维护成本"
+      ],
+      "value_tags": [
+        "亮点款",
+        "低利用率款"
+      ],
+      "applicable_items": [
+        "浅色衣物",
+        "精细面料",
+        "正式单品"
+      ],
+      "not_applicable_items": [],
+      "content": "易皱、易透、易粘毛、难清洗会让好看的衣服变成不想穿的衣服。决策时要把护理难度纳入长期主义评分。",
+      "decision_points": [
+        "是否需要熨烫或干洗",
+        "是否容易透或显脏",
+        "用户是否愿意承担护理动作"
+      ],
+      "outfit_suggestions": [
+        "高维护单品搭配低维护基础款，减少整体穿着负担"
+      ],
+      "risk_signals": [
+        "白色薄面料",
+        "深色粘毛面料",
+        "需要每次熨烫"
+      ],
+      "decision_bias": {
+        "buy": "维护成本与使用场景匹配",
+        "save": "需要确认护理要求",
+        "skip": "维护负担大于使用价值"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "retail-care-labels"
+      ],
+      "embedding_text": "维护成本判断：易皱易透易粘毛难清洗会降低长期利用率。"
+    },
+    {
+      "card_id": "lt-009-trend-small-dose",
+      "topic": "趋势款适合小剂量进入衣橱",
+      "knowledge_type": "long_term_purchase",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "上衣"
+      ],
+      "color_tags": [
+        "红",
+        "粉",
+        "绿",
+        "黄"
+      ],
+      "style_tags": [
+        "甜酷",
+        "复古",
+        "韩系"
+      ],
+      "scenario_tags": [
+        "日常出街",
+        "聚会"
+      ],
+      "fit_tags": [
+        "短款",
+        "宽松"
+      ],
+      "fabric_tags": [],
+      "risk_tags": [
+        "趋势风险",
+        "低利用率风险"
+      ],
+      "value_tags": [
+        "亮点款",
+        "风格锚点"
+      ],
+      "applicable_items": [
+        "流行色",
+        "强设计感单品",
+        "配饰"
+      ],
+      "not_applicable_items": [
+        "长期基础补充"
+      ],
+      "content": "趋势款不是不能买，但应控制比例。越强趋势、越高价格、越难复用，就越适合先用配饰或低风险单品试水。",
+      "decision_points": [
+        "趋势元素是否容易过季",
+        "是否与已有基础款互补",
+        "价格是否匹配试水属性"
+      ],
+      "outfit_suggestions": [
+        "用中性色基础款承接趋势色或强设计配饰"
+      ],
+      "risk_signals": [
+        "需要全套同风格才能成立",
+        "颜色或廓形过于抢眼",
+        "只能在少数场景穿"
+      ],
+      "decision_bias": {
+        "buy": "趋势元素小剂量且能复用",
+        "save": "先收藏观察热度",
+        "skip": "高价高趋势且低频"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "70-30-rule",
+        "chinese-style-context"
+      ],
+      "embedding_text": "趋势款策略：小剂量、低风险、由基础款承接，避免高价低频。"
+    },
+    {
+      "card_id": "lt-010-one-off-event-rental",
+      "topic": "一次性活动优先考虑替代方案",
+      "knowledge_type": "long_term_purchase",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "连衣裙/套装",
+        "外套"
+      ],
+      "color_tags": [
+        "黑",
+        "红",
+        "藏蓝"
+      ],
+      "style_tags": [
+        "正式",
+        "轻熟"
+      ],
+      "scenario_tags": [
+        "正式活动",
+        "聚会",
+        "约会"
+      ],
+      "fit_tags": [
+        "收腰",
+        "合体"
+      ],
+      "fabric_tags": [
+        "缎面",
+        "雪纺"
+      ],
+      "risk_tags": [
+        "低利用率风险"
+      ],
+      "value_tags": [
+        "亮点款",
+        "低利用率款"
+      ],
+      "applicable_items": [
+        "礼服",
+        "强场景连衣裙"
+      ],
+      "not_applicable_items": [
+        "日常高频基础款"
+      ],
+      "content": "如果单品只为一次活动服务，购买前应考虑租赁、借用或用已有基础款升级搭配。一次性好看不等于长期值得。",
+      "decision_points": [
+        "活动结束后是否还能穿",
+        "是否能拆解到日常造型",
+        "是否有租赁或已有替代"
+      ],
+      "outfit_suggestions": [
+        "用已有黑色连衣裙加外套、首饰、鞋包完成正式度升级"
+      ],
+      "risk_signals": [
+        "明显只适合单次场合",
+        "后续场景无法复用",
+        "搭配依赖一次性配饰"
+      ],
+      "decision_bias": {
+        "buy": "活动后仍有复用路径",
+        "save": "先找替代方案",
+        "skip": "完全一次性使用"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "sustainable-fashion",
+        "cost-per-wear"
+      ],
+      "embedding_text": "一次性活动购买：优先评估复用、租赁、已有替代，避免低利用率。"
+    },
+    {
+      "card_id": "color-001-neutral-base",
+      "topic": "中性色是高复用衣橱底座",
+      "knowledge_type": "color_matching",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "外套",
+        "下装"
+      ],
+      "color_tags": [
+        "黑",
+        "白",
+        "米白",
+        "灰",
+        "棕"
+      ],
+      "style_tags": [
+        "极简",
+        "通勤",
+        "休闲"
+      ],
+      "scenario_tags": [
+        "通勤",
+        "日常出街"
+      ],
+      "fit_tags": [],
+      "fabric_tags": [
+        "挺括",
+        "棉"
+      ],
+      "risk_tags": [
+        "重复购买风险"
+      ],
+      "value_tags": [
+        "基础款",
+        "过渡款"
+      ],
+      "applicable_items": [
+        "外套",
+        "裤装"
+      ],
+      "not_applicable_items": [],
+      "content": "黑、白、米白、灰、棕等中性色适合作为衣橱底座，尤其适合高频外套、裤装和鞋包。但中性色过多也可能造成重复购买。",
+      "decision_points": [
+        "是否补足中性色底座",
+        "已有同色同类是否过多",
+        "是否能承接亮色或图案单品"
+      ],
+      "outfit_suggestions": [
+        "中性色外套搭牛仔蓝、米白上衣和棕色包，形成稳定日常组合"
+      ],
+      "risk_signals": [
+        "已有多件同色同类",
+        "购买理由只是百搭",
+        "颜色与已有单品差异很小"
+      ],
+      "decision_bias": {
+        "buy": "补足高频基础缺口",
+        "save": "已有相近单品但质感不同",
+        "skip": "中性色重复堆积"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "capsule-wardrobe",
+        "chinese-style-context"
+      ],
+      "embedding_text": "颜色搭配：中性色提高复用，但要检查同色同类重复。"
+    },
+    {
+      "card_id": "color-002-off-white-layering",
+      "topic": "米白和象牙白适合柔和叠穿",
+      "knowledge_type": "color_matching",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "上衣",
+        "外套",
+        "下装"
+      ],
+      "color_tags": [
+        "米白",
+        "象牙白",
+        "燕麦色",
+        "卡其"
+      ],
+      "style_tags": [
+        "温柔",
+        "极简",
+        "松弛感"
+      ],
+      "scenario_tags": [
+        "通勤",
+        "约会",
+        "日常出街"
+      ],
+      "fit_tags": [
+        "合体",
+        "宽松"
+      ],
+      "fabric_tags": [
+        "针织",
+        "棉",
+        "亚麻"
+      ],
+      "risk_tags": [
+        "维护成本",
+        "重复购买风险"
+      ],
+      "value_tags": [
+        "基础款",
+        "过渡款"
+      ],
+      "applicable_items": [
+        "背心",
+        "针织衫",
+        "外套",
+        "裤装"
+      ],
+      "not_applicable_items": [],
+      "content": "米白、象牙白、燕麦色比纯白更柔和，适合做叠穿和过渡色。它们容易显得干净，但也要留意透、脏和同类重复。",
+      "decision_points": [
+        "是否已有多件白色上衣",
+        "是否需要柔和过渡色",
+        "面料是否易透或显脏"
+      ],
+      "outfit_suggestions": [
+        "米白背心搭卡其裤和浅棕包，外加燕麦色针织形成低对比层次"
+      ],
+      "risk_signals": [
+        "衣橱已有多件米白基础上衣",
+        "薄面料偏透",
+        "与肤色或已有颜色边界不清"
+      ],
+      "decision_bias": {
+        "buy": "补足柔和叠穿缺口",
+        "save": "颜色好但重复风险需核查",
+        "skip": "同类白色上衣过多"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "retail-color-naming",
+        "chinese-style-context"
+      ],
+      "embedding_text": "米白象牙白：适合柔和叠穿，但需检查白色上衣重复和透感维护。"
+    },
+    {
+      "card_id": "color-003-black-not-always-safe",
+      "topic": "黑色不总是最安全选择",
+      "knowledge_type": "color_matching",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "上衣",
+        "外套",
+        "下装"
+      ],
+      "color_tags": [
+        "黑",
+        "灰",
+        "藏蓝",
+        "米白"
+      ],
+      "style_tags": [
+        "极简",
+        "通勤",
+        "正式"
+      ],
+      "scenario_tags": [
+        "通勤",
+        "正式活动"
+      ],
+      "fit_tags": [
+        "合体"
+      ],
+      "fabric_tags": [
+        "挺括",
+        "针织"
+      ],
+      "risk_tags": [
+        "重复购买风险",
+        "维护成本"
+      ],
+      "value_tags": [
+        "基础款"
+      ],
+      "applicable_items": [
+        "西装外套",
+        "裤装",
+        "连衣裙"
+      ],
+      "not_applicable_items": [],
+      "content": "黑色显得利落，但过多黑色会让衣橱缺少层次，也可能暴露粘毛、褪色和季节沉闷问题。可用灰、藏蓝、米白替代部分黑色需求。",
+      "decision_points": [
+        "已有黑色同类数量",
+        "是否需要更轻的季节感",
+        "材质是否易粘毛或泛白"
+      ],
+      "outfit_suggestions": [
+        "黑色下装搭米白上衣和灰色外套，降低沉重感"
+      ],
+      "risk_signals": [
+        "已有多件黑色外套或裤装",
+        "面料易粘毛",
+        "夏季穿着显闷"
+      ],
+      "decision_bias": {
+        "buy": "黑色承担明确正式或显利落需求",
+        "save": "可考虑藏蓝灰色替代",
+        "skip": "只是重复买黑色安全牌"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "capsule-wardrobe",
+        "retail-care-labels"
+      ],
+      "embedding_text": "黑色购买判断：利落但可能重复、粘毛、沉闷，可用灰藏蓝替代。"
+    },
+    {
+      "card_id": "color-004-denim-blue-connector",
+      "topic": "牛仔蓝是休闲和通勤的连接色",
+      "knowledge_type": "color_matching",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "下装",
+        "外套"
+      ],
+      "color_tags": [
+        "牛仔蓝",
+        "白",
+        "黑",
+        "卡其"
+      ],
+      "style_tags": [
+        "休闲",
+        "通勤",
+        "法式"
+      ],
+      "scenario_tags": [
+        "日常出街",
+        "通勤",
+        "旅行"
+      ],
+      "fit_tags": [
+        "直筒",
+        "高腰",
+        "宽松"
+      ],
+      "fabric_tags": [
+        "牛仔",
+        "棉"
+      ],
+      "risk_tags": [
+        "正式度不足"
+      ],
+      "value_tags": [
+        "基础款",
+        "过渡款"
+      ],
+      "applicable_items": [
+        "牛仔裤",
+        "牛仔外套",
+        "牛仔裙"
+      ],
+      "not_applicable_items": [
+        "严格正式场合"
+      ],
+      "content": "牛仔蓝能把正式上衣拉回日常，也能让基础 T 恤更完整。它是休闲衣橱的高复用连接色，但正式场景要注意洗水、破洞和版型。",
+      "decision_points": [
+        "洗水颜色是否适合用户场景",
+        "版型是否足够利落",
+        "是否能承接通勤上衣"
+      ],
+      "outfit_suggestions": [
+        "直筒牛仔裤搭衬衫和乐福鞋，形成轻通勤造型"
+      ],
+      "risk_signals": [
+        "破洞或做旧过强",
+        "洗水太浅导致正式度不足",
+        "已有多条相似牛仔裤"
+      ],
+      "decision_bias": {
+        "buy": "补足休闲通勤连接",
+        "save": "确认洗水和版型",
+        "skip": "与已有牛仔单品重复"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "capsule-wardrobe",
+        "retail-category-naming"
+      ],
+      "embedding_text": "牛仔蓝：连接休闲和轻通勤，高复用但要注意正式度和重复。"
+    },
+    {
+      "card_id": "color-005-accent-color-small-area",
+      "topic": "亮色优先小面积使用",
+      "knowledge_type": "color_matching",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "上衣"
+      ],
+      "color_tags": [
+        "红",
+        "粉",
+        "绿",
+        "黄"
+      ],
+      "style_tags": [
+        "甜酷",
+        "复古",
+        "法式"
+      ],
+      "scenario_tags": [
+        "约会",
+        "聚会",
+        "日常出街"
+      ],
+      "fit_tags": [],
+      "fabric_tags": [],
+      "risk_tags": [
+        "低利用率风险",
+        "趋势风险"
+      ],
+      "value_tags": [
+        "亮点款",
+        "风格锚点"
+      ],
+      "applicable_items": [
+        "小面积上衣"
+      ],
+      "not_applicable_items": [],
+      "content": "亮色可以提升搭配记忆点，但作为大面积主色时复用难度更高。MVP 可优先建议用包、鞋、丝巾等小面积承接亮色尝试。",
+      "decision_points": [
+        "亮色面积是否容易控制",
+        "是否有中性色衣物承接",
+        "用户是否经常穿彩色"
+      ],
+      "outfit_suggestions": [
+        "米白上衣加牛仔裤，配红色包或绿色丝巾作为亮点"
+      ],
+      "risk_signals": [
+        "衣橱缺少中性色基础款",
+        "亮色占比过高",
+        "只适合拍照不适合日常"
+      ],
+      "decision_bias": {
+        "buy": "小面积亮色能提升搭配",
+        "save": "确认用户彩色接受度",
+        "skip": "大面积亮色低复用"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "three-color-rule",
+        "chinese-style-context"
+      ],
+      "embedding_text": "亮色策略：优先包鞋配饰小面积使用，由中性色基础款承接。"
+    },
+    {
+      "card_id": "color-006-three-color-rule",
+      "topic": "三色原则用于降低视觉混乱",
+      "knowledge_type": "color_matching",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "上衣",
+        "下装"
+      ],
+      "color_tags": [
+        "黑",
+        "白",
+        "棕",
+        "红"
+      ],
+      "style_tags": [
+        "极简",
+        "通勤",
+        "休闲"
+      ],
+      "scenario_tags": [
+        "通勤",
+        "日常出街",
+        "旅行"
+      ],
+      "fit_tags": [],
+      "fabric_tags": [],
+      "risk_tags": [
+        "搭配复杂度高"
+      ],
+      "value_tags": [
+        "过渡款",
+        "风格锚点"
+      ],
+      "applicable_items": [
+        "多色搭配",
+        "图案单品",
+        "亮色配饰"
+      ],
+      "not_applicable_items": [],
+      "content": "三色原则适合作为日常搭配的稳定工具：主色、辅助色、点缀色各司其职。它是启发规则，不应限制个人表达。",
+      "decision_points": [
+        "候选单品是否会成为第四个突兀颜色",
+        "是否能与已有主色形成比例",
+        "点缀色是否面积可控"
+      ],
+      "outfit_suggestions": [
+        "黑色裤装为主色，米白上衣为辅助色，红色包作为点缀"
+      ],
+      "risk_signals": [
+        "已有造型颜色超过三到四种",
+        "图案和亮色同时过多",
+        "鞋包颜色互相抢夺注意力"
+      ],
+      "decision_bias": {
+        "buy": "能融入清晰配色结构",
+        "save": "需要明确搭配比例",
+        "skip": "导致衣橱搭配更混乱"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "washington-post-fashion-formulas",
+        "three-color-rule"
+      ],
+      "embedding_text": "三色原则：主色辅助色点缀色，帮助多色和图案搭配更稳定。"
+    },
+    {
+      "card_id": "color-007-two-out-of-three",
+      "topic": "两件呼应提升完整感",
+      "knowledge_type": "color_matching",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "上衣",
+        "下装"
+      ],
+      "color_tags": [
+        "黑",
+        "棕",
+        "白",
+        "藏蓝"
+      ],
+      "style_tags": [
+        "通勤",
+        "极简",
+        "老钱风"
+      ],
+      "scenario_tags": [
+        "通勤",
+        "面试",
+        "正式活动"
+      ],
+      "fit_tags": [
+        "合体"
+      ],
+      "fabric_tags": [
+        "挺括",
+        "皮革"
+      ],
+      "risk_tags": [
+        "搭配复杂度高"
+      ],
+      "value_tags": [
+        "风格锚点"
+      ],
+      "applicable_items": [
+        "外套",
+        "裤装"
+      ],
+      "not_applicable_items": [],
+      "content": "上衣、下装、第三件或鞋包中有两处颜色呼应，会让基础造型更完整。这个方法适合通勤和面试场景。",
+      "decision_points": [
+        "候选单品能否与鞋包或外套呼应",
+        "是否减少颜色割裂",
+        "是否保持正式度"
+      ],
+      "outfit_suggestions": [
+        "棕色乐福鞋呼应棕色包，搭白衬衫和藏蓝裤"
+      ],
+      "risk_signals": [
+        "鞋包颜色完全孤立",
+        "全身颜色各自独立",
+        "呼应过度导致单调"
+      ],
+      "decision_bias": {
+        "buy": "能补充颜色呼应点",
+        "save": "需要找到已有呼应单品",
+        "skip": "颜色孤立且难搭"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "washington-post-fashion-formulas"
+      ],
+      "embedding_text": "颜色呼应：鞋包外套上下装中两处同色或近色，提升完整感。"
+    },
+    {
+      "card_id": "color-008-warm-neutral-cohesion",
+      "topic": "暖中性色适合低对比温柔感",
+      "knowledge_type": "color_matching",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "上衣",
+        "外套"
+      ],
+      "color_tags": [
+        "燕麦色",
+        "卡其",
+        "驼色",
+        "棕",
+        "米白"
+      ],
+      "style_tags": [
+        "松弛感",
+        "老钱风",
+        "轻熟"
+      ],
+      "scenario_tags": [
+        "通勤",
+        "约会",
+        "日常出街"
+      ],
+      "fit_tags": [
+        "宽松",
+        "合体"
+      ],
+      "fabric_tags": [
+        "针织",
+        "毛呢",
+        "亚麻"
+      ],
+      "risk_tags": [
+        "低对比显模糊"
+      ],
+      "value_tags": [
+        "基础款",
+        "风格锚点"
+      ],
+      "applicable_items": [
+        "针织衫",
+        "大衣",
+        "裤装"
+      ],
+      "not_applicable_items": [],
+      "content": "燕麦、卡其、驼色、棕色能形成柔和且成熟的低对比搭配。需要通过材质差异或深浅层次避免整体发灰。",
+      "decision_points": [
+        "是否有深浅层次",
+        "材质是否能形成对比",
+        "是否适合用户常见场景"
+      ],
+      "outfit_suggestions": [
+        "燕麦针织搭卡其裤和棕色包，用白鞋提亮"
+      ],
+      "risk_signals": [
+        "全身颜色过近且无材质差",
+        "浅暖色不耐脏",
+        "与已有暖中性色重复"
+      ],
+      "decision_bias": {
+        "buy": "能形成成熟低对比衣橱",
+        "save": "需要检查层次",
+        "skip": "暖中性色重复且发灰"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "chinese-style-context",
+        "retail-color-naming"
+      ],
+      "embedding_text": "暖中性色：燕麦卡其驼棕适合松弛轻熟，需深浅材质层次。"
+    },
+    {
+      "card_id": "color-009-navy-formal-alternative",
+      "topic": "藏蓝是黑色的轻正式替代",
+      "knowledge_type": "color_matching",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "外套",
+        "下装",
+        "连衣裙/套装"
+      ],
+      "color_tags": [
+        "藏蓝",
+        "白",
+        "灰",
+        "棕"
+      ],
+      "style_tags": [
+        "通勤",
+        "正式",
+        "学院风"
+      ],
+      "scenario_tags": [
+        "通勤",
+        "面试",
+        "正式活动"
+      ],
+      "fit_tags": [
+        "合体",
+        "直筒"
+      ],
+      "fabric_tags": [
+        "挺括",
+        "毛呢"
+      ],
+      "risk_tags": [
+        "重复购买风险"
+      ],
+      "value_tags": [
+        "基础款",
+        "风格锚点"
+      ],
+      "applicable_items": [
+        "西装外套",
+        "西裤",
+        "连衣裙"
+      ],
+      "not_applicable_items": [],
+      "content": "藏蓝保留正式度，但比黑色更柔和，适合面试、通勤和学院感搭配。它能与白、灰、棕形成稳定组合。",
+      "decision_points": [
+        "是否替代黑色正式需求",
+        "是否有白色或灰色上衣搭配",
+        "是否适合用户工作场景"
+      ],
+      "outfit_suggestions": [
+        "藏蓝西装外套搭白衬衫、灰色直筒裤和棕色乐福鞋"
+      ],
+      "risk_signals": [
+        "衣橱已有多件藏蓝西装",
+        "款式过于制服感",
+        "与黑色单品功能高度重叠"
+      ],
+      "decision_bias": {
+        "buy": "补足轻正式色彩选择",
+        "save": "确认与黑色单品差异",
+        "skip": "正式单品重复"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "capsule-wardrobe",
+        "retail-color-naming"
+      ],
+      "embedding_text": "藏蓝：黑色轻正式替代，适合通勤面试，与白灰棕稳定搭配。"
+    },
+    {
+      "card_id": "color-010-pattern-color-anchor",
+      "topic": "图案单品需要颜色锚点",
+      "knowledge_type": "color_matching",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "上衣",
+        "连衣裙/套装",
+        "下装"
+      ],
+      "color_tags": [
+        "黑",
+        "白",
+        "红",
+        "绿"
+      ],
+      "style_tags": [
+        "法式",
+        "复古",
+        "休闲"
+      ],
+      "scenario_tags": [
+        "约会",
+        "旅行",
+        "日常出街"
+      ],
+      "fit_tags": [],
+      "fabric_tags": [],
+      "risk_tags": [
+        "搭配复杂度高"
+      ],
+      "value_tags": [
+        "亮点款",
+        "风格锚点"
+      ],
+      "applicable_items": [
+        "条纹",
+        "格纹",
+        "碎花",
+        "印花"
+      ],
+      "not_applicable_items": [],
+      "content": "条纹、格纹、碎花和印花单品最好从图案中抽取一个颜色作为其他单品的呼应色。这样能减少图案带来的搭配噪音。",
+      "decision_points": [
+        "图案中是否有可呼应的主色",
+        "衣橱是否有对应中性色",
+        "图案面积是否符合场景"
+      ],
+      "outfit_suggestions": [
+        "碎花裙中有黑色线条时，用黑色鞋包收住整体"
+      ],
+      "risk_signals": [
+        "图案颜色很多且无主色",
+        "鞋包颜色与图案无关联",
+        "上下装同时强图案"
+      ],
+      "decision_bias": {
+        "buy": "有明确颜色锚点",
+        "save": "需要找已有呼应色",
+        "skip": "图案难以被衣橱承接"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "three-color-rule",
+        "retail-pattern-naming"
+      ],
+      "embedding_text": "图案搭配：从条纹格纹碎花印花中抽取主色作为鞋包或外套呼应。"
+    },
+    {
+      "card_id": "color-011-white-shirt-clean-risk",
+      "topic": "白衬衫干净但要看透感和护理",
+      "knowledge_type": "color_matching",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "上衣"
+      ],
+      "color_tags": [
+        "白",
+        "米白",
+        "象牙白"
+      ],
+      "style_tags": [
+        "通勤",
+        "极简",
+        "正式"
+      ],
+      "scenario_tags": [
+        "通勤",
+        "面试",
+        "正式活动"
+      ],
+      "fit_tags": [
+        "合体",
+        "宽松"
+      ],
+      "fabric_tags": [
+        "棉",
+        "雪纺",
+        "挺括"
+      ],
+      "risk_tags": [
+        "维护成本",
+        "易透"
+      ],
+      "value_tags": [
+        "基础款"
+      ],
+      "applicable_items": [
+        "衬衫",
+        "罩衫",
+        "基础上衣"
+      ],
+      "not_applicable_items": [],
+      "content": "白衬衫是高复用基础款，但不同面料的透感、皱感和正式度差异很大。购买时应同时看颜色、面料和版型。",
+      "decision_points": [
+        "是否易透",
+        "是否需要熨烫",
+        "领口和肩线是否支持通勤"
+      ],
+      "outfit_suggestions": [
+        "白衬衫搭直筒裤和乐福鞋，外加西装外套提升正式度"
+      ],
+      "risk_signals": [
+        "薄透且无内搭方案",
+        "易皱到影响通勤",
+        "已有多件相似白衬衫"
+      ],
+      "decision_bias": {
+        "buy": "补足高质量白衬衫缺口",
+        "save": "确认面料透感",
+        "skip": "透皱问题明显或重复"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "retail-care-labels",
+        "capsule-wardrobe"
+      ],
+      "embedding_text": "白衬衫：高复用基础款，需检查透感、皱感、正式度和重复。"
+    },
+    {
+      "card_id": "color-012-monochrome-texture",
+      "topic": "同色系搭配依赖材质差异",
+      "knowledge_type": "color_matching",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "上衣",
+        "外套",
+        "下装"
+      ],
+      "color_tags": [
+        "黑",
+        "白",
+        "灰",
+        "米白"
+      ],
+      "style_tags": [
+        "极简",
+        "松弛感",
+        "老钱风"
+      ],
+      "scenario_tags": [
+        "通勤",
+        "日常出街"
+      ],
+      "fit_tags": [
+        "宽松",
+        "直筒"
+      ],
+      "fabric_tags": [
+        "针织",
+        "牛仔",
+        "皮革",
+        "毛呢"
+      ],
+      "risk_tags": [
+        "低对比显模糊"
+      ],
+      "value_tags": [
+        "风格锚点",
+        "基础款"
+      ],
+      "applicable_items": [
+        "同色系造型",
+        "套装",
+        "针织"
+      ],
+      "not_applicable_items": [],
+      "content": "同色系搭配容易高级，也容易单调。通过针织、皮革、牛仔、毛呢等材质差异，可以让低对比造型更有层次。",
+      "decision_points": [
+        "同色单品之间是否有材质差",
+        "深浅是否有变化",
+        "轮廓是否避免上下都松或都紧"
+      ],
+      "outfit_suggestions": [
+        "米白针织搭白色牛仔裤和浅棕皮革包，保持同色但有质感差"
+      ],
+      "risk_signals": [
+        "颜色和材质都过于接近",
+        "无腰线或轮廓变化",
+        "整体显得平面"
+      ],
+      "decision_bias": {
+        "buy": "能补充同色系层次",
+        "save": "检查材质差",
+        "skip": "与现有同色单品重复且无层次"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "chinese-style-context",
+        "retail-fabric-naming"
+      ],
+      "embedding_text": "同色系搭配：依靠深浅、材质、轮廓差异形成层次。"
+    },
+    {
+      "card_id": "fit-001-tight-top-comfort",
+      "topic": "修身上衣先看活动余量",
+      "knowledge_type": "fit_proportion",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "上衣"
+      ],
+      "color_tags": [],
+      "style_tags": [
+        "通勤",
+        "轻熟",
+        "甜酷"
+      ],
+      "scenario_tags": [
+        "通勤",
+        "约会",
+        "日常出街"
+      ],
+      "fit_tags": [
+        "修身",
+        "合体"
+      ],
+      "fabric_tags": [
+        "针织",
+        "棉",
+        "运动面料"
+      ],
+      "risk_tags": [
+        "版型舒适度风险"
+      ],
+      "value_tags": [
+        "基础款",
+        "亮点款"
+      ],
+      "applicable_items": [
+        "背心",
+        "T恤",
+        "针织衫",
+        "打底衫"
+      ],
+      "not_applicable_items": [],
+      "content": "修身上衣不应被简单判断为适合或不适合，关键是肩、胸、腰和手臂活动是否舒服，面料是否有回弹和支撑。",
+      "decision_points": [
+        "肩线和袖窿是否限制活动",
+        "是否需要频繁整理",
+        "是否与用户舒适偏好一致"
+      ],
+      "outfit_suggestions": [
+        "修身上衣搭高腰直筒裤或宽松外套，平衡轮廓"
+      ],
+      "risk_signals": [
+        "明显勒感",
+        "面料过薄且贴身",
+        "用户偏好宽松舒适但单品过包裹"
+      ],
+      "decision_bias": {
+        "buy": "修身但舒适且能搭宽松下装",
+        "save": "需要试穿确认余量",
+        "skip": "舒适风险明显"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "retail-fit-descriptions",
+        "body-neutral-safety"
+      ],
+      "embedding_text": "修身上衣：关注活动余量、回弹、整理频率，避免绝对审美判断。"
+    },
+    {
+      "card_id": "fit-002-wide-top-slim-bottom",
+      "topic": "宽松上衣适合搭利落下装",
+      "knowledge_type": "fit_proportion",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "上衣",
+        "下装"
+      ],
+      "color_tags": [
+        "白",
+        "黑",
+        "牛仔蓝"
+      ],
+      "style_tags": [
+        "休闲",
+        "日系",
+        "松弛感"
+      ],
+      "scenario_tags": [
+        "日常出街",
+        "旅行",
+        "居家"
+      ],
+      "fit_tags": [
+        "宽松",
+        "直筒",
+        "高腰"
+      ],
+      "fabric_tags": [
+        "棉",
+        "牛仔",
+        "亚麻"
+      ],
+      "risk_tags": [
+        "比例失衡"
+      ],
+      "value_tags": [
+        "基础款",
+        "过渡款"
+      ],
+      "applicable_items": [
+        "宽松 T 恤",
+        "卫衣",
+        "衬衫"
+      ],
+      "not_applicable_items": [],
+      "content": "宽松上衣有松弛感，但如果下装也过于膨胀，容易让造型失去轮廓。可用直筒裤、高腰裤或利落鞋型收住比例。",
+      "decision_points": [
+        "上宽下是否有收束",
+        "衣长是否压低重心",
+        "鞋型是否利落"
+      ],
+      "outfit_suggestions": [
+        "宽松白衬衫搭高腰直筒牛仔裤和乐福鞋"
+      ],
+      "risk_signals": [
+        "上衣过长且下装宽松",
+        "没有腰线或脚踝收束",
+        "整体显得拖沓"
+      ],
+      "decision_bias": {
+        "buy": "能与利落下装形成平衡",
+        "save": "需要检查衣长",
+        "skip": "衣橱缺少可承接的下装"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "retail-fit-descriptions",
+        "chinese-style-context"
+      ],
+      "embedding_text": "宽松上衣：用直筒高腰下装和利落鞋型平衡比例。"
+    },
+    {
+      "card_id": "fit-003-wide-leg-pants-balance",
+      "topic": "阔腿裤需要上半身清晰",
+      "knowledge_type": "fit_proportion",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "下装",
+        "上衣"
+      ],
+      "color_tags": [
+        "黑",
+        "灰",
+        "卡其",
+        "牛仔蓝"
+      ],
+      "style_tags": [
+        "通勤",
+        "松弛感",
+        "休闲"
+      ],
+      "scenario_tags": [
+        "通勤",
+        "日常出街",
+        "旅行"
+      ],
+      "fit_tags": [
+        "阔腿",
+        "高腰",
+        "合体"
+      ],
+      "fabric_tags": [
+        "垂坠",
+        "挺括",
+        "牛仔"
+      ],
+      "risk_tags": [
+        "比例失衡"
+      ],
+      "value_tags": [
+        "基础款",
+        "风格锚点"
+      ],
+      "applicable_items": [
+        "阔腿裤",
+        "宽松长裤"
+      ],
+      "not_applicable_items": [],
+      "content": "阔腿裤的搭配关键是腰线、垂坠和上半身清晰度。上衣可选择短款、塞衣角或合体版型，避免上下都松散。",
+      "decision_points": [
+        "裤长是否需要修改",
+        "腰线是否清晰",
+        "面料是垂坠还是膨胀"
+      ],
+      "outfit_suggestions": [
+        "高腰阔腿裤搭短款针织或合体背心，外加短外套"
+      ],
+      "risk_signals": [
+        "裤长拖地",
+        "上衣也很长很宽",
+        "面料膨胀导致体量过大"
+      ],
+      "decision_bias": {
+        "buy": "裤长和垂坠感合适",
+        "save": "需要确认修改成本",
+        "skip": "搭配条件不足"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "retail-fit-descriptions"
+      ],
+      "embedding_text": "阔腿裤：关注高腰、裤长、垂坠，上衣需要短款或合体。"
+    },
+    {
+      "card_id": "fit-004-straight-pants-versatility",
+      "topic": "直筒裤是高复用比例工具",
+      "knowledge_type": "fit_proportion",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "下装"
+      ],
+      "color_tags": [
+        "黑",
+        "灰",
+        "牛仔蓝",
+        "卡其"
+      ],
+      "style_tags": [
+        "通勤",
+        "休闲",
+        "极简"
+      ],
+      "scenario_tags": [
+        "通勤",
+        "日常出街",
+        "面试"
+      ],
+      "fit_tags": [
+        "直筒",
+        "高腰",
+        "合体"
+      ],
+      "fabric_tags": [
+        "牛仔",
+        "挺括",
+        "垂坠"
+      ],
+      "risk_tags": [
+        "重复购买风险"
+      ],
+      "value_tags": [
+        "基础款"
+      ],
+      "applicable_items": [
+        "西裤",
+        "牛仔裤",
+        "休闲裤"
+      ],
+      "not_applicable_items": [],
+      "content": "直筒裤在通勤和日常之间转换能力强，是高复用下装。购买时要避免和已有裤装在颜色、裤型、长度上过度重复。",
+      "decision_points": [
+        "与已有直筒裤差异在哪里",
+        "是否适合常穿鞋型",
+        "是否能搭配多种上衣长度"
+      ],
+      "outfit_suggestions": [
+        "黑色直筒裤搭衬衫、T 恤、针织衫都可成立"
+      ],
+      "risk_signals": [
+        "已有多条黑色直筒裤",
+        "裤长只适合一类鞋",
+        "腰臀舒适度不明确"
+      ],
+      "decision_bias": {
+        "buy": "补足颜色或材质缺口",
+        "save": "差异点需要确认",
+        "skip": "重复购买风险高"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "capsule-wardrobe",
+        "retail-category-naming"
+      ],
+      "embedding_text": "直筒裤：高复用基础下装，需检查颜色版型裤长重复。"
+    },
+    {
+      "card_id": "fit-005-a-line-skirt-balance",
+      "topic": "A 字裙适合上简下有型",
+      "knowledge_type": "fit_proportion",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "下装",
+        "上衣"
+      ],
+      "color_tags": [
+        "黑",
+        "米白",
+        "牛仔蓝"
+      ],
+      "style_tags": [
+        "法式",
+        "通勤",
+        "轻熟"
+      ],
+      "scenario_tags": [
+        "约会",
+        "通勤",
+        "日常出街"
+      ],
+      "fit_tags": [
+        "A字",
+        "高腰",
+        "合体"
+      ],
+      "fabric_tags": [
+        "牛仔",
+        "棉",
+        "挺括"
+      ],
+      "risk_tags": [
+        "场景限制"
+      ],
+      "value_tags": [
+        "过渡款",
+        "风格锚点"
+      ],
+      "applicable_items": [
+        "半身裙",
+        "牛仔裙"
+      ],
+      "not_applicable_items": [],
+      "content": "A 字裙能制造下半身轮廓，适合搭配简洁上衣和利落鞋。裙长与面料会决定它偏通勤、约会还是休闲。",
+      "decision_points": [
+        "裙长是否符合常见场景",
+        "上衣是否能塞进或形成腰线",
+        "鞋履是否能承接风格"
+      ],
+      "outfit_suggestions": [
+        "A 字半裙搭合体针织和乐福鞋，外加短外套"
+      ],
+      "risk_signals": [
+        "裙摆体量大但上衣也复杂",
+        "长度卡在不常穿的位置",
+        "缺少可搭鞋子"
+      ],
+      "decision_bias": {
+        "buy": "能补充裙装场景",
+        "save": "确认鞋履和裙长",
+        "skip": "衣橱缺少承接单品"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "retail-fit-descriptions"
+      ],
+      "embedding_text": "A字裙：强调腰线和裙长，搭简洁上衣利落鞋。"
+    },
+    {
+      "card_id": "fit-006-blazer-shoulder-fit",
+      "topic": "西装外套先看肩线和正式度",
+      "knowledge_type": "fit_proportion",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "外套"
+      ],
+      "color_tags": [
+        "黑",
+        "灰",
+        "藏蓝",
+        "米白"
+      ],
+      "style_tags": [
+        "通勤",
+        "正式",
+        "轻熟"
+      ],
+      "scenario_tags": [
+        "通勤",
+        "面试",
+        "正式活动"
+      ],
+      "fit_tags": [
+        "合体",
+        "宽松"
+      ],
+      "fabric_tags": [
+        "挺括",
+        "毛呢"
+      ],
+      "risk_tags": [
+        "重复购买风险",
+        "场景限制"
+      ],
+      "value_tags": [
+        "风格锚点",
+        "基础款"
+      ],
+      "applicable_items": [
+        "西装外套",
+        "套装外套"
+      ],
+      "not_applicable_items": [],
+      "content": "西装外套的复用价值很高，但肩线、衣长、垫肩和面料决定正式度。过强正式感可能不适合日常，过软则可能撑不起面试和通勤。",
+      "decision_points": [
+        "肩线是否合适",
+        "衣长是否能搭裤裙",
+        "正式度是否匹配用户场景"
+      ],
+      "outfit_suggestions": [
+        "米色西装外套搭直筒裤通勤，搭牛仔裤日常化"
+      ],
+      "risk_signals": [
+        "已有多件同色西装",
+        "肩线不合导致拖沓",
+        "正式度与生活场景错配"
+      ],
+      "decision_bias": {
+        "buy": "补足正式度和搭配场景",
+        "save": "需确认肩线衣长",
+        "skip": "同类西装重复"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "retail-fit-descriptions",
+        "capsule-wardrobe"
+      ],
+      "embedding_text": "西装外套：肩线衣长面料决定正式度和复用价值。"
+    },
+    {
+      "card_id": "fit-007-short-jacket-high-waist",
+      "topic": "短外套适合高腰下装",
+      "knowledge_type": "fit_proportion",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "外套",
+        "下装"
+      ],
+      "color_tags": [
+        "黑",
+        "米白",
+        "牛仔蓝"
+      ],
+      "style_tags": [
+        "甜酷",
+        "韩系",
+        "休闲"
+      ],
+      "scenario_tags": [
+        "日常出街",
+        "约会",
+        "聚会"
+      ],
+      "fit_tags": [
+        "短款",
+        "高腰",
+        "直筒"
+      ],
+      "fabric_tags": [
+        "牛仔",
+        "皮革",
+        "棉"
+      ],
+      "risk_tags": [
+        "场景限制"
+      ],
+      "value_tags": [
+        "风格锚点",
+        "亮点款"
+      ],
+      "applicable_items": [
+        "短夹克",
+        "短开衫",
+        "短西装"
+      ],
+      "not_applicable_items": [],
+      "content": "短外套能提高视觉重心，适合搭高腰裤裙。它对内搭长度和下装腰线要求更高，购买前应检查衣橱是否有承接单品。",
+      "decision_points": [
+        "是否有高腰下装",
+        "内搭长度是否合适",
+        "场景是否偏休闲还是通勤"
+      ],
+      "outfit_suggestions": [
+        "短夹克搭高腰直筒裤和短靴，内搭合体背心"
+      ],
+      "risk_signals": [
+        "衣橱多为低腰下装",
+        "内搭都过长",
+        "短款在通勤场景不够稳"
+      ],
+      "decision_bias": {
+        "buy": "已有高腰下装承接",
+        "save": "确认内搭和场景",
+        "skip": "缺少搭配基础"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "retail-fit-descriptions"
+      ],
+      "embedding_text": "短外套：搭高腰下装和合适内搭，提升重心但场景偏明确。"
+    },
+    {
+      "card_id": "fit-008-long-coat-proportion",
+      "topic": "长大衣要看长度和鞋型",
+      "knowledge_type": "fit_proportion",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "外套"
+      ],
+      "color_tags": [
+        "驼色",
+        "黑",
+        "灰",
+        "藏蓝"
+      ],
+      "style_tags": [
+        "通勤",
+        "老钱风",
+        "极简"
+      ],
+      "scenario_tags": [
+        "通勤",
+        "正式活动",
+        "日常出街"
+      ],
+      "fit_tags": [
+        "长款",
+        "合体",
+        "宽松"
+      ],
+      "fabric_tags": [
+        "毛呢",
+        "挺括",
+        "厚重"
+      ],
+      "risk_tags": [
+        "季节限制强",
+        "比例失衡"
+      ],
+      "value_tags": [
+        "风格锚点"
+      ],
+      "applicable_items": [
+        "大衣",
+        "长风衣"
+      ],
+      "not_applicable_items": [
+        "炎热季节单品"
+      ],
+      "content": "长大衣是强风格单品，购买前要看长度是否适合日常通勤动线，以及是否有足够利落的鞋和下装承接。",
+      "decision_points": [
+        "长度是否影响行动",
+        "鞋型是否能支撑厚重感",
+        "季节使用期是否足够"
+      ],
+      "outfit_suggestions": [
+        "长大衣搭直筒裤和短靴，内搭保持简洁"
+      ],
+      "risk_signals": [
+        "长度压低重心",
+        "衣橱缺少利落鞋型",
+        "当地气候穿着周期短"
+      ],
+      "decision_bias": {
+        "buy": "季节和鞋型都能承接",
+        "save": "确认长度和使用期",
+        "skip": "低频且行动不便"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "capsule-wardrobe",
+        "retail-fit-descriptions"
+      ],
+      "embedding_text": "长大衣：看衣长、鞋型、季节使用期，避免厚重低频。"
+    },
+    {
+      "card_id": "fit-009-cinched-waist-dress",
+      "topic": "收腰连衣裙看场景和舒适余量",
+      "knowledge_type": "fit_proportion",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "连衣裙/套装"
+      ],
+      "color_tags": [
+        "黑",
+        "红",
+        "米白"
+      ],
+      "style_tags": [
+        "法式",
+        "轻熟",
+        "甜酷"
+      ],
+      "scenario_tags": [
+        "约会",
+        "聚会",
+        "正式活动"
+      ],
+      "fit_tags": [
+        "收腰",
+        "合体"
+      ],
+      "fabric_tags": [
+        "雪纺",
+        "缎面",
+        "棉"
+      ],
+      "risk_tags": [
+        "版型舒适度风险",
+        "场景限制"
+      ],
+      "value_tags": [
+        "亮点款"
+      ],
+      "applicable_items": [
+        "连衣裙",
+        "套装裙"
+      ],
+      "not_applicable_items": [],
+      "content": "收腰连衣裙容易形成完整造型，但也更受场景、鞋履和舒适度限制。应检查坐下、走路和外套叠穿是否自然。",
+      "decision_points": [
+        "腰部和胸背是否舒适",
+        "是否能搭外套",
+        "是否有匹配鞋履"
+      ],
+      "outfit_suggestions": [
+        "收腰裙搭短外套和低跟鞋，可从约会延伸到聚会"
+      ],
+      "risk_signals": [
+        "只能站立拍照好看",
+        "坐下或走路受限",
+        "没有可搭外套鞋包"
+      ],
+      "decision_bias": {
+        "buy": "场景明确且舒适",
+        "save": "需要试穿或确认鞋包",
+        "skip": "限制过多"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "retail-fit-descriptions",
+        "body-neutral-safety"
+      ],
+      "embedding_text": "收腰连衣裙：完整造型强，但要检查舒适余量、鞋履和场景。"
+    },
+    {
+      "card_id": "fit-010-layering-room",
+      "topic": "外套需要留出叠穿余量",
+      "knowledge_type": "fit_proportion",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "外套",
+        "上衣"
+      ],
+      "color_tags": [
+        "黑",
+        "灰",
+        "卡其"
+      ],
+      "style_tags": [
+        "通勤",
+        "休闲",
+        "日系"
+      ],
+      "scenario_tags": [
+        "通勤",
+        "旅行",
+        "日常出街"
+      ],
+      "fit_tags": [
+        "宽松",
+        "合体"
+      ],
+      "fabric_tags": [
+        "毛呢",
+        "棉",
+        "挺括"
+      ],
+      "risk_tags": [
+        "版型舒适度风险",
+        "季节限制强"
+      ],
+      "value_tags": [
+        "过渡款",
+        "基础款"
+      ],
+      "applicable_items": [
+        "风衣",
+        "夹克",
+        "大衣",
+        "西装外套"
+      ],
+      "not_applicable_items": [],
+      "content": "外套不只是单穿好看，还要能容纳常用内搭。肩背、袖宽和腋下余量会影响秋冬叠穿体验。",
+      "decision_points": [
+        "是否能套常穿针织或衬衫",
+        "袖长是否影响活动",
+        "肩背是否紧绷"
+      ],
+      "outfit_suggestions": [
+        "外套内搭 T 恤和薄针织各模拟一套，检查季节跨度"
+      ],
+      "risk_signals": [
+        "只能搭很薄内搭",
+        "抬手受限",
+        "扣上后拉扯明显"
+      ],
+      "decision_bias": {
+        "buy": "叠穿余量匹配季节",
+        "save": "需确认内搭厚度",
+        "skip": "外套舒适度不足"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "retail-fit-descriptions"
+      ],
+      "embedding_text": "外套叠穿：肩背袖宽腋下余量决定秋冬实穿度。"
+    },
+    {
+      "card_id": "fit-012-overall-volume-control",
+      "topic": "整体体量需要一个收束点",
+      "knowledge_type": "fit_proportion",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "上衣",
+        "下装",
+        "外套"
+      ],
+      "color_tags": [],
+      "style_tags": [
+        "松弛感",
+        "日系",
+        "休闲"
+      ],
+      "scenario_tags": [
+        "日常出街",
+        "旅行"
+      ],
+      "fit_tags": [
+        "宽松",
+        "长款",
+        "阔腿"
+      ],
+      "fabric_tags": [
+        "垂坠",
+        "轻薄",
+        "厚重"
+      ],
+      "risk_tags": [
+        "比例失衡"
+      ],
+      "value_tags": [
+        "风格锚点",
+        "过渡款"
+      ],
+      "applicable_items": [
+        "宽松套装",
+        "长外套",
+        "阔腿裤"
+      ],
+      "not_applicable_items": [],
+      "content": "宽松和长款可以有风格，但全身都宽、长、厚时容易缺少精神。造型至少需要一个收束点，如腰线、脚踝、手腕或利落鞋型。",
+      "decision_points": [
+        "是否有腰线或露出收束部位",
+        "鞋型是否利落",
+        "材质是否有垂坠而非膨胀"
+      ],
+      "outfit_suggestions": [
+        "宽松外套搭直筒裤，卷袖露手腕，用乐福鞋收束"
+      ],
+      "risk_signals": [
+        "上下都长且宽",
+        "没有露肤或收束",
+        "材质厚重膨胀"
+      ],
+      "decision_bias": {
+        "buy": "能找到收束点",
+        "save": "需要搭配验证",
+        "skip": "整体体量难控制"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "retail-fit-descriptions",
+        "chinese-style-context"
+      ],
+      "embedding_text": "整体体量控制：宽松长款造型需要腰线、脚踝、手腕或利落鞋型收束。"
+    },
+    {
+      "card_id": "scenario-001-commute-formality",
+      "topic": "通勤单品需要可调正式度",
+      "knowledge_type": "scenario_outfit",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "外套",
+        "上衣",
+        "下装"
+      ],
+      "color_tags": [
+        "黑",
+        "灰",
+        "藏蓝",
+        "米白"
+      ],
+      "style_tags": [
+        "通勤",
+        "正式",
+        "轻熟"
+      ],
+      "scenario_tags": [
+        "通勤",
+        "面试"
+      ],
+      "fit_tags": [
+        "合体",
+        "直筒"
+      ],
+      "fabric_tags": [
+        "挺括",
+        "垂坠"
+      ],
+      "risk_tags": [
+        "正式度不足"
+      ],
+      "value_tags": [
+        "基础款",
+        "风格锚点"
+      ],
+      "applicable_items": [
+        "西装外套",
+        "衬衫",
+        "西裤"
+      ],
+      "not_applicable_items": [],
+      "content": "通勤单品最好能在轻正式和日常之间切换。外套、裤装、鞋的正式度是核心，颜色和面料决定可用范围。",
+      "decision_points": [
+        "是否能面试或会议穿",
+        "是否能下班后日常化",
+        "面料是否够挺括"
+      ],
+      "outfit_suggestions": [
+        "西装外套搭衬衫和直筒裤上班，换 T 恤和牛仔裤日常化"
+      ],
+      "risk_signals": [
+        "过于休闲无法通勤",
+        "过于正式导致日常低频",
+        "缺少匹配鞋履"
+      ],
+      "decision_bias": {
+        "buy": "正式度可调且高频",
+        "save": "确认工作场景要求",
+        "skip": "正式度错配"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "capsule-wardrobe",
+        "chinese-style-context"
+      ],
+      "embedding_text": "通勤穿搭：单品要能调节正式度，兼顾会议和日常。"
+    },
+    {
+      "card_id": "scenario-002-interview-safe-polish",
+      "topic": "面试穿搭强调清晰和可靠",
+      "knowledge_type": "scenario_outfit",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "外套",
+        "上衣",
+        "下装"
+      ],
+      "color_tags": [
+        "黑",
+        "白",
+        "灰",
+        "藏蓝"
+      ],
+      "style_tags": [
+        "正式",
+        "通勤",
+        "极简"
+      ],
+      "scenario_tags": [
+        "面试",
+        "正式活动"
+      ],
+      "fit_tags": [
+        "合体",
+        "直筒"
+      ],
+      "fabric_tags": [
+        "挺括",
+        "皮革"
+      ],
+      "risk_tags": [
+        "正式度不足",
+        "维护成本"
+      ],
+      "value_tags": [
+        "基础款"
+      ],
+      "applicable_items": [
+        "西装",
+        "衬衫",
+        "西裤"
+      ],
+      "not_applicable_items": [
+        "强趋势单品"
+      ],
+      "content": "面试场景中，衣服的目标是清晰、可靠、不过度抢戏。颜色可选黑、藏蓝、灰、白，版型保持合体利落。",
+      "decision_points": [
+        "是否符合岗位和行业正式度",
+        "是否干净平整",
+        "是否避免过强装饰"
+      ],
+      "outfit_suggestions": [
+        "藏蓝西装外套、白衬衫、灰色直筒裤、黑色乐福鞋"
+      ],
+      "risk_signals": [
+        "褶皱明显",
+        "图案或装饰过强",
+        "鞋包过于休闲"
+      ],
+      "decision_bias": {
+        "buy": "能补足面试可靠形象",
+        "save": "确认行业正式度",
+        "skip": "面试场景不适配"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "professional-dress-context"
+      ],
+      "embedding_text": "面试穿搭：清晰可靠不过度抢戏，合体利落，颜色稳。"
+    },
+    {
+      "card_id": "scenario-003-date-soft-interest",
+      "topic": "约会穿搭需要柔和亮点",
+      "knowledge_type": "scenario_outfit",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "上衣",
+        "连衣裙/套装"
+      ],
+      "color_tags": [
+        "米白",
+        "粉",
+        "红",
+        "棕"
+      ],
+      "style_tags": [
+        "法式",
+        "轻熟",
+        "温柔"
+      ],
+      "scenario_tags": [
+        "约会",
+        "聚会"
+      ],
+      "fit_tags": [
+        "合体",
+        "收腰"
+      ],
+      "fabric_tags": [
+        "针织",
+        "雪纺",
+        "缎面"
+      ],
+      "risk_tags": [
+        "场景限制"
+      ],
+      "value_tags": [
+        "亮点款",
+        "风格锚点"
+      ],
+      "applicable_items": [
+        "连衣裙",
+        "针织衫",
+        "半身裙"
+      ],
+      "not_applicable_items": [],
+      "content": "约会穿搭不需要过度正式，关键是舒适、柔和和一个记忆点。亮点可以来自颜色、材质、首饰或包。",
+      "decision_points": [
+        "是否有舒适余量",
+        "亮点是否不过度",
+        "是否适合约会地点"
+      ],
+      "outfit_suggestions": [
+        "米白针织搭 A 字半裙和小包，用红色或珍珠配饰做点缀"
+      ],
+      "risk_signals": [
+        "造型太紧或太不方便",
+        "亮点过多",
+        "与地点氛围不匹配"
+      ],
+      "decision_bias": {
+        "buy": "能提供柔和亮点且舒适",
+        "save": "确认约会场景",
+        "skip": "低频且行动不便"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "chinese-style-context"
+      ],
+      "embedding_text": "约会穿搭：舒适柔和，一个适度亮点，避免过度正式或行动不便。"
+    },
+    {
+      "card_id": "scenario-004-travel-versatility",
+      "topic": "旅行单品优先轻便耐搭",
+      "knowledge_type": "scenario_outfit",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "上衣",
+        "下装"
+      ],
+      "color_tags": [
+        "白",
+        "黑",
+        "牛仔蓝",
+        "卡其"
+      ],
+      "style_tags": [
+        "休闲",
+        "运动休闲",
+        "松弛感"
+      ],
+      "scenario_tags": [
+        "旅行",
+        "日常出街"
+      ],
+      "fit_tags": [
+        "宽松",
+        "直筒"
+      ],
+      "fabric_tags": [
+        "棉",
+        "亚麻",
+        "运动面料",
+        "轻薄"
+      ],
+      "risk_tags": [
+        "维护成本"
+      ],
+      "value_tags": [
+        "基础款",
+        "过渡款"
+      ],
+      "applicable_items": [
+        "T恤",
+        "衬衫",
+        "长裤"
+      ],
+      "not_applicable_items": [
+        "难护理正式单品"
+      ],
+      "content": "旅行单品要经得起走路、折叠、温差和多场景切换。轻便、耐皱、易搭配比单次拍照效果更重要。",
+      "decision_points": [
+        "是否耐皱易清洁",
+        "是否能一衣多搭",
+        "鞋是否适合长时间步行"
+      ],
+      "outfit_suggestions": [
+        "白 T、直筒裤、薄衬衫、运动鞋组成可叠穿旅行套"
+      ],
+      "risk_signals": [
+        "易皱难洗",
+        "鞋不适合走路",
+        "只能拍照不适合行程"
+      ],
+      "decision_bias": {
+        "buy": "旅行和日常都能复用",
+        "save": "确认护理和舒适度",
+        "skip": "只适合拍照"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "3-3-3-rule",
+        "retail-care-labels"
+      ],
+      "embedding_text": "旅行穿搭：轻便耐皱易搭配，舒适步行和多场景复用优先。"
+    },
+    {
+      "card_id": "scenario-005-daily-ease",
+      "topic": "日常出街需要低决策成本",
+      "knowledge_type": "scenario_outfit",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "上衣",
+        "下装"
+      ],
+      "color_tags": [
+        "黑",
+        "白",
+        "牛仔蓝",
+        "灰"
+      ],
+      "style_tags": [
+        "休闲",
+        "极简",
+        "运动休闲"
+      ],
+      "scenario_tags": [
+        "日常出街",
+        "居家",
+        "轻运动"
+      ],
+      "fit_tags": [
+        "合体",
+        "宽松",
+        "直筒"
+      ],
+      "fabric_tags": [
+        "棉",
+        "针织",
+        "运动面料"
+      ],
+      "risk_tags": [
+        "低利用率风险"
+      ],
+      "value_tags": [
+        "基础款"
+      ],
+      "applicable_items": [
+        "T恤",
+        "卫衣",
+        "牛仔裤"
+      ],
+      "not_applicable_items": [],
+      "content": "日常出街单品的价值在于低决策成本，能够随手和衣橱里的基础下装、鞋、包组合。过于复杂会降低真实穿着频率。",
+      "decision_points": [
+        "是否容易随手搭",
+        "是否需要特殊内搭或鞋包",
+        "是否适合用户常见日程"
+      ],
+      "outfit_suggestions": [
+        "基础 T 恤搭牛仔裤、运动鞋和托特包"
+      ],
+      "risk_signals": [
+        "搭配条件复杂",
+        "穿前需要熨烫或特殊护理",
+        "与日常活动不匹配"
+      ],
+      "decision_bias": {
+        "buy": "日常高频且低决策",
+        "save": "确认搭配条件",
+        "skip": "日常使用门槛高"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "wardrobe-utilization"
+      ],
+      "embedding_text": "日常穿搭：低决策成本、高频、随手可搭，减少复杂护理。"
+    },
+    {
+      "card_id": "scenario-006-home-comfort-boundary",
+      "topic": "居家单品也要有外穿边界",
+      "knowledge_type": "scenario_outfit",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "上衣",
+        "下装"
+      ],
+      "color_tags": [
+        "灰",
+        "米白",
+        "燕麦色"
+      ],
+      "style_tags": [
+        "休闲",
+        "松弛感"
+      ],
+      "scenario_tags": [
+        "居家",
+        "日常出街"
+      ],
+      "fit_tags": [
+        "宽松"
+      ],
+      "fabric_tags": [
+        "棉",
+        "针织",
+        "轻薄"
+      ],
+      "risk_tags": [
+        "正式度不足"
+      ],
+      "value_tags": [
+        "基础款",
+        "低利用率款"
+      ],
+      "applicable_items": [
+        "卫衣",
+        "休闲裤",
+        "针织衫"
+      ],
+      "not_applicable_items": [
+        "正式活动单品"
+      ],
+      "content": "居家单品强调舒适，但如果完全不能外穿，利用场景会变窄。优先选择能从居家延伸到楼下、咖啡店或轻出街的款式。",
+      "decision_points": [
+        "是否能外穿到轻社交场景",
+        "面料是否容易变形",
+        "颜色是否耐脏"
+      ],
+      "outfit_suggestions": [
+        "燕麦色针织休闲裤搭白 T 和运动鞋，可从居家到轻出街"
+      ],
+      "risk_signals": [
+        "过于睡衣感",
+        "易变形起球",
+        "只能在家穿"
+      ],
+      "decision_bias": {
+        "buy": "舒适且可轻外穿",
+        "save": "确认面料耐久",
+        "skip": "场景过窄"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "wardrobe-utilization",
+        "retail-fabric-naming"
+      ],
+      "embedding_text": "居家服：舒适优先，但最好可延伸到轻出街，避免场景过窄。"
+    },
+    {
+      "card_id": "scenario-007-light-sport-boundary",
+      "topic": "轻运动单品要分清运动和日常",
+      "knowledge_type": "scenario_outfit",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "上衣",
+        "下装"
+      ],
+      "color_tags": [
+        "黑",
+        "灰",
+        "白"
+      ],
+      "style_tags": [
+        "运动休闲",
+        "休闲"
+      ],
+      "scenario_tags": [
+        "轻运动",
+        "日常出街",
+        "旅行"
+      ],
+      "fit_tags": [
+        "修身",
+        "合体",
+        "宽松"
+      ],
+      "fabric_tags": [
+        "运动面料",
+        "轻薄"
+      ],
+      "risk_tags": [
+        "正式度不足"
+      ],
+      "value_tags": [
+        "基础款",
+        "过渡款"
+      ],
+      "applicable_items": [
+        "运动上衣",
+        "运动裤",
+        "防晒外套"
+      ],
+      "not_applicable_items": [
+        "正式通勤场景"
+      ],
+      "content": "轻运动单品如果颜色简洁、Logo 克制、版型利落，就能延伸到日常。专业运动属性太强时，日常搭配会受限。",
+      "decision_points": [
+        "是否适合真实运动强度",
+        "是否能日常化",
+        "Logo 和拼色是否过强"
+      ],
+      "outfit_suggestions": [
+        "黑色运动裤搭白 T 和牛仔外套，弱化运动感"
+      ],
+      "risk_signals": [
+        "荧光拼色明显",
+        "压缩感过强",
+        "只能运动时穿"
+      ],
+      "decision_bias": {
+        "buy": "运动和日常双场景",
+        "save": "确认专业度边界",
+        "skip": "场景太窄"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "retail-category-naming"
+      ],
+      "embedding_text": "轻运动穿搭：颜色简洁、Logo克制、版型利落可日常化。"
+    },
+    {
+      "card_id": "scenario-008-party-statement-control",
+      "topic": "聚会单品只需要一个主亮点",
+      "knowledge_type": "scenario_outfit",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "上衣",
+        "连衣裙/套装"
+      ],
+      "color_tags": [
+        "黑",
+        "红",
+        "米白"
+      ],
+      "style_tags": [
+        "甜酷",
+        "复古",
+        "轻熟"
+      ],
+      "scenario_tags": [
+        "聚会",
+        "约会"
+      ],
+      "fit_tags": [
+        "修身",
+        "收腰"
+      ],
+      "fabric_tags": [
+        "缎面",
+        "皮革"
+      ],
+      "risk_tags": [
+        "低利用率风险"
+      ],
+      "value_tags": [
+        "亮点款"
+      ],
+      "applicable_items": [
+        "亮片上衣",
+        "缎面裙"
+      ],
+      "not_applicable_items": [],
+      "content": "聚会造型可以有亮点，但一个主亮点通常更易控制。若颜色、材质、露肤、配饰都很强，日常复用会明显下降。",
+      "decision_points": [
+        "主亮点是什么",
+        "是否能拆到日常",
+        "是否有中性单品承接"
+      ],
+      "outfit_suggestions": [
+        "缎面上衣搭黑色直筒裤和简洁鞋包"
+      ],
+      "risk_signals": [
+        "亮点叠加过多",
+        "只能聚会穿",
+        "没有日常拆解路径"
+      ],
+      "decision_bias": {
+        "buy": "亮点可控且可拆解",
+        "save": "确认复用路径",
+        "skip": "一次性聚会单品"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "third-piece-rule",
+        "cost-per-wear"
+      ],
+      "embedding_text": "聚会穿搭：保留一个主亮点，其他单品收敛，确保可拆解复用。"
+    },
+    {
+      "card_id": "scenario-009-formal-event-reuse",
+      "topic": "正式活动单品要看复用路径",
+      "knowledge_type": "scenario_outfit",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "连衣裙/套装"
+      ],
+      "color_tags": [
+        "黑",
+        "藏蓝",
+        "米白"
+      ],
+      "style_tags": [
+        "正式",
+        "轻熟"
+      ],
+      "scenario_tags": [
+        "正式活动",
+        "聚会"
+      ],
+      "fit_tags": [
+        "合体",
+        "收腰"
+      ],
+      "fabric_tags": [
+        "缎面",
+        "雪纺",
+        "皮革"
+      ],
+      "risk_tags": [
+        "低利用率风险",
+        "维护成本"
+      ],
+      "value_tags": [
+        "亮点款",
+        "低利用率款"
+      ],
+      "applicable_items": [
+        "正式连衣裙",
+        "套装"
+      ],
+      "not_applicable_items": [],
+      "content": "正式活动单品容易低频。购买前应检查它能否通过换鞋、加外套、换包降级到约会或轻通勤场景。",
+      "decision_points": [
+        "是否能降级搭配",
+        "是否需要干洗或特殊护理",
+        "是否已有类似活动单品"
+      ],
+      "outfit_suggestions": [
+        "正式裙搭西装外套和低跟鞋，转为轻正式约会或聚会"
+      ],
+      "risk_signals": [
+        "只适合一场活动",
+        "护理复杂",
+        "风格过度仪式化"
+      ],
+      "decision_bias": {
+        "buy": "有明确复用路径",
+        "save": "先考虑租赁或已有替代",
+        "skip": "一次性概率高"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "cost-per-wear",
+        "sustainable-fashion"
+      ],
+      "embedding_text": "正式活动单品：评估换鞋加外套后的复用路径，避免一次性购买。"
+    },
+    {
+      "card_id": "scenario-010-campus-preppy",
+      "topic": "学院风需要克制符号密度",
+      "knowledge_type": "scenario_outfit",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "上衣",
+        "下装"
+      ],
+      "color_tags": [
+        "藏蓝",
+        "白",
+        "灰",
+        "棕"
+      ],
+      "style_tags": [
+        "学院风",
+        "日系",
+        "休闲"
+      ],
+      "scenario_tags": [
+        "日常出街",
+        "通勤"
+      ],
+      "fit_tags": [
+        "合体",
+        "A字",
+        "直筒"
+      ],
+      "fabric_tags": [
+        "针织",
+        "棉",
+        "皮革"
+      ],
+      "risk_tags": [
+        "场景限制"
+      ],
+      "value_tags": [
+        "风格锚点"
+      ],
+      "applicable_items": [
+        "针织背心",
+        "百褶裙",
+        "衬衫"
+      ],
+      "not_applicable_items": [],
+      "content": "学院风可用衬衫、针织、百褶、乐福鞋表达，但符号过满会像制服。保留一到两个元素更适合日常。",
+      "decision_points": [
+        "学院元素是否过多",
+        "是否能日常化",
+        "颜色是否沉稳"
+      ],
+      "outfit_suggestions": [
+        "衬衫加针织背心搭直筒裤和乐福鞋，避免同时加入百褶裙和领带"
+      ],
+      "risk_signals": [
+        "元素堆满",
+        "场景过于角色化",
+        "只适合拍照"
+      ],
+      "decision_bias": {
+        "buy": "学院元素克制且可日常",
+        "save": "需要搭配降符号",
+        "skip": "角色感过强"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "chinese-style-context"
+      ],
+      "embedding_text": "学院风：衬衫针织百褶乐福鞋符号需克制，避免角色化。"
+    },
+    {
+      "card_id": "scenario-011-old-money-quality",
+      "topic": "老钱风重点是质感而非堆标签",
+      "knowledge_type": "scenario_outfit",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "外套",
+        "上衣"
+      ],
+      "color_tags": [
+        "米白",
+        "藏蓝",
+        "驼色",
+        "棕"
+      ],
+      "style_tags": [
+        "老钱风",
+        "极简",
+        "轻熟"
+      ],
+      "scenario_tags": [
+        "通勤",
+        "约会",
+        "正式活动"
+      ],
+      "fit_tags": [
+        "合体",
+        "长款"
+      ],
+      "fabric_tags": [
+        "针织",
+        "毛呢",
+        "皮革"
+      ],
+      "risk_tags": [
+        "维护成本",
+        "趋势风险"
+      ],
+      "value_tags": [
+        "风格锚点",
+        "基础款"
+      ],
+      "applicable_items": [
+        "针织衫",
+        "大衣"
+      ],
+      "not_applicable_items": [],
+      "content": "老钱风的核心是克制配色、好质感和合适版型，不是把所有符号堆满。低质量面料会削弱这种风格。",
+      "decision_points": [
+        "面料质感是否支撑风格",
+        "Logo 是否克制",
+        "是否能与已有中性色衣橱搭配"
+      ],
+      "outfit_suggestions": [
+        "米白针织搭藏蓝直筒裤、棕色乐福鞋和皮包"
+      ],
+      "risk_signals": [
+        "面料廉价但标榜老钱",
+        "Logo 过大",
+        "护理成本过高"
+      ],
+      "decision_bias": {
+        "buy": "质感和版型真实支撑风格",
+        "save": "确认材质和维护",
+        "skip": "只是风格标签营销"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "chinese-style-context",
+        "retail-fabric-naming"
+      ],
+      "embedding_text": "老钱风：克制配色、好质感、合体版型，避免只买风格标签。"
+    },
+    {
+      "card_id": "scenario-012-relaxed-style-structure",
+      "topic": "松弛感需要暗藏结构",
+      "knowledge_type": "scenario_outfit",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "上衣",
+        "外套",
+        "下装"
+      ],
+      "color_tags": [
+        "米白",
+        "燕麦色",
+        "牛仔蓝",
+        "卡其"
+      ],
+      "style_tags": [
+        "松弛感",
+        "日系",
+        "休闲"
+      ],
+      "scenario_tags": [
+        "日常出街",
+        "旅行"
+      ],
+      "fit_tags": [
+        "宽松",
+        "直筒",
+        "长款"
+      ],
+      "fabric_tags": [
+        "亚麻",
+        "棉",
+        "垂坠"
+      ],
+      "risk_tags": [
+        "比例失衡"
+      ],
+      "value_tags": [
+        "风格锚点",
+        "过渡款"
+      ],
+      "applicable_items": [
+        "宽松衬衫",
+        "亚麻裤",
+        "长外套"
+      ],
+      "not_applicable_items": [],
+      "content": "松弛感不是随意拖沓，而是在宽松、柔软中保留结构。领口、袖口、裤线、鞋型都能提供秩序感。",
+      "decision_points": [
+        "是否有清晰边界或线条",
+        "是否能保持干净平整",
+        "是否有收束点"
+      ],
+      "outfit_suggestions": [
+        "宽松亚麻衬衫搭直筒裤和简洁凉鞋，卷袖露出手腕"
+      ],
+      "risk_signals": [
+        "全身皱且无结构",
+        "衣长裤长都拖沓",
+        "鞋型过软"
+      ],
+      "decision_bias": {
+        "buy": "宽松但有结构",
+        "save": "检查面料和收束",
+        "skip": "松弛变成拖沓"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "chinese-style-context",
+        "retail-fabric-naming"
+      ],
+      "embedding_text": "松弛感：宽松柔软中保留领口袖口裤线鞋型等结构。"
+    },
+    {
+      "card_id": "category-001-tank-top-basic",
+      "topic": "背心是基础层也是重复高发品类",
+      "knowledge_type": "category_rule",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "上衣"
+      ],
+      "color_tags": [
+        "白",
+        "米白",
+        "黑"
+      ],
+      "style_tags": [
+        "休闲",
+        "极简",
+        "轻熟"
+      ],
+      "scenario_tags": [
+        "日常出街",
+        "旅行",
+        "居家"
+      ],
+      "fit_tags": [
+        "修身",
+        "合体"
+      ],
+      "fabric_tags": [
+        "棉",
+        "针织"
+      ],
+      "risk_tags": [
+        "重复购买风险",
+        "易透"
+      ],
+      "value_tags": [
+        "基础款",
+        "重复风险款"
+      ],
+      "applicable_items": [
+        "背心",
+        "吊带"
+      ],
+      "not_applicable_items": [],
+      "content": "背心适合做内搭和夏季基础层，但白色、米白、黑色背心很容易重复购买。关键要看领口、肩带、厚度和单穿场景。",
+      "decision_points": [
+        "是否已有同色同版背心",
+        "是否能单穿或只做内搭",
+        "透感和领口是否合适"
+      ],
+      "outfit_suggestions": [
+        "米白背心搭高腰直筒裤，外加衬衫或西装外套"
+      ],
+      "risk_signals": [
+        "已有多件白色基础背心",
+        "过薄易透",
+        "只能当内搭但价格不低"
+      ],
+      "decision_bias": {
+        "buy": "补足领口或厚度缺口",
+        "save": "检查重复和透感",
+        "skip": "同类基础背心过多"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "retail-category-naming",
+        "body-neutral-safety"
+      ],
+      "embedding_text": "背心：基础层高复用但白米白黑重复高发，检查领口肩带厚度透感。"
+    },
+    {
+      "card_id": "category-002-tshirt-foundation",
+      "topic": "T 恤重点是领口和面料稳定性",
+      "knowledge_type": "category_rule",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "上衣"
+      ],
+      "color_tags": [
+        "白",
+        "黑",
+        "灰"
+      ],
+      "style_tags": [
+        "休闲",
+        "极简",
+        "运动休闲"
+      ],
+      "scenario_tags": [
+        "日常出街",
+        "旅行",
+        "居家"
+      ],
+      "fit_tags": [
+        "合体",
+        "宽松"
+      ],
+      "fabric_tags": [
+        "棉",
+        "轻薄"
+      ],
+      "risk_tags": [
+        "重复购买风险",
+        "维护成本"
+      ],
+      "value_tags": [
+        "基础款"
+      ],
+      "applicable_items": [
+        "T恤"
+      ],
+      "not_applicable_items": [],
+      "content": "T 恤看似简单，但领口形状、面料克重、肩线和洗后稳定性决定复用率。基础 T 恤应和多数下装、外套都能组合。",
+      "decision_points": [
+        "领口是否适合叠穿",
+        "面料是否易变形",
+        "与已有 T 恤差异是什么"
+      ],
+      "outfit_suggestions": [
+        "白 T 搭西装外套通勤，搭牛仔裤日常，搭运动裤轻休闲"
+      ],
+      "risk_signals": [
+        "已有多件相似基础 T",
+        "领口易变形",
+        "面料太薄显内搭"
+      ],
+      "decision_bias": {
+        "buy": "版型和面料明显升级",
+        "save": "确认洗后稳定",
+        "skip": "重复基础款"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "capsule-wardrobe",
+        "retail-fabric-naming"
+      ],
+      "embedding_text": "T恤：基础款需看领口、克重、肩线、洗后稳定和重复度。"
+    },
+    {
+      "card_id": "category-003-shirt-utility",
+      "topic": "衬衫要看可单穿也可叠穿",
+      "knowledge_type": "category_rule",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "上衣"
+      ],
+      "color_tags": [
+        "白",
+        "米白",
+        "藏蓝"
+      ],
+      "style_tags": [
+        "通勤",
+        "法式",
+        "休闲"
+      ],
+      "scenario_tags": [
+        "通勤",
+        "日常出街",
+        "面试"
+      ],
+      "fit_tags": [
+        "合体",
+        "宽松"
+      ],
+      "fabric_tags": [
+        "棉",
+        "亚麻",
+        "挺括"
+      ],
+      "risk_tags": [
+        "维护成本"
+      ],
+      "value_tags": [
+        "基础款",
+        "过渡款"
+      ],
+      "applicable_items": [
+        "衬衫",
+        "罩衫"
+      ],
+      "not_applicable_items": [],
+      "content": "高复用衬衫可以单穿、内搭、当薄外套。正式度由领型、面料、版型和颜色共同决定。",
+      "decision_points": [
+        "能否单穿和叠穿",
+        "是否易皱",
+        "是否与裤裙都能搭"
+      ],
+      "outfit_suggestions": [
+        "宽松衬衫内搭背心，下装配直筒裤或半身裙"
+      ],
+      "risk_signals": [
+        "只适合一种穿法",
+        "易皱但用户不愿熨烫",
+        "领型过正式或过休闲"
+      ],
+      "decision_bias": {
+        "buy": "多穿法且适配场景",
+        "save": "确认护理成本",
+        "skip": "穿法单一"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "capsule-wardrobe",
+        "retail-category-naming"
+      ],
+      "embedding_text": "衬衫：单穿、内搭、薄外套多穿法；关注领型面料正式度和皱感。"
+    },
+    {
+      "card_id": "category-004-knitwear-season",
+      "topic": "针织衫看季节跨度和起球风险",
+      "knowledge_type": "category_rule",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "上衣"
+      ],
+      "color_tags": [
+        "米白",
+        "燕麦色",
+        "灰",
+        "黑"
+      ],
+      "style_tags": [
+        "温柔",
+        "松弛感",
+        "通勤"
+      ],
+      "scenario_tags": [
+        "通勤",
+        "约会",
+        "日常出街"
+      ],
+      "fit_tags": [
+        "合体",
+        "宽松"
+      ],
+      "fabric_tags": [
+        "针织",
+        "轻薄",
+        "厚重"
+      ],
+      "risk_tags": [
+        "维护成本",
+        "季节限制强"
+      ],
+      "value_tags": [
+        "基础款",
+        "过渡款"
+      ],
+      "applicable_items": [
+        "针织衫",
+        "开衫",
+        "毛衣"
+      ],
+      "not_applicable_items": [],
+      "content": "针织衫能增加柔和质感，但季节限制、起球、变形和清洗方式会影响长期使用。薄针织更适合叠穿，厚针织更依赖气候。",
+      "decision_points": [
+        "穿着季节有多长",
+        "是否易起球变形",
+        "是否能叠穿外套"
+      ],
+      "outfit_suggestions": [
+        "薄针织搭西装外套和直筒裤，或搭半身裙约会"
+      ],
+      "risk_signals": [
+        "厚重但当地冬季短",
+        "洗护复杂",
+        "浅色针织易脏"
+      ],
+      "decision_bias": {
+        "buy": "季节跨度和护理可接受",
+        "save": "确认材质维护",
+        "skip": "高维护低频"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "retail-fabric-naming",
+        "retail-care-labels"
+      ],
+      "embedding_text": "针织衫：柔和质感，关注季节跨度、起球变形、清洗和叠穿。"
+    },
+    {
+      "card_id": "category-005-blazer-wardrobe-anchor",
+      "topic": "西装外套是通勤衣橱锚点",
+      "knowledge_type": "category_rule",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "外套"
+      ],
+      "color_tags": [
+        "黑",
+        "灰",
+        "米白",
+        "藏蓝"
+      ],
+      "style_tags": [
+        "通勤",
+        "正式",
+        "极简"
+      ],
+      "scenario_tags": [
+        "通勤",
+        "面试",
+        "日常出街"
+      ],
+      "fit_tags": [
+        "合体",
+        "宽松"
+      ],
+      "fabric_tags": [
+        "挺括"
+      ],
+      "risk_tags": [
+        "重复购买风险"
+      ],
+      "value_tags": [
+        "风格锚点",
+        "基础款"
+      ],
+      "applicable_items": [
+        "西装外套"
+      ],
+      "not_applicable_items": [],
+      "content": "西装外套能把 T 恤、背心、牛仔裤拉向轻正式，是衣橱中的重要锚点。但同色同版西装重复风险很高。",
+      "decision_points": [
+        "是否已有相同颜色和正式度",
+        "能否搭 3 类内搭",
+        "是否适合工作场景"
+      ],
+      "outfit_suggestions": [
+        "米色西装搭背心和直筒裤，换牛仔裤可日常化"
+      ],
+      "risk_signals": [
+        "已有 3 件同色西装",
+        "正式度与工作不匹配",
+        "肩线不合"
+      ],
+      "decision_bias": {
+        "buy": "补足颜色或正式度缺口",
+        "save": "检查同类重复",
+        "skip": "重复锚点过多"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "capsule-wardrobe"
+      ],
+      "embedding_text": "西装外套：通勤衣橱锚点，能提升正式度，但同色同版重复风险高。"
+    },
+    {
+      "card_id": "category-006-trench-coat-seasonal",
+      "topic": "风衣是过渡季强单品",
+      "knowledge_type": "category_rule",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "外套"
+      ],
+      "color_tags": [
+        "卡其",
+        "驼色",
+        "藏蓝"
+      ],
+      "style_tags": [
+        "法式",
+        "通勤",
+        "松弛感"
+      ],
+      "scenario_tags": [
+        "通勤",
+        "旅行",
+        "日常出街"
+      ],
+      "fit_tags": [
+        "长款",
+        "宽松",
+        "收腰"
+      ],
+      "fabric_tags": [
+        "挺括",
+        "轻薄"
+      ],
+      "risk_tags": [
+        "季节限制强"
+      ],
+      "value_tags": [
+        "风格锚点",
+        "过渡款"
+      ],
+      "applicable_items": [
+        "风衣"
+      ],
+      "not_applicable_items": [
+        "严冬外套"
+      ],
+      "content": "风衣适合春秋过渡季，能提升造型完整度。购买前要看当地过渡季长度、衣长、腰带和抗皱表现。",
+      "decision_points": [
+        "当地能穿几周",
+        "衣长是否适合通勤",
+        "是否能搭裤裙和鞋"
+      ],
+      "outfit_suggestions": [
+        "卡其风衣搭白衬衫、牛仔裤和乐福鞋"
+      ],
+      "risk_signals": [
+        "过渡季很短",
+        "面料皱且薄塌",
+        "衣长不适合日常行动"
+      ],
+      "decision_bias": {
+        "buy": "过渡季高频且能搭多场景",
+        "save": "确认气候和衣长",
+        "skip": "季节利用率低"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "capsule-wardrobe",
+        "retail-category-naming"
+      ],
+      "embedding_text": "风衣：过渡季锚点，关注当地季节长度、衣长、抗皱和搭配范围。"
+    },
+    {
+      "card_id": "category-007-coat-investment",
+      "topic": "大衣适合按投资单品评估",
+      "knowledge_type": "category_rule",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "外套"
+      ],
+      "color_tags": [
+        "黑",
+        "驼色",
+        "灰",
+        "藏蓝"
+      ],
+      "style_tags": [
+        "通勤",
+        "老钱风",
+        "正式"
+      ],
+      "scenario_tags": [
+        "通勤",
+        "正式活动",
+        "日常出街"
+      ],
+      "fit_tags": [
+        "长款",
+        "合体",
+        "宽松"
+      ],
+      "fabric_tags": [
+        "毛呢",
+        "厚重",
+        "挺括"
+      ],
+      "risk_tags": [
+        "维护成本",
+        "季节限制强"
+      ],
+      "value_tags": [
+        "风格锚点"
+      ],
+      "applicable_items": [
+        "大衣",
+        "毛呢外套"
+      ],
+      "not_applicable_items": [],
+      "content": "大衣价格和体积都较高，应按投资单品评估。面料质感、保暖性、重量、肩线和干洗成本都要进入决策。",
+      "decision_points": [
+        "保暖性与当地气候匹配",
+        "重量是否可接受",
+        "是否能搭主要冬季鞋包"
+      ],
+      "outfit_suggestions": [
+        "驼色大衣搭黑色针织、直筒裤和短靴，形成冬季基础套"
+      ],
+      "risk_signals": [
+        "当地冬季短",
+        "重量过重",
+        "干洗成本高且低频"
+      ],
+      "decision_bias": {
+        "buy": "冬季高频且质感好",
+        "save": "确认维护和重量",
+        "skip": "价格高但季节短"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "cost-per-wear",
+        "retail-care-labels"
+      ],
+      "embedding_text": "大衣：投资单品，评估保暖、重量、肩线、干洗和冬季高频。"
+    },
+    {
+      "card_id": "category-008-jeans-duplicate",
+      "topic": "牛仔裤重复风险来自洗水和裤型",
+      "knowledge_type": "category_rule",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "下装"
+      ],
+      "color_tags": [
+        "牛仔蓝",
+        "黑",
+        "白"
+      ],
+      "style_tags": [
+        "休闲",
+        "法式",
+        "通勤"
+      ],
+      "scenario_tags": [
+        "日常出街",
+        "通勤",
+        "旅行"
+      ],
+      "fit_tags": [
+        "直筒",
+        "阔腿",
+        "高腰"
+      ],
+      "fabric_tags": [
+        "牛仔"
+      ],
+      "risk_tags": [
+        "重复购买风险"
+      ],
+      "value_tags": [
+        "基础款",
+        "重复风险款"
+      ],
+      "applicable_items": [
+        "牛仔裤"
+      ],
+      "not_applicable_items": [],
+      "content": "牛仔裤是高频单品，也最容易在相似洗水、相似裤型上重复。购买前要对比已有裤子的颜色深浅、裤腿宽度和腰线。",
+      "decision_points": [
+        "洗水是否不同",
+        "裤型是否填补缺口",
+        "是否适合常穿鞋"
+      ],
+      "outfit_suggestions": [
+        "深色直筒牛仔裤搭衬衫通勤，浅色牛仔搭 T 恤日常"
+      ],
+      "risk_signals": [
+        "已有同洗水同裤型",
+        "只是尺码不舒服仍重复买",
+        "鞋型不匹配"
+      ],
+      "decision_bias": {
+        "buy": "补足洗水或裤型缺口",
+        "save": "对比已有牛仔裤",
+        "skip": "高度重复"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "retail-category-naming",
+        "wardrobe-utilization"
+      ],
+      "embedding_text": "牛仔裤：高频但重复高发，比较洗水、裤型、腰线和鞋型。"
+    },
+    {
+      "card_id": "category-009-skirt-scene",
+      "topic": "半身裙要先锁定场景和鞋",
+      "knowledge_type": "category_rule",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "下装"
+      ],
+      "color_tags": [
+        "黑",
+        "米白",
+        "牛仔蓝"
+      ],
+      "style_tags": [
+        "法式",
+        "通勤",
+        "轻熟"
+      ],
+      "scenario_tags": [
+        "约会",
+        "通勤",
+        "旅行"
+      ],
+      "fit_tags": [
+        "A字",
+        "合体",
+        "高腰"
+      ],
+      "fabric_tags": [
+        "棉",
+        "雪纺",
+        "缎面"
+      ],
+      "risk_tags": [
+        "场景限制"
+      ],
+      "value_tags": [
+        "亮点款",
+        "过渡款"
+      ],
+      "applicable_items": [
+        "半身裙",
+        "铅笔裙",
+        "A字裙"
+      ],
+      "not_applicable_items": [],
+      "content": "半身裙的利用率取决于场景和鞋。通勤裙需要利落和正式度，约会裙可更柔和，旅行裙要看行动方便度。",
+      "decision_points": [
+        "裙长和鞋是否匹配",
+        "上衣是否能形成腰线",
+        "场景是否高频"
+      ],
+      "outfit_suggestions": [
+        "黑色半身裙搭白衬衫和乐福鞋通勤，搭针织和小包约会"
+      ],
+      "risk_signals": [
+        "缺少合适鞋",
+        "只能搭一件上衣",
+        "裙长不适合日常行动"
+      ],
+      "decision_bias": {
+        "buy": "鞋和上衣都能承接",
+        "save": "确认场景频率",
+        "skip": "搭配依赖太强"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "retail-category-naming"
+      ],
+      "embedding_text": "半身裙：先锁定场景、鞋型、裙长和上衣腰线。"
+    },
+    {
+      "card_id": "category-010-dress-one-piece",
+      "topic": "连衣裙完整但复用看拆解能力",
+      "knowledge_type": "category_rule",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "连衣裙/套装"
+      ],
+      "color_tags": [
+        "黑",
+        "红",
+        "米白"
+      ],
+      "style_tags": [
+        "法式",
+        "轻熟",
+        "复古"
+      ],
+      "scenario_tags": [
+        "约会",
+        "旅行",
+        "正式活动"
+      ],
+      "fit_tags": [
+        "收腰",
+        "合体",
+        "宽松"
+      ],
+      "fabric_tags": [
+        "雪纺",
+        "棉",
+        "缎面"
+      ],
+      "risk_tags": [
+        "低利用率风险",
+        "场景限制"
+      ],
+      "value_tags": [
+        "亮点款"
+      ],
+      "applicable_items": [
+        "连衣裙"
+      ],
+      "not_applicable_items": [],
+      "content": "连衣裙一件成套，决策成本低，但复用常受场景和季节限制。能否通过外套、鞋包、内搭改变风格很关键。",
+      "decision_points": [
+        "能否搭不同外套",
+        "鞋包是否能改变正式度",
+        "季节跨度是否足够"
+      ],
+      "outfit_suggestions": [
+        "碎花裙搭针织开衫约会，搭牛仔外套旅行，搭西装外套轻正式"
+      ],
+      "risk_signals": [
+        "图案太强难重复出现",
+        "只适合一个场景",
+        "无外套鞋包搭配"
+      ],
+      "decision_bias": {
+        "buy": "至少 2-3 个场景可复用",
+        "save": "确认外套鞋包",
+        "skip": "单场景低频"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "cost-per-wear",
+        "retail-category-naming"
+      ],
+      "embedding_text": "连衣裙：一件成套但看外套鞋包拆解能力和场景跨度。"
+    },
+    {
+      "card_id": "category-016-set-suit-split",
+      "topic": "套装要能拆开穿才更值",
+      "knowledge_type": "category_rule",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "连衣裙/套装",
+        "外套",
+        "下装"
+      ],
+      "color_tags": [
+        "黑",
+        "灰",
+        "藏蓝",
+        "米白"
+      ],
+      "style_tags": [
+        "通勤",
+        "正式",
+        "轻熟"
+      ],
+      "scenario_tags": [
+        "通勤",
+        "面试",
+        "正式活动"
+      ],
+      "fit_tags": [
+        "合体",
+        "直筒"
+      ],
+      "fabric_tags": [
+        "挺括",
+        "垂坠"
+      ],
+      "risk_tags": [
+        "低利用率风险",
+        "场景限制"
+      ],
+      "value_tags": [
+        "风格锚点",
+        "基础款"
+      ],
+      "applicable_items": [
+        "套装",
+        "西装套装",
+        "裙套装"
+      ],
+      "not_applicable_items": [],
+      "content": "套装完整度高，但如果只能成套穿，利用率会低。外套和下装分别能与已有衣橱组合，才更符合长期主义。",
+      "decision_points": [
+        "外套能否单独搭牛仔裤或裙",
+        "下装能否搭其他上衣",
+        "成套正式度是否常用"
+      ],
+      "outfit_suggestions": [
+        "西装外套拆搭牛仔裤，西裤拆搭针织或衬衫"
+      ],
+      "risk_signals": [
+        "颜色或面料导致只能成套",
+        "正式场景少",
+        "上下装任一件不合适"
+      ],
+      "decision_bias": {
+        "buy": "成套和拆开都能穿",
+        "save": "验证拆搭方案",
+        "skip": "只能单一正式场景"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "capsule-wardrobe",
+        "cost-per-wear"
+      ],
+      "embedding_text": "套装：完整度高但需能拆开搭配，提高通勤和正式场景利用率。"
+    },
+    {
+      "card_id": "fabric-001-linen-wrinkle",
+      "topic": "亚麻清爽但易皱",
+      "knowledge_type": "fabric_care",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "上衣",
+        "下装",
+        "连衣裙/套装"
+      ],
+      "color_tags": [
+        "白",
+        "米白",
+        "卡其"
+      ],
+      "style_tags": [
+        "松弛感",
+        "休闲",
+        "法式"
+      ],
+      "scenario_tags": [
+        "旅行",
+        "日常出街",
+        "通勤"
+      ],
+      "fit_tags": [
+        "宽松"
+      ],
+      "fabric_tags": [
+        "亚麻",
+        "轻薄"
+      ],
+      "risk_tags": [
+        "维护成本",
+        "易皱"
+      ],
+      "value_tags": [
+        "过渡款"
+      ],
+      "applicable_items": [
+        "亚麻衬衫",
+        "亚麻裤",
+        "亚麻裙"
+      ],
+      "not_applicable_items": [],
+      "content": "亚麻适合夏季和松弛感，但天然皱感明显。若用户无法接受皱感或不愿熨烫，通勤利用率会下降。",
+      "decision_points": [
+        "是否接受自然皱感",
+        "是否需要熨烫",
+        "是否适合夏季场景"
+      ],
+      "outfit_suggestions": [
+        "亚麻衬衫搭直筒裤和凉鞋，保持宽松但用鞋包收住"
+      ],
+      "risk_signals": [
+        "要求非常平整的通勤场景",
+        "浅色亚麻偏透",
+        "用户不愿护理"
+      ],
+      "decision_bias": {
+        "buy": "接受皱感且夏季高频",
+        "save": "确认透感和护理",
+        "skip": "皱感会阻碍穿着"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "retail-care-labels",
+        "retail-fabric-naming"
+      ],
+      "embedding_text": "亚麻：清爽松弛但易皱易透，适合夏季，需确认护理接受度。"
+    },
+    {
+      "card_id": "fabric-002-satin-delicate",
+      "topic": "缎面有光泽但维护敏感",
+      "knowledge_type": "fabric_care",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "上衣",
+        "连衣裙/套装",
+        "下装"
+      ],
+      "color_tags": [
+        "黑",
+        "米白",
+        "红"
+      ],
+      "style_tags": [
+        "轻熟",
+        "法式",
+        "复古"
+      ],
+      "scenario_tags": [
+        "约会",
+        "聚会",
+        "正式活动"
+      ],
+      "fit_tags": [
+        "合体",
+        "收腰"
+      ],
+      "fabric_tags": [
+        "缎面",
+        "垂坠"
+      ],
+      "risk_tags": [
+        "维护成本",
+        "低利用率风险"
+      ],
+      "value_tags": [
+        "亮点款"
+      ],
+      "applicable_items": [
+        "缎面裙",
+        "缎面衬衫",
+        "缎面连衣裙"
+      ],
+      "not_applicable_items": [
+        "高频粗穿场景"
+      ],
+      "content": "缎面能提供光泽和女性化气质，但易勾丝、显水渍或皱痕。适合明确约会和聚会场景，不一定适合高频通勤。",
+      "decision_points": [
+        "是否有明确场景",
+        "是否能接受精细护理",
+        "是否容易显皱或贴身"
+      ],
+      "outfit_suggestions": [
+        "缎面半裙搭针织衫和低跟鞋，降低正式感"
+      ],
+      "risk_signals": [
+        "日常通勤粗穿需求",
+        "易勾丝",
+        "需要特殊护理"
+      ],
+      "decision_bias": {
+        "buy": "场景明确且护理可接受",
+        "save": "确认面料质感",
+        "skip": "维护负担高"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "retail-care-labels"
+      ],
+      "embedding_text": "缎面：光泽垂坠，适合约会聚会，关注勾丝水渍皱痕和护理。"
+    },
+    {
+      "card_id": "fabric-003-chiffon-sheer",
+      "topic": "雪纺轻盈但需处理透感",
+      "knowledge_type": "fabric_care",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "上衣",
+        "连衣裙/套装"
+      ],
+      "color_tags": [
+        "白",
+        "米白",
+        "粉"
+      ],
+      "style_tags": [
+        "温柔",
+        "法式",
+        "轻熟"
+      ],
+      "scenario_tags": [
+        "约会",
+        "通勤",
+        "正式活动"
+      ],
+      "fit_tags": [
+        "宽松"
+      ],
+      "fabric_tags": [
+        "雪纺",
+        "轻薄"
+      ],
+      "risk_tags": [
+        "易透",
+        "维护成本"
+      ],
+      "value_tags": [
+        "亮点款",
+        "过渡款"
+      ],
+      "applicable_items": [
+        "雪纺衫",
+        "碎花裙",
+        "轻薄罩衫"
+      ],
+      "not_applicable_items": [],
+      "content": "雪纺轻盈有氛围，但透感、静电和勾丝风险较高。购买前应确认是否有合适内搭以及是否适合真实场景。",
+      "decision_points": [
+        "是否需要内搭",
+        "是否容易静电或勾丝",
+        "是否适合通勤正式度"
+      ],
+      "outfit_suggestions": [
+        "雪纺衫内搭同色背心，搭直筒裤和低跟鞋"
+      ],
+      "risk_signals": [
+        "透感影响穿着信心",
+        "内搭缺失",
+        "面料太软塌"
+      ],
+      "decision_bias": {
+        "buy": "内搭和场景都清晰",
+        "save": "确认透感",
+        "skip": "穿着门槛高"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "retail-care-labels"
+      ],
+      "embedding_text": "雪纺：轻盈但易透静电勾丝，需内搭和场景确认。"
+    },
+    {
+      "card_id": "fabric-004-denim-durability",
+      "topic": "牛仔耐穿但要看硬度和褪色",
+      "knowledge_type": "fabric_care",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "下装",
+        "外套"
+      ],
+      "color_tags": [
+        "牛仔蓝",
+        "黑",
+        "白"
+      ],
+      "style_tags": [
+        "休闲",
+        "通勤",
+        "法式"
+      ],
+      "scenario_tags": [
+        "日常出街",
+        "旅行",
+        "通勤"
+      ],
+      "fit_tags": [
+        "直筒",
+        "阔腿",
+        "合体"
+      ],
+      "fabric_tags": [
+        "牛仔",
+        "厚重"
+      ],
+      "risk_tags": [
+        "版型舒适度风险",
+        "维护成本"
+      ],
+      "value_tags": [
+        "基础款"
+      ],
+      "applicable_items": [
+        "牛仔裤",
+        "牛仔外套",
+        "牛仔裙"
+      ],
+      "not_applicable_items": [],
+      "content": "牛仔耐穿耐搭，但硬度、弹性、掉色和洗水决定舒适与维护。深色牛仔更通勤，浅色更休闲。",
+      "decision_points": [
+        "坐下是否舒服",
+        "是否掉色",
+        "洗水是否补足衣橱"
+      ],
+      "outfit_suggestions": [
+        "深蓝直筒牛仔裤搭白衬衫和西装外套轻通勤"
+      ],
+      "risk_signals": [
+        "腰臀活动受限",
+        "深色严重掉色",
+        "已有同洗水同裤型"
+      ],
+      "decision_bias": {
+        "buy": "耐穿且补足洗水或裤型",
+        "save": "确认舒适和掉色",
+        "skip": "重复且不舒适"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "retail-fabric-naming",
+        "retail-care-labels"
+      ],
+      "embedding_text": "牛仔：耐穿高复用，关注硬度弹性掉色洗水和裤型重复。"
+    },
+    {
+      "card_id": "fabric-005-leather-care",
+      "topic": "皮革提升质感但需要护理",
+      "knowledge_type": "fabric_care",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "外套"
+      ],
+      "color_tags": [
+        "黑",
+        "棕",
+        "米白"
+      ],
+      "style_tags": [
+        "通勤",
+        "老钱风",
+        "甜酷"
+      ],
+      "scenario_tags": [
+        "通勤",
+        "日常出街",
+        "聚会"
+      ],
+      "fit_tags": [],
+      "fabric_tags": [
+        "皮革"
+      ],
+      "risk_tags": [
+        "维护成本",
+        "季节限制强"
+      ],
+      "value_tags": [
+        "风格锚点"
+      ],
+      "applicable_items": [
+        "皮夹克"
+      ],
+      "not_applicable_items": [],
+      "content": "皮革能提升质感和正式度，但怕水、刮痕、压痕和保养成本。高频鞋包可值得投入，低频皮衣需谨慎。",
+      "decision_points": [
+        "使用频率是否高",
+        "是否愿意保养",
+        "颜色是否能长期搭配"
+      ],
+      "outfit_suggestions": [
+        "棕色皮包呼应棕色乐福鞋，提升基础通勤装质感"
+      ],
+      "risk_signals": [
+        "浅色皮革易脏",
+        "雨季多",
+        "只为风格尝鲜而高价购买"
+      ],
+      "decision_bias": {
+        "buy": "高频且护理可接受",
+        "save": "确认材质和保养",
+        "skip": "高价低频高维护"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "retail-care-labels",
+        "cost-per-wear"
+      ],
+      "embedding_text": "皮革：质感强但怕水刮痕需护理，高频鞋包更适合投入。"
+    },
+    {
+      "card_id": "fabric-006-woolen-season",
+      "topic": "毛呢保暖但季节和清洁限制强",
+      "knowledge_type": "fabric_care",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "外套",
+        "下装"
+      ],
+      "color_tags": [
+        "黑",
+        "驼色",
+        "灰"
+      ],
+      "style_tags": [
+        "通勤",
+        "老钱风",
+        "正式"
+      ],
+      "scenario_tags": [
+        "通勤",
+        "正式活动",
+        "日常出街"
+      ],
+      "fit_tags": [
+        "长款",
+        "合体"
+      ],
+      "fabric_tags": [
+        "毛呢",
+        "厚重"
+      ],
+      "risk_tags": [
+        "维护成本",
+        "季节限制强"
+      ],
+      "value_tags": [
+        "风格锚点"
+      ],
+      "applicable_items": [
+        "大衣",
+        "毛呢裙",
+        "毛呢裤"
+      ],
+      "not_applicable_items": [
+        "炎热地区高频单品"
+      ],
+      "content": "毛呢适合秋冬正式和质感造型，但清洗、粘毛、起球和季节限制都比较明显。购买前要看当地气候和穿着频率。",
+      "decision_points": [
+        "冬季是否足够长",
+        "是否需要干洗",
+        "是否容易粘毛起球"
+      ],
+      "outfit_suggestions": [
+        "灰色毛呢大衣搭黑色针织和直筒裤，鞋包保持简洁"
+      ],
+      "risk_signals": [
+        "当地少冷天",
+        "家中有粘毛环境",
+        "干洗成本高"
+      ],
+      "decision_bias": {
+        "buy": "冬季高频且质感好",
+        "save": "确认护理成本",
+        "skip": "季节短维护高"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "retail-care-labels"
+      ],
+      "embedding_text": "毛呢：保暖有质感，但季节限制、干洗、粘毛、起球需评估。"
+    },
+    {
+      "card_id": "fabric-007-cotton-easy-care",
+      "topic": "棉质基础款要看厚度和形态保持",
+      "knowledge_type": "fabric_care",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "上衣",
+        "下装"
+      ],
+      "color_tags": [
+        "白",
+        "黑",
+        "灰"
+      ],
+      "style_tags": [
+        "休闲",
+        "极简",
+        "通勤"
+      ],
+      "scenario_tags": [
+        "日常出街",
+        "居家",
+        "通勤"
+      ],
+      "fit_tags": [
+        "合体",
+        "宽松"
+      ],
+      "fabric_tags": [
+        "棉",
+        "轻薄",
+        "厚重"
+      ],
+      "risk_tags": [
+        "维护成本"
+      ],
+      "value_tags": [
+        "基础款"
+      ],
+      "applicable_items": [
+        "T恤",
+        "衬衫",
+        "休闲裤"
+      ],
+      "not_applicable_items": [],
+      "content": "棉质亲肤易打理，是基础衣橱核心。但薄棉可能透和变形，厚棉可能闷热，购买时要看克重和洗后形态。",
+      "decision_points": [
+        "厚度是否适合季节",
+        "是否易变形",
+        "是否容易透"
+      ],
+      "outfit_suggestions": [
+        "厚度适中的白棉 T 可搭西装、牛仔裤和半身裙"
+      ],
+      "risk_signals": [
+        "领口易松",
+        "白色偏透",
+        "洗后缩水明显"
+      ],
+      "decision_bias": {
+        "buy": "厚度和形态稳定",
+        "save": "确认洗护表现",
+        "skip": "低质棉基础款重复"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "retail-fabric-naming",
+        "retail-care-labels"
+      ],
+      "embedding_text": "棉质：亲肤易打理，关注克重、透感、变形、缩水和季节。"
+    },
+    {
+      "card_id": "fabric-008-structured-vs-drapey",
+      "topic": "挺括和垂坠对应不同搭配价值",
+      "knowledge_type": "fabric_care",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "外套",
+        "下装",
+        "上衣"
+      ],
+      "color_tags": [
+        "黑",
+        "灰",
+        "米白"
+      ],
+      "style_tags": [
+        "通勤",
+        "松弛感",
+        "轻熟"
+      ],
+      "scenario_tags": [
+        "通勤",
+        "日常出街",
+        "约会"
+      ],
+      "fit_tags": [
+        "合体",
+        "宽松",
+        "直筒"
+      ],
+      "fabric_tags": [
+        "挺括",
+        "垂坠"
+      ],
+      "risk_tags": [
+        "比例失衡"
+      ],
+      "value_tags": [
+        "风格锚点",
+        "基础款"
+      ],
+      "applicable_items": [
+        "西装",
+        "阔腿裤",
+        "衬衫",
+        "半身裙"
+      ],
+      "not_applicable_items": [],
+      "content": "挺括面料更利落正式，垂坠面料更柔和松弛。两者没有绝对优劣，关键看用户场景和衣橱缺少哪种质感。",
+      "decision_points": [
+        "场景需要正式还是松弛",
+        "是否已有大量同类质感",
+        "版型是否被面料支撑"
+      ],
+      "outfit_suggestions": [
+        "挺括西装搭垂坠阔腿裤，形成利落与柔和的平衡"
+      ],
+      "risk_signals": [
+        "软塌面料撑不起外套",
+        "挺括面料过硬不舒适",
+        "全身质感单一"
+      ],
+      "decision_bias": {
+        "buy": "补足衣橱质感缺口",
+        "save": "确认手感和场景",
+        "skip": "质感与版型不匹配"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "retail-fabric-naming"
+      ],
+      "embedding_text": "挺括与垂坠：分别对应正式利落和柔和松弛，需匹配场景和版型。"
+    },
+    {
+      "card_id": "wardrobe-001-duplicate-color-category",
+      "topic": "同色同品类是最直接重复信号",
+      "knowledge_type": "wardrobe_utilization",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "上衣",
+        "外套",
+        "下装"
+      ],
+      "color_tags": [
+        "黑",
+        "白",
+        "米白"
+      ],
+      "style_tags": [
+        "极简",
+        "通勤",
+        "休闲"
+      ],
+      "scenario_tags": [
+        "通勤",
+        "日常出街"
+      ],
+      "fit_tags": [],
+      "fabric_tags": [],
+      "risk_tags": [
+        "重复购买风险"
+      ],
+      "value_tags": [
+        "重复风险款"
+      ],
+      "applicable_items": [
+        "基础上衣",
+        "西装外套",
+        "牛仔裤"
+      ],
+      "not_applicable_items": [],
+      "content": "同色同品类是最容易识别的重复风险。若衣橱已有多件白背心、黑西装或蓝牛仔裤，新单品必须有明确差异点。",
+      "decision_points": [
+        "同色同品类已有几件",
+        "差异是否来自版型、材质或场景",
+        "已有单品是否仍在穿"
+      ],
+      "outfit_suggestions": [
+        "对比已有相似单品，优先选择能补足不同场景的那一件"
+      ],
+      "risk_signals": [
+        "差异只存在于很小细节",
+        "已有相似单品穿着频率低",
+        "购买理由只是百搭"
+      ],
+      "decision_bias": {
+        "buy": "差异能带来新场景",
+        "save": "先清点已有单品",
+        "skip": "高度重复"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "wardrobe-utilization"
+      ],
+      "embedding_text": "重复识别：同色同品类需明确版型材质场景差异，否则重复购买风险高。"
+    },
+    {
+      "card_id": "wardrobe-002-unused-similar-warning",
+      "topic": "相似旧衣低频会预警新衣低频",
+      "knowledge_type": "wardrobe_utilization",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "上衣",
+        "下装"
+      ],
+      "color_tags": [],
+      "style_tags": [
+        "休闲",
+        "通勤",
+        "甜酷"
+      ],
+      "scenario_tags": [
+        "日常出街",
+        "通勤",
+        "聚会"
+      ],
+      "fit_tags": [],
+      "fabric_tags": [],
+      "risk_tags": [
+        "低利用率风险",
+        "重复购买风险"
+      ],
+      "value_tags": [
+        "低利用率款",
+        "重复风险款"
+      ],
+      "applicable_items": [
+        "所有服饰"
+      ],
+      "not_applicable_items": [],
+      "content": "如果衣橱里已有相似单品长期不穿，新单品很可能也会低频。除非它明确解决旧衣的问题，如版型不适、颜色不好搭或维护太麻烦。",
+      "decision_points": [
+        "相似旧衣为什么不穿",
+        "新单品是否解决旧问题",
+        "用户是否真的改变了场景需求"
+      ],
+      "outfit_suggestions": [
+        "先尝试用旧衣搭一套，如果旧衣问题仍存在，再判断新衣是否替代升级"
+      ],
+      "risk_signals": [
+        "旧衣低频原因未解决",
+        "只是换了相近颜色",
+        "用户无法说明新旧差异"
+      ],
+      "decision_bias": {
+        "buy": "明确替代旧衣缺陷",
+        "save": "先复盘旧衣低频原因",
+        "skip": "重复低频模式"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "wardrobe-utilization",
+        "cost-per-wear"
+      ],
+      "embedding_text": "衣橱利用率：相似旧衣低频会预警新衣低频，除非新衣解决旧问题。"
+    },
+    {
+      "card_id": "wardrobe-003-gap-color-bridge",
+      "topic": "颜色桥梁单品能提高衣橱连接度",
+      "knowledge_type": "wardrobe_utilization",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "上衣",
+        "外套"
+      ],
+      "color_tags": [
+        "米白",
+        "灰",
+        "棕",
+        "卡其"
+      ],
+      "style_tags": [
+        "极简",
+        "通勤",
+        "松弛感"
+      ],
+      "scenario_tags": [
+        "通勤",
+        "日常出街"
+      ],
+      "fit_tags": [],
+      "fabric_tags": [],
+      "risk_tags": [
+        "低利用率风险"
+      ],
+      "value_tags": [
+        "过渡款",
+        "基础款"
+      ],
+      "applicable_items": [
+        "中性色上衣",
+        "外套"
+      ],
+      "not_applicable_items": [],
+      "content": "有些单品的价值不是自己抢眼，而是连接衣橱里的难搭颜色。米白、灰、棕、卡其常能作为颜色桥梁。",
+      "decision_points": [
+        "是否能连接 2 类以上已有单品",
+        "是否填补颜色断层",
+        "是否比已有基础款更好用"
+      ],
+      "outfit_suggestions": [
+        "米白上衣连接深色裤装和浅色外套，棕色包连接暖色鞋和中性色衣服"
+      ],
+      "risk_signals": [
+        "衣橱本身颜色已经很集中",
+        "桥梁色与已有单品过近",
+        "新单品没有实际连接对象"
+      ],
+      "decision_bias": {
+        "buy": "显著提高搭配连接度",
+        "save": "验证可连接对象",
+        "skip": "桥梁价值不明确"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "capsule-wardrobe",
+        "three-color-rule"
+      ],
+      "embedding_text": "颜色桥梁：米白灰棕卡其可连接衣橱难搭颜色，提高搭配网络。"
+    },
+    {
+      "card_id": "wardrobe-004-third-piece-lift",
+      "topic": "第三件能激活基础衣橱",
+      "knowledge_type": "wardrobe_utilization",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "外套"
+      ],
+      "color_tags": [
+        "米白",
+        "藏蓝",
+        "棕",
+        "红"
+      ],
+      "style_tags": [
+        "通勤",
+        "法式",
+        "休闲"
+      ],
+      "scenario_tags": [
+        "日常出街",
+        "通勤",
+        "约会"
+      ],
+      "fit_tags": [],
+      "fabric_tags": [
+        "挺括",
+        "针织",
+        "皮革"
+      ],
+      "risk_tags": [
+        "低利用率风险"
+      ],
+      "value_tags": [
+        "风格锚点",
+        "亮点款"
+      ],
+      "applicable_items": [
+        "外套",
+        "背心"
+      ],
+      "not_applicable_items": [],
+      "content": "当用户衣橱基础款很多但造型显平，第三件如外套、背心、围巾、腰带、包可以激活已有单品。",
+      "decision_points": [
+        "是否能服务多套基础搭配",
+        "是结构第三件还是颜色第三件",
+        "是否适合用户日常佩戴习惯"
+      ],
+      "outfit_suggestions": [
+        "白 T 和牛仔裤加西装外套或丝巾，基础造型立刻完整"
+      ],
+      "risk_signals": [
+        "用户不习惯配饰",
+        "第三件季节限制强",
+        "只能搭一套"
+      ],
+      "decision_bias": {
+        "buy": "能激活多套基础款",
+        "save": "确认使用习惯",
+        "skip": "装饰性强但低频"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "third-piece-rule"
+      ],
+      "embedding_text": "第三件：外套背心围巾腰带包可激活基础衣橱，提高完整度。"
+    },
+    {
+      "card_id": "wardrobe-005-outfit-network",
+      "topic": "衣橱价值来自搭配网络而非单件数量",
+      "knowledge_type": "wardrobe_utilization",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "上衣",
+        "下装"
+      ],
+      "color_tags": [
+        "黑",
+        "白",
+        "牛仔蓝",
+        "棕"
+      ],
+      "style_tags": [
+        "极简",
+        "通勤",
+        "休闲"
+      ],
+      "scenario_tags": [
+        "通勤",
+        "日常出街",
+        "旅行"
+      ],
+      "fit_tags": [
+        "直筒",
+        "合体"
+      ],
+      "fabric_tags": [],
+      "risk_tags": [
+        "低利用率风险"
+      ],
+      "value_tags": [
+        "基础款",
+        "过渡款"
+      ],
+      "applicable_items": [
+        "所有服饰"
+      ],
+      "not_applicable_items": [],
+      "content": "衣橱不是单品越多越好，而是单品之间能形成足够多的搭配网络。新单品应增加连接，而不是制造孤岛。",
+      "decision_points": [
+        "新单品能连接几件已有衣服",
+        "是否只和一件衣服搭",
+        "是否增加衣橱组合数量"
+      ],
+      "outfit_suggestions": [
+        "用候选单品分别连接一件上衣、一件下装、一双鞋，检查网络价值"
+      ],
+      "risk_signals": [
+        "只能孤立成套",
+        "和已有颜色风格不相连",
+        "需要额外购买才能连接"
+      ],
+      "decision_bias": {
+        "buy": "显著增加搭配网络",
+        "save": "连接数不足需观察",
+        "skip": "成为衣橱孤岛"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "capsule-wardrobe",
+        "wardrobe-utilization"
+      ],
+      "embedding_text": "衣橱网络：新单品应增加已有衣服之间的连接，而不是形成孤岛。"
+    },
+    {
+      "card_id": "wardrobe-006-replacement-upgrade",
+      "topic": "替代升级比横向重复更值得",
+      "knowledge_type": "wardrobe_utilization",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "上衣",
+        "下装"
+      ],
+      "color_tags": [
+        "黑",
+        "白",
+        "灰"
+      ],
+      "style_tags": [
+        "极简",
+        "通勤",
+        "休闲"
+      ],
+      "scenario_tags": [
+        "通勤",
+        "日常出街"
+      ],
+      "fit_tags": [
+        "合体",
+        "直筒"
+      ],
+      "fabric_tags": [
+        "棉",
+        "皮革",
+        "挺括"
+      ],
+      "risk_tags": [
+        "重复购买风险"
+      ],
+      "value_tags": [
+        "基础款"
+      ],
+      "applicable_items": [
+        "基础 T 恤",
+        "直筒裤",
+        "外套"
+      ],
+      "not_applicable_items": [],
+      "content": "如果新单品能替代一件旧的低质量、高磨损或不舒适单品，它比横向增加一件相似单品更值得。",
+      "decision_points": [
+        "是否会淘汰或替代旧单品",
+        "升级点是否明确",
+        "旧单品低频原因是否被解决"
+      ],
+      "outfit_suggestions": [
+        "用新白 T 替代领口变形旧白 T，保留原有搭配网络"
+      ],
+      "risk_signals": [
+        "旧单品仍好用",
+        "新旧功能完全重叠",
+        "买了也不会处理旧衣"
+      ],
+      "decision_bias": {
+        "buy": "明确替代升级",
+        "save": "先决定旧衣去留",
+        "skip": "横向重复堆积"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "cost-per-wear",
+        "wardrobe-utilization"
+      ],
+      "embedding_text": "替代升级：新单品若解决旧衣低质磨损不舒适，比横向重复更值得。"
+    },
+    {
+      "card_id": "wardrobe-007-scenario-gap",
+      "topic": "场景缺口比风格心动更重要",
+      "knowledge_type": "wardrobe_utilization",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "外套"
+      ],
+      "color_tags": [
+        "黑",
+        "藏蓝",
+        "棕"
+      ],
+      "style_tags": [
+        "通勤",
+        "正式",
+        "运动休闲"
+      ],
+      "scenario_tags": [
+        "面试",
+        "通勤",
+        "旅行",
+        "正式活动"
+      ],
+      "fit_tags": [],
+      "fabric_tags": [
+        "皮革",
+        "挺括"
+      ],
+      "risk_tags": [
+        "低利用率风险"
+      ],
+      "value_tags": [
+        "基础款",
+        "风格锚点"
+      ],
+      "applicable_items": [
+        "面试服",
+        "旅行外套"
+      ],
+      "not_applicable_items": [],
+      "content": "当衣橱缺少某个真实场景的可靠选择，新单品价值会明显提高。场景缺口比单纯风格心动更接近长期主义。",
+      "decision_points": [
+        "是否有真实场景缺口",
+        "缺口是否近期高频出现",
+        "候选单品是否直接解决缺口"
+      ],
+      "outfit_suggestions": [
+        "缺少面试服时优先补藏蓝西装、白衬衫和黑色乐福鞋中的短板"
+      ],
+      "risk_signals": [
+        "场景并不存在",
+        "只是想象中的理想生活",
+        "单品无法独立解决缺口"
+      ],
+      "decision_bias": {
+        "buy": "直接补足近期场景缺口",
+        "save": "场景不紧急",
+        "skip": "伪需求场景"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "capsule-wardrobe",
+        "wardrobe-utilization"
+      ],
+      "embedding_text": "场景缺口：真实近期场景缺少可靠选择时，购买价值提高。"
+    },
+    {
+      "card_id": "wardrobe-008-season-gap",
+      "topic": "季节缺口需要结合当地气候",
+      "knowledge_type": "wardrobe_utilization",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "外套",
+        "上衣"
+      ],
+      "color_tags": [
+        "黑",
+        "米白",
+        "卡其"
+      ],
+      "style_tags": [
+        "通勤",
+        "休闲"
+      ],
+      "scenario_tags": [
+        "通勤",
+        "旅行",
+        "日常出街"
+      ],
+      "fit_tags": [
+        "长款",
+        "宽松"
+      ],
+      "fabric_tags": [
+        "轻薄",
+        "厚重",
+        "毛呢"
+      ],
+      "risk_tags": [
+        "季节限制强"
+      ],
+      "value_tags": [
+        "过渡款",
+        "基础款"
+      ],
+      "applicable_items": [
+        "外套",
+        "针织",
+        "短靴"
+      ],
+      "not_applicable_items": [],
+      "content": "季节缺口要结合用户所在城市气候。过渡季短的地区不应过度购买风衣、薄外套；冬季短的地区大衣也要谨慎。",
+      "decision_points": [
+        "当地可穿周期多长",
+        "是否能跨季叠穿",
+        "是否已有相近季节单品"
+      ],
+      "outfit_suggestions": [
+        "薄外套可搭 T 恤和针织，扩展春秋两季使用"
+      ],
+      "risk_signals": [
+        "一年只能穿几次",
+        "同季节外套已足够",
+        "不能跨季叠穿"
+      ],
+      "decision_bias": {
+        "buy": "季节缺口明确且周期足够",
+        "save": "确认气候和叠穿",
+        "skip": "季节利用率低"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "wardrobe-utilization"
+      ],
+      "embedding_text": "季节缺口：结合当地气候和可穿周期，优先跨季叠穿。"
+    },
+    {
+      "card_id": "wardrobe-009-style-experiment-budget",
+      "topic": "风格探索要控制预算和比例",
+      "knowledge_type": "wardrobe_utilization",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "上衣"
+      ],
+      "color_tags": [
+        "红",
+        "粉",
+        "绿",
+        "黄"
+      ],
+      "style_tags": [
+        "甜酷",
+        "复古",
+        "韩系",
+        "学院风"
+      ],
+      "scenario_tags": [
+        "日常出街",
+        "聚会",
+        "约会"
+      ],
+      "fit_tags": [
+        "短款",
+        "宽松"
+      ],
+      "fabric_tags": [],
+      "risk_tags": [
+        "趋势风险",
+        "低利用率风险"
+      ],
+      "value_tags": [
+        "亮点款"
+      ],
+      "applicable_items": [
+        "风格尝鲜单品",
+        "配饰"
+      ],
+      "not_applicable_items": [],
+      "content": "尝试新风格是合理的，但应控制预算和比例。先用配饰、颜色或一件小单品试水，比直接买完整风格套装更稳。",
+      "decision_points": [
+        "是否第一次尝试该风格",
+        "预算是否适合试错",
+        "能否与已有基础款混搭"
+      ],
+      "outfit_suggestions": [
+        "用甜酷小包或复古丝巾搭现有基础装，低风险测试接受度"
+      ],
+      "risk_signals": [
+        "需要从头买一整套",
+        "价格过高",
+        "用户无相关穿着习惯"
+      ],
+      "decision_bias": {
+        "buy": "低成本小剂量探索",
+        "save": "先收藏观察",
+        "skip": "高价全套转向"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "70-30-rule",
+        "chinese-style-context"
+      ],
+      "embedding_text": "风格探索：控制预算和比例，用配饰或小单品先试水。"
+    },
+    {
+      "card_id": "wardrobe-010-review-after-24h",
+      "topic": "先收藏商品适合 24 小时后复盘",
+      "knowledge_type": "wardrobe_utilization",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "上衣",
+        "外套",
+        "下装"
+      ],
+      "color_tags": [],
+      "style_tags": [
+        "通勤",
+        "休闲",
+        "甜酷"
+      ],
+      "scenario_tags": [
+        "通勤",
+        "日常出街",
+        "聚会"
+      ],
+      "fit_tags": [],
+      "fabric_tags": [],
+      "risk_tags": [
+        "低利用率风险",
+        "重复购买风险"
+      ],
+      "value_tags": [
+        "低利用率款",
+        "重复风险款"
+      ],
+      "applicable_items": [
+        "先收藏商品",
+        "冲动心动商品"
+      ],
+      "not_applicable_items": [],
+      "content": "当结论不明确时，先收藏并在 24 小时后复盘。复盘应看心动是否持续、搭配是否更清晰、是否仍有真实场景。",
+      "decision_points": [
+        "24 小时后是否仍想买",
+        "是否补充了真实搭配",
+        "是否找到重复或替代单品"
+      ],
+      "outfit_suggestions": [
+        "复盘时再次生成 2-3 套已有衣橱搭配，并比较替代品"
+      ],
+      "risk_signals": [
+        "心动明显下降",
+        "无法补充场景",
+        "发现已有替代"
+      ],
+      "decision_bias": {
+        "buy": "复盘后仍有场景和搭配",
+        "save": "信息仍不足",
+        "skip": "心动消退或重复明确"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "impulse-control",
+        "cost-per-wear"
+      ],
+      "embedding_text": "决策清单：先收藏商品24小时后复盘，检查心动、场景、搭配和替代。"
+    },
+    {
+      "card_id": "category-017-polo-smart-casual",
+      "topic": "Polo 衫介于 T 恤和衬衫之间",
+      "knowledge_type": "category_rule",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "上衣",
+        "Polo衫"
+      ],
+      "color_tags": [
+        "白",
+        "藏蓝",
+        "黑",
+        "灰"
+      ],
+      "style_tags": [
+        "运动休闲",
+        "通勤",
+        "Clean Fit"
+      ],
+      "scenario_tags": [
+        "通勤",
+        "校园",
+        "日常出街"
+      ],
+      "fit_tags": [
+        "合体",
+        "宽松"
+      ],
+      "fabric_tags": [
+        "棉",
+        "运动面料",
+        "速干"
+      ],
+      "risk_tags": [
+        "正式度不足",
+        "重复购买风险"
+      ],
+      "value_tags": [
+        "基础款",
+        "过渡款"
+      ],
+      "applicable_items": [
+        "Polo衫",
+        "翻领短袖",
+        "翻领T恤"
+      ],
+      "not_applicable_items": [
+        "严格正装场景"
+      ],
+      "content": "Polo 衫比 T 恤更有领型，比衬衫更休闲，适合轻通勤、校园和运动休闲。购买时要看领口是否挺、Logo 是否克制、面料是否过于运动化。",
+      "decision_points": [
+        "是否补足 T 恤和衬衫之间的轻正式缺口",
+        "领型和门襟是否干净",
+        "与已有 T 恤或衬衫是否功能重复"
+      ],
+      "outfit_suggestions": [
+        "藏蓝 Polo 搭卡其直筒裤和乐福鞋，形成轻通勤；白色 Polo 搭牛仔裤和小白鞋，形成干净日常。"
+      ],
+      "risk_signals": [
+        "Logo 或撞色过强",
+        "面料太像运动校服",
+        "已有多件基础 T 恤且轻通勤需求不明显"
+      ],
+      "decision_bias": {
+        "buy": "需要轻正式上衣且领型面料干净",
+        "save": "确认是否比 T 恤更有价值",
+        "skip": "只是多买一件类似基础上衣"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "retail-category-scan",
+        "uniqlo-polo",
+        "chinese-shopping-vocabulary"
+      ],
+      "embedding_text": "Polo衫：介于T恤和衬衫之间，适合轻通勤校园运动休闲，关注领型Logo面料和重复。"
+    },
+    {
+      "card_id": "category-018-hoodie-casual-boundary",
+      "topic": "连帽卫衣要看休闲边界",
+      "knowledge_type": "category_rule",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "上衣",
+        "连帽卫衣"
+      ],
+      "color_tags": [
+        "灰",
+        "黑",
+        "米白"
+      ],
+      "style_tags": [
+        "休闲",
+        "运动休闲",
+        "街头"
+      ],
+      "scenario_tags": [
+        "日常出街",
+        "校园",
+        "旅行"
+      ],
+      "fit_tags": [
+        "宽松",
+        "短款",
+        "合体"
+      ],
+      "fabric_tags": [
+        "棉",
+        "厚重"
+      ],
+      "risk_tags": [
+        "正式度不足",
+        "低利用率风险"
+      ],
+      "value_tags": [
+        "舒适款",
+        "基础款"
+      ],
+      "applicable_items": [],
+      "not_applicable_items": [
+        "面试",
+        "正式活动"
+      ],
+      "content": "连帽卫衣舒适但休闲感强，适合校园、旅行和日常。若用户通勤场景多，要确认它能否通过西装外套、直筒裤或干净鞋型被日常化。",
+      "decision_points": [
+        "是否有足够休闲场景",
+        "帽子是否影响外套叠穿",
+        "版型是否会显得拖沓"
+      ],
+      "outfit_suggestions": [
+        "灰色连帽卫衣搭直筒牛仔裤和简洁运动鞋；短款卫衣搭高腰裤可提高重心。"
+      ],
+      "risk_signals": [
+        "衣橱已有多件卫衣",
+        "帽子叠穿外套不舒服",
+        "用户主要场景是通勤面试"
+      ],
+      "decision_bias": {
+        "buy": "休闲场景高频且版型干净",
+        "save": "确认和外套的叠穿",
+        "skip": "正式场景多且已有类似卫衣"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "retail-category-scan",
+        "content-platform-vocabulary"
+      ],
+      "embedding_text": "连帽卫衣：舒适休闲，关注帽子叠穿、通勤边界、已有卫衣重复。"
+    },
+    {
+      "card_id": "category-019-sun-protection-jacket",
+      "topic": "防晒衣要同时看防护和日常化",
+      "knowledge_type": "category_rule",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "外套",
+        "防晒衣"
+      ],
+      "color_tags": [
+        "白",
+        "米白",
+        "灰",
+        "粉"
+      ],
+      "style_tags": [
+        "防晒通勤",
+        "运动休闲",
+        "休闲"
+      ],
+      "scenario_tags": [
+        "城市防晒",
+        "通勤",
+        "旅行"
+      ],
+      "fit_tags": [
+        "宽松",
+        "长款",
+        "合体"
+      ],
+      "fabric_tags": [
+        "防晒面料",
+        "轻薄",
+        "速干"
+      ],
+      "risk_tags": [
+        "透气不足",
+        "功能重复",
+        "季节限制强"
+      ],
+      "value_tags": [
+        "功能款",
+        "过渡款"
+      ],
+      "applicable_items": [
+        "防晒衣",
+        "防晒外套",
+        "UPF外套"
+      ],
+      "not_applicable_items": [
+        "冬季保暖外套"
+      ],
+      "content": "防晒衣不是只看好不好看，应同时看 UPF 标识、覆盖面积、透气、帽檐或袖口设计，以及是否能穿进真实通勤和旅行场景。",
+      "decision_points": [
+        "是否有真实高频日晒场景",
+        "是否已有防晒伞、防晒衫或轻薄外套替代",
+        "颜色是否耐脏且能搭衣橱"
+      ],
+      "outfit_suggestions": [
+        "米白防晒衣搭浅色 T 恤、直筒裤和运动鞋，适合夏季通勤；灰色防晒衣搭运动裤适合旅行。"
+      ],
+      "risk_signals": [
+        "只因广告防晒概念心动",
+        "面料闷热",
+        "已有多件轻薄防晒外套"
+      ],
+      "decision_bias": {
+        "buy": "夏季通勤或旅行日晒高频且透气好",
+        "save": "确认 UPF 和闷热问题",
+        "skip": "功能重复或真实日晒场景少"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "retail-category-scan",
+        "sun-protection-clothing",
+        "content-platform-vocabulary"
+      ],
+      "embedding_text": "防晒衣：看UPF覆盖面积透气日常化和功能重复，适合城市防晒通勤旅行。"
+    },
+    {
+      "card_id": "category-020-hardshell-jacket",
+      "topic": "冲锋衣要防止城市衣橱功能过剩",
+      "knowledge_type": "category_rule",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "外套",
+        "冲锋衣"
+      ],
+      "color_tags": [
+        "黑",
+        "灰",
+        "藏蓝",
+        "绿"
+      ],
+      "style_tags": [
+        "户外机能",
+        "运动休闲"
+      ],
+      "scenario_tags": [
+        "徒步/轻户外",
+        "旅行",
+        "日常出街"
+      ],
+      "fit_tags": [
+        "宽松",
+        "长款"
+      ],
+      "fabric_tags": [
+        "防水",
+        "防风",
+        "厚重"
+      ],
+      "risk_tags": [
+        "功能过剩",
+        "透气不足",
+        "低利用率风险"
+      ],
+      "value_tags": [
+        "功能款",
+        "风格锚点"
+      ],
+      "applicable_items": [
+        "冲锋衣",
+        "硬壳",
+        "三合一冲锋衣"
+      ],
+      "not_applicable_items": [
+        "纯室内通勤"
+      ],
+      "content": "冲锋衣适合防风防雨和户外场景，但如果用户主要在城市通勤，专业硬壳可能出现功能过剩、闷热和风格割裂。",
+      "decision_points": [
+        "是否有徒步、露营、雨天通勤等真实场景",
+        "是否已有雨壳、风壳或防晒衣",
+        "颜色和廓形是否能日常化"
+      ],
+      "outfit_suggestions": [
+        "黑色或藏蓝冲锋衣搭直筒裤和简洁运动鞋，降低户外装备感；彩色冲锋衣用黑白灰基础款承接。"
+      ],
+      "risk_signals": [
+        "只因山系风格心动但没有户外场景",
+        "面料闷热或沙沙声明显",
+        "已有同功能外套"
+      ],
+      "decision_bias": {
+        "buy": "真实户外或雨天通勤高频",
+        "save": "确认防水透气和已有功能重叠",
+        "skip": "城市场景少且功能过剩"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "outdoor-retail-categories",
+        "rei-layering",
+        "decathlon-outdoor"
+      ],
+      "embedding_text": "冲锋衣：防风防雨户外功能强，城市衣橱需警惕功能过剩、闷热和重复。"
+    },
+    {
+      "card_id": "category-021-softshell-jacket",
+      "topic": "软壳衣适合轻户外和通勤过渡",
+      "knowledge_type": "category_rule",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "外套",
+        "软壳衣"
+      ],
+      "color_tags": [
+        "黑",
+        "灰",
+        "藏蓝"
+      ],
+      "style_tags": [
+        "户外机能",
+        "运动休闲",
+        "通勤"
+      ],
+      "scenario_tags": [
+        "徒步/轻户外",
+        "通勤",
+        "旅行"
+      ],
+      "fit_tags": [
+        "合体",
+        "宽松"
+      ],
+      "fabric_tags": [
+        "防风",
+        "泼水",
+        "高弹"
+      ],
+      "risk_tags": [
+        "功能重复",
+        "正式度不足"
+      ],
+      "value_tags": [
+        "功能款",
+        "过渡款"
+      ],
+      "applicable_items": [
+        "软壳衣",
+        "轻户外外套"
+      ],
+      "not_applicable_items": [
+        "强正式场合"
+      ],
+      "content": "软壳衣比硬壳更柔软日常，比普通运动外套更有功能性，适合轻户外、骑行和通勤过渡。要避免和已有运动夹克、防风外套功能重复。",
+      "decision_points": [
+        "是否需要防风和弹性",
+        "是否能作为春秋通勤外套",
+        "是否已有相似轻户外外套"
+      ],
+      "outfit_suggestions": [
+        "黑色软壳衣搭灰色运动裤和跑鞋适合旅行；搭直筒裤和简洁内搭可弱化户外感。"
+      ],
+      "risk_signals": [
+        "防水不如硬壳但价格接近",
+        "外观过运动",
+        "已有风壳或冲锋衣"
+      ],
+      "decision_bias": {
+        "buy": "轻户外和通勤过渡都能用",
+        "save": "确认与已有外套差异",
+        "skip": "功能定位模糊且重复"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "outdoor-retail-categories",
+        "rei-layering"
+      ],
+      "embedding_text": "软壳衣：防风弹性轻户外，介于运动外套和硬壳之间，检查功能重复。"
+    },
+    {
+      "card_id": "category-022-fleece-jacket",
+      "topic": "抓绒衣保暖轻便但休闲感强",
+      "knowledge_type": "category_rule",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "外套",
+        "抓绒衣"
+      ],
+      "color_tags": [
+        "米白",
+        "灰",
+        "棕",
+        "黑"
+      ],
+      "style_tags": [
+        "休闲",
+        "户外机能",
+        "日系"
+      ],
+      "scenario_tags": [
+        "旅行",
+        "徒步/轻户外",
+        "日常出街"
+      ],
+      "fit_tags": [
+        "宽松",
+        "合体"
+      ],
+      "fabric_tags": [
+        "抓绒",
+        "厚重"
+      ],
+      "risk_tags": [
+        "易粘毛",
+        "正式度不足",
+        "维护成本"
+      ],
+      "value_tags": [
+        "舒适款",
+        "功能款"
+      ],
+      "applicable_items": [
+        "抓绒衣",
+        "摇粒绒外套"
+      ],
+      "not_applicable_items": [
+        "面试",
+        "正式活动"
+      ],
+      "content": "抓绒衣保暖轻便，适合旅行和轻户外，但容易显休闲、粘毛、起球。城市穿搭要看颜色和版型是否干净。",
+      "decision_points": [
+        "是否缺少轻便保暖层",
+        "是否接受起球和静电",
+        "是否能搭现有外套或作为中间层"
+      ],
+      "outfit_suggestions": [
+        "米白抓绒搭直筒牛仔裤和运动鞋日常化；深色抓绒作为冲锋衣内层适合户外旅行。"
+      ],
+      "risk_signals": [
+        "家中容易粘毛",
+        "穿几次就显旧",
+        "通勤正式度不够"
+      ],
+      "decision_bias": {
+        "buy": "旅行轻户外或居家外穿高频",
+        "save": "确认起球和粘毛",
+        "skip": "正式场景多且已有保暖层"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "outdoor-retail-categories",
+        "fleece-layering"
+      ],
+      "embedding_text": "抓绒衣：轻便保暖休闲，关注起球静电粘毛和城市正式度。"
+    },
+    {
+      "card_id": "category-023-down-jacket-warmth",
+      "topic": "羽绒服按气候和收纳评估",
+      "knowledge_type": "category_rule",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "外套",
+        "羽绒服"
+      ],
+      "color_tags": [
+        "黑",
+        "白",
+        "灰",
+        "藏蓝"
+      ],
+      "style_tags": [
+        "通勤",
+        "休闲",
+        "户外机能"
+      ],
+      "scenario_tags": [
+        "通勤",
+        "旅行",
+        "日常出街"
+      ],
+      "fit_tags": [
+        "长款",
+        "宽松",
+        "合体"
+      ],
+      "fabric_tags": [
+        "羽绒",
+        "厚重",
+        "轻薄"
+      ],
+      "risk_tags": [
+        "季节限制强",
+        "维护成本",
+        "比例失衡"
+      ],
+      "value_tags": [
+        "功能款",
+        "基础款"
+      ],
+      "applicable_items": [
+        "羽绒服",
+        "轻羽绒",
+        "棉服"
+      ],
+      "not_applicable_items": [
+        "炎热地区高频通勤"
+      ],
+      "content": "羽绒服是保暖功能款，购买前要看当地冬季长度、通勤方式、收纳体积、清洗成本和版型体量。",
+      "decision_points": [
+        "当地冬天是否足够冷且长",
+        "是否需要长款或轻羽绒",
+        "是否已有同等保暖外套"
+      ],
+      "outfit_suggestions": [
+        "黑色短羽绒搭直筒裤和短靴，保持利落；轻羽绒可作为大衣或冲锋衣内层。"
+      ],
+      "risk_signals": [
+        "冬季很短",
+        "已有足够保暖外套",
+        "体量过大影响日常搭配"
+      ],
+      "decision_bias": {
+        "buy": "冬季高频且保暖缺口明确",
+        "save": "确认充绒和清洗",
+        "skip": "季节利用率低或功能重复"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "retail-category-scan",
+        "winter-outerwear"
+      ],
+      "embedding_text": "羽绒服：按当地冬季长度、保暖缺口、收纳清洗和体量评估。"
+    },
+    {
+      "card_id": "category-024-windbreaker-rain-jacket",
+      "topic": "风壳雨壳要区分防风、防泼水和防水",
+      "knowledge_type": "category_rule",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "外套",
+        "运动风衣/风壳",
+        "雨衣/雨壳"
+      ],
+      "color_tags": [
+        "黑",
+        "灰",
+        "藏蓝"
+      ],
+      "style_tags": [
+        "户外机能",
+        "运动休闲"
+      ],
+      "scenario_tags": [
+        "旅行",
+        "徒步/轻户外",
+        "城市防晒"
+      ],
+      "fit_tags": [
+        "宽松"
+      ],
+      "fabric_tags": [
+        "防风",
+        "泼水",
+        "防水",
+        "轻薄"
+      ],
+      "risk_tags": [
+        "功能重复",
+        "透气不足"
+      ],
+      "value_tags": [
+        "功能款",
+        "过渡款"
+      ],
+      "applicable_items": [
+        "风壳",
+        "运动风衣",
+        "雨壳",
+        "防雨外套"
+      ],
+      "not_applicable_items": [
+        "正式通勤主外套"
+      ],
+      "content": "风壳、雨壳和防晒衣常被混用，但功能不同。防风、防泼水、防水、透气和收纳能力要分开判断。",
+      "decision_points": [
+        "真实需求是防风还是防雨",
+        "是否需要可收纳轻量外套",
+        "是否已有冲锋衣或防晒衣"
+      ],
+      "outfit_suggestions": [
+        "轻薄风壳搭 T 恤和运动裤适合旅行；黑色雨壳搭直筒裤可降低户外感。"
+      ],
+      "risk_signals": [
+        "把防泼水当防暴雨",
+        "已有多件轻薄功能外套",
+        "面料闷热导致夏季不愿穿"
+      ],
+      "decision_bias": {
+        "buy": "明确补足防风或防雨缺口",
+        "save": "确认防护等级",
+        "skip": "功能定位不清且重复"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "outdoor-retail-categories",
+        "rainwear-layering"
+      ],
+      "embedding_text": "风壳雨壳：区分防风、防泼水、防水、透气和收纳，避免功能重复。"
+    },
+    {
+      "card_id": "category-025-utility-jacket",
+      "topic": "工装外套和工装裤要控制体量",
+      "knowledge_type": "category_rule",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "外套",
+        "下装",
+        "工装外套",
+        "工装裤"
+      ],
+      "color_tags": [
+        "卡其",
+        "黑",
+        "绿",
+        "棕"
+      ],
+      "style_tags": [
+        "户外机能",
+        "街头",
+        "休闲"
+      ],
+      "scenario_tags": [
+        "日常出街",
+        "旅行",
+        "校园"
+      ],
+      "fit_tags": [
+        "宽松",
+        "直筒"
+      ],
+      "fabric_tags": [
+        "棉",
+        "挺括",
+        "厚重"
+      ],
+      "risk_tags": [
+        "比例失衡",
+        "场景限制"
+      ],
+      "value_tags": [
+        "风格锚点",
+        "亮点款"
+      ],
+      "applicable_items": [
+        "工装外套",
+        "工装裤",
+        "多口袋外套"
+      ],
+      "not_applicable_items": [
+        "严格通勤",
+        "正式活动"
+      ],
+      "content": "工装单品通过口袋、硬挺面料和宽松廓形提供风格感，但也容易增加体量。购买前要看是否能被简洁上衣、利落鞋型和中性色收住。",
+      "decision_points": [
+        "口袋和廓形是否过强",
+        "是否能搭已有基础上衣",
+        "是否符合用户长期风格"
+      ],
+      "outfit_suggestions": [
+        "卡其工装裤搭白 T 和黑色短外套；工装外套搭合体内搭和直筒裤，避免上下都膨胀。"
+      ],
+      "risk_signals": [
+        "上下都宽且口袋多",
+        "只适合拍照不适合日常",
+        "与衣橱主风格割裂"
+      ],
+      "decision_bias": {
+        "buy": "能成为可复用风格锚点",
+        "save": "验证基础款承接",
+        "skip": "体量过大且场景窄"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "content-platform-vocabulary",
+        "retail-category-scan"
+      ],
+      "embedding_text": "工装外套工装裤：多口袋宽松体量强，需用基础款和利落鞋型收住。"
+    },
+    {
+      "card_id": "category-026-yoga-leggings-boundary",
+      "topic": "瑜伽裤和打底裤要明确外穿边界",
+      "knowledge_type": "category_rule",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "下装",
+        "瑜伽裤",
+        "打底裤"
+      ],
+      "color_tags": [
+        "黑",
+        "灰",
+        "藏蓝"
+      ],
+      "style_tags": [
+        "运动休闲",
+        "休闲"
+      ],
+      "scenario_tags": [
+        "健身/瑜伽",
+        "轻运动",
+        "日常出街"
+      ],
+      "fit_tags": [
+        "修身",
+        "高腰"
+      ],
+      "fabric_tags": [
+        "高弹",
+        "运动面料",
+        "速干"
+      ],
+      "risk_tags": [
+        "压迫感",
+        "正式度不足",
+        "低利用率风险"
+      ],
+      "value_tags": [
+        "舒适款",
+        "功能款"
+      ],
+      "applicable_items": [
+        "瑜伽裤",
+        "运动紧身裤",
+        "打底裤"
+      ],
+      "not_applicable_items": [
+        "正式通勤",
+        "面试"
+      ],
+      "content": "瑜伽裤和打底裤首先是运动或内搭功能单品，外穿时要看厚度、支撑、尴尬线、上衣长度和用户舒适边界。",
+      "decision_points": [
+        "真实运动频率是否足够",
+        "是否准备外穿",
+        "是否有长上衣、卫衣或外套承接"
+      ],
+      "outfit_suggestions": [
+        "黑色瑜伽裤搭长款卫衣和运动鞋；外穿时用过臀外套或长衬衫增加安全感。"
+      ],
+      "risk_signals": [
+        "只是被显身材效果吸引",
+        "面料过薄",
+        "压迫感强或卷边"
+      ],
+      "decision_bias": {
+        "buy": "运动频率高且舒适支撑好",
+        "save": "确认外穿边界和厚度",
+        "skip": "运动场景少且外穿不自在"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "activewear-retail-categories",
+        "body-neutral-safety"
+      ],
+      "embedding_text": "瑜伽裤打底裤：运动内搭属性强，外穿看厚度支撑上衣长度和舒适边界。"
+    },
+    {
+      "card_id": "category-027-shark-pants-risk",
+      "topic": "鲨鱼裤要重点看压迫感和场景争议",
+      "knowledge_type": "category_rule",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "下装",
+        "鲨鱼裤"
+      ],
+      "color_tags": [
+        "黑",
+        "灰"
+      ],
+      "style_tags": [
+        "运动休闲",
+        "休闲"
+      ],
+      "scenario_tags": [
+        "轻运动",
+        "日常出街",
+        "健身/瑜伽"
+      ],
+      "fit_tags": [
+        "修身",
+        "高腰"
+      ],
+      "fabric_tags": [
+        "高弹",
+        "运动面料"
+      ],
+      "risk_tags": [
+        "压迫感",
+        "正式度不足",
+        "低利用率风险"
+      ],
+      "value_tags": [
+        "功能款",
+        "舒适款"
+      ],
+      "applicable_items": [
+        "鲨鱼裤",
+        "高弹塑形裤"
+      ],
+      "not_applicable_items": [
+        "正式活动",
+        "面试"
+      ],
+      "content": "鲨鱼裤常被营销为塑形和显利落，但长期主义判断应转向舒适度、外穿信心、真实运动场景和衣橱承接，而不是身材评价。",
+      "decision_points": [
+        "是否有真实轻运动或外穿场景",
+        "压迫感是否可接受",
+        "是否有过臀上衣或外套搭配"
+      ],
+      "outfit_suggestions": [
+        "鲨鱼裤搭过臀卫衣、长袜和运动鞋，作为轻运动或周末休闲造型。"
+      ],
+      "risk_signals": [
+        "压迫感强",
+        "只为所谓塑形效果购买",
+        "用户不习惯紧身下装外穿"
+      ],
+      "decision_bias": {
+        "buy": "轻运动高频且穿着自在",
+        "save": "确认厚度和压迫感",
+        "skip": "外穿不自在或场景少"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "content-platform-vocabulary",
+        "body-neutral-safety"
+      ],
+      "embedding_text": "鲨鱼裤：不做身材判断，重点看压迫感、厚度、外穿信心、运动场景和上衣承接。"
+    },
+    {
+      "card_id": "category-028-sweatpants-joggers",
+      "topic": "运动裤要看能否从居家走向出街",
+      "knowledge_type": "category_rule",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "下装",
+        "运动裤"
+      ],
+      "color_tags": [
+        "灰",
+        "黑",
+        "米白"
+      ],
+      "style_tags": [
+        "运动休闲",
+        "休闲",
+        "Clean Fit"
+      ],
+      "scenario_tags": [
+        "居家",
+        "日常出街",
+        "旅行"
+      ],
+      "fit_tags": [
+        "宽松",
+        "直筒",
+        "高腰"
+      ],
+      "fabric_tags": [
+        "棉",
+        "运动面料"
+      ],
+      "risk_tags": [
+        "正式度不足",
+        "低利用率风险"
+      ],
+      "value_tags": [
+        "舒适款",
+        "基础款"
+      ],
+      "applicable_items": [
+        "运动裤",
+        "卫裤",
+        "束脚裤"
+      ],
+      "not_applicable_items": [
+        "面试",
+        "正式活动"
+      ],
+      "content": "运动裤舒适但容易停留在居家感。高复用运动裤需要面料不塌、裤型利落、颜色干净，并能和外套或鞋包形成出街完整度。",
+      "decision_points": [
+        "是否能外穿出街",
+        "裤口和裤长是否利落",
+        "是否已有多条居家运动裤"
+      ],
+      "outfit_suggestions": [
+        "灰色直筒运动裤搭白 T、短夹克和简洁运动鞋；黑色束脚裤搭软壳衣适合旅行。"
+      ],
+      "risk_signals": [
+        "膝盖易鼓包",
+        "过于睡衣感",
+        "已有多条低频运动裤"
+      ],
+      "decision_bias": {
+        "buy": "舒适且能出街旅行",
+        "save": "确认面料稳定",
+        "skip": "只能居家且已有替代"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "retail-category-scan",
+        "content-platform-vocabulary"
+      ],
+      "embedding_text": "运动裤：舒适但需从居家走向出街，关注裤型面料裤口和重复。"
+    },
+    {
+      "card_id": "category-029-hiking-pants",
+      "topic": "户外裤要区分徒步功能和城市穿搭",
+      "knowledge_type": "category_rule",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "下装",
+        "户外裤",
+        "工装裤"
+      ],
+      "color_tags": [
+        "黑",
+        "灰",
+        "卡其",
+        "绿"
+      ],
+      "style_tags": [
+        "户外机能",
+        "运动休闲"
+      ],
+      "scenario_tags": [
+        "徒步/轻户外",
+        "旅行",
+        "日常出街"
+      ],
+      "fit_tags": [
+        "宽松",
+        "直筒"
+      ],
+      "fabric_tags": [
+        "速干",
+        "泼水",
+        "高弹"
+      ],
+      "risk_tags": [
+        "功能过剩",
+        "正式度不足",
+        "功能重复"
+      ],
+      "value_tags": [
+        "功能款",
+        "过渡款"
+      ],
+      "applicable_items": [
+        "户外裤",
+        "徒步裤",
+        "速干裤",
+        "工装裤"
+      ],
+      "not_applicable_items": [
+        "正式通勤"
+      ],
+      "content": "户外裤适合旅行和轻户外，速干、弹力、泼水和口袋是主要价值。城市穿搭要避免面料光泽过强、口袋过多和专业感过重。",
+      "decision_points": [
+        "是否有旅行徒步频率",
+        "城市穿是否能被基础上衣承接",
+        "是否已有功能相似裤装"
+      ],
+      "outfit_suggestions": [
+        "黑色户外裤搭白 T 和风壳，适合旅行；卡其户外裤搭衬衫可做轻户外日常。"
+      ],
+      "risk_signals": [
+        "口袋和抽绳太多",
+        "面料太像运动装备",
+        "缺少真实户外场景"
+      ],
+      "decision_bias": {
+        "buy": "旅行轻户外高频且能城市化",
+        "save": "确认面料和口袋",
+        "skip": "功能过剩且风格割裂"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "outdoor-retail-categories",
+        "decathlon-outdoor"
+      ],
+      "embedding_text": "户外裤：速干弹力泼水口袋服务旅行徒步，城市穿搭需防专业感过重。"
+    },
+    {
+      "card_id": "fabric-009-uv-protection-validity",
+      "topic": "防晒面料不能只看冰感营销",
+      "knowledge_type": "fabric_care",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "防晒衣",
+        "防晒衫",
+        "外套",
+        "上衣"
+      ],
+      "color_tags": [
+        "白",
+        "米白",
+        "灰",
+        "粉"
+      ],
+      "style_tags": [
+        "防晒通勤",
+        "运动休闲"
+      ],
+      "scenario_tags": [
+        "城市防晒",
+        "旅行",
+        "通勤"
+      ],
+      "fit_tags": [
+        "宽松",
+        "长款"
+      ],
+      "fabric_tags": [
+        "防晒面料",
+        "轻薄",
+        "速干"
+      ],
+      "risk_tags": [
+        "透气不足",
+        "维护成本",
+        "功能重复"
+      ],
+      "value_tags": [
+        "功能款"
+      ],
+      "applicable_items": [
+        "防晒衣",
+        "防晒衫",
+        "冰感防晒外套"
+      ],
+      "not_applicable_items": [],
+      "content": "防晒面料的价值来自可验证防护和真实穿着体验。冰感、凉感、轻薄等营销词需要回到 UPF 标识、覆盖面积、透气和洗后维护上判断。",
+      "decision_points": [
+        "是否有明确 UPF 或防晒说明",
+        "是否覆盖手臂、颈部等真实暴晒部位",
+        "洗后是否容易变形或防护下降"
+      ],
+      "outfit_suggestions": [
+        "浅灰防晒衣搭深色直筒裤，减少浅色易脏；长款防晒衫搭短裤或运动裤适合旅行。"
+      ],
+      "risk_signals": [
+        "只看到冰感卖点但没有防护信息",
+        "面料闷热",
+        "浅色太易脏导致不愿穿"
+      ],
+      "decision_bias": {
+        "buy": "防护清晰且穿着舒适",
+        "save": "补充防晒参数信息",
+        "skip": "只有营销卖点且功能重复"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "sun-protection-clothing",
+        "retail-attribute-scan"
+      ],
+      "embedding_text": "防晒面料：不要只看冰感营销，检查UPF覆盖面积透气洗后维护和功能重复。"
+    },
+    {
+      "card_id": "fabric-010-waterproof-breathability",
+      "topic": "防水外套必须同时看透气",
+      "knowledge_type": "fabric_care",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "冲锋衣",
+        "雨衣/雨壳",
+        "外套"
+      ],
+      "color_tags": [
+        "黑",
+        "灰",
+        "藏蓝"
+      ],
+      "style_tags": [
+        "户外机能",
+        "运动休闲"
+      ],
+      "scenario_tags": [
+        "徒步/轻户外",
+        "旅行",
+        "通勤"
+      ],
+      "fit_tags": [
+        "宽松"
+      ],
+      "fabric_tags": [
+        "防水",
+        "防风",
+        "泼水"
+      ],
+      "risk_tags": [
+        "透气不足",
+        "功能过剩",
+        "维护成本"
+      ],
+      "value_tags": [
+        "功能款"
+      ],
+      "applicable_items": [
+        "冲锋衣",
+        "雨壳",
+        "防雨外套"
+      ],
+      "not_applicable_items": [],
+      "content": "防水不等于好穿。雨壳和冲锋衣如果透气差，城市通勤和夏季旅行会很闷；如果防护等级很高但场景少，也会低频。",
+      "decision_points": [
+        "使用场景是暴雨、徒步还是城市小雨",
+        "是否需要压胶和帽檐",
+        "是否能接受闷热和沙沙声"
+      ],
+      "outfit_suggestions": [
+        "黑色雨壳搭灰色运动裤适合雨天通勤；硬壳内搭抓绒适合低温户外。"
+      ],
+      "risk_signals": [
+        "防水指标过高但实际只城市通勤",
+        "穿着闷热",
+        "已有雨伞雨衣或冲锋衣替代"
+      ],
+      "decision_bias": {
+        "buy": "雨天或户外场景高频",
+        "save": "确认透气和防护等级",
+        "skip": "功能过剩且低频"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "rainwear-layering",
+        "outdoor-retail-categories"
+      ],
+      "embedding_text": "防水外套：同时看防水、防风、透气、压胶帽檐和真实雨天户外频率。"
+    },
+    {
+      "card_id": "scenario-013-city-sun-protection",
+      "topic": "城市防晒穿搭要平衡功能和好看",
+      "knowledge_type": "scenario_outfit",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "防晒衣",
+        "防晒衫"
+      ],
+      "color_tags": [
+        "白",
+        "米白",
+        "灰",
+        "粉"
+      ],
+      "style_tags": [
+        "防晒通勤",
+        "Clean Fit",
+        "运动休闲"
+      ],
+      "scenario_tags": [
+        "城市防晒",
+        "通勤",
+        "旅行"
+      ],
+      "fit_tags": [
+        "宽松",
+        "长款"
+      ],
+      "fabric_tags": [
+        "防晒面料",
+        "轻薄",
+        "速干"
+      ],
+      "risk_tags": [
+        "透气不足",
+        "功能重复"
+      ],
+      "value_tags": [
+        "功能款",
+        "过渡款"
+      ],
+      "applicable_items": [
+        "防晒衣",
+        "轻薄长裤"
+      ],
+      "not_applicable_items": [
+        "正式活动"
+      ],
+      "content": "城市防晒不是越像户外装备越好。MVP 决策应同时考虑防晒覆盖、热舒适、通勤体面和与现有衣橱的颜色协调。",
+      "decision_points": [
+        "是否需要每天通勤防晒",
+        "是否能和通勤包鞋协调",
+        "是否已有帽子、防晒伞或防晒外套"
+      ],
+      "outfit_suggestions": [
+        "米白防晒衣搭浅灰运动裤和白鞋；藏蓝防晒外套搭白 T 和直筒裤，适合更克制通勤。"
+      ],
+      "risk_signals": [
+        "防晒装备感太强",
+        "颜色太浅易脏",
+        "和已有防晒用品重复"
+      ],
+      "decision_bias": {
+        "buy": "高频日晒且能穿进通勤",
+        "save": "确认颜色和透气",
+        "skip": "只为防晒概念但不愿日常穿"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "sun-protection-clothing",
+        "content-platform-vocabulary"
+      ],
+      "embedding_text": "城市防晒：平衡UPF覆盖、透气、通勤体面和衣橱颜色协调。"
+    },
+    {
+      "card_id": "scenario-014-light-outdoor-capsule",
+      "topic": "轻户外胶囊要避免全套装备化",
+      "knowledge_type": "scenario_outfit",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "冲锋衣",
+        "软壳衣",
+        "户外裤"
+      ],
+      "color_tags": [
+        "黑",
+        "灰",
+        "卡其",
+        "绿"
+      ],
+      "style_tags": [
+        "户外机能",
+        "运动休闲"
+      ],
+      "scenario_tags": [
+        "徒步/轻户外",
+        "旅行",
+        "日常出街"
+      ],
+      "fit_tags": [
+        "宽松",
+        "直筒"
+      ],
+      "fabric_tags": [
+        "防风",
+        "防水",
+        "速干",
+        "高弹"
+      ],
+      "risk_tags": [
+        "功能过剩",
+        "搭配复杂度高"
+      ],
+      "value_tags": [
+        "功能款",
+        "风格锚点"
+      ],
+      "applicable_items": [
+        "冲锋衣",
+        "户外裤",
+        "抓绒衣"
+      ],
+      "not_applicable_items": [
+        "商务通勤"
+      ],
+      "content": "轻户外风可以进入日常，但不一定要全套装备化。一个功能外套或一条户外裤已经能表达风格，其余单品可用基础款承接。",
+      "decision_points": [
+        "是否真的有徒步旅行计划",
+        "是否已有基础款能中和户外感",
+        "是否会全身功能单品堆叠"
+      ],
+      "outfit_suggestions": [
+        "冲锋衣搭白 T 和直筒牛仔裤；户外裤搭简洁针织和运动鞋，保留一个机能重点。"
+      ],
+      "risk_signals": [
+        "全身都是户外单品但没有户外场景",
+        "颜色拼接过多",
+        "鞋裤外套都很专业导致日常不自然"
+      ],
+      "decision_bias": {
+        "buy": "有真实轻户外并能日常拆穿",
+        "save": "先确定一个机能重点",
+        "skip": "装备化过强且低频"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "outdoor-retail-categories",
+        "content-platform-vocabulary"
+      ],
+      "embedding_text": "轻户外穿搭：一个机能重点即可，用基础款承接，避免全套装备化和低频。"
+    },
+    {
+      "card_id": "wardrobe-011-function-overlap",
+      "topic": "功能外套最容易发生功能重复",
+      "knowledge_type": "wardrobe_utilization",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "防晒衣",
+        "冲锋衣",
+        "软壳衣",
+        "运动风衣/风壳",
+        "雨衣/雨壳"
+      ],
+      "color_tags": [
+        "黑",
+        "灰",
+        "藏蓝"
+      ],
+      "style_tags": [
+        "户外机能",
+        "防晒通勤",
+        "运动休闲"
+      ],
+      "scenario_tags": [
+        "城市防晒",
+        "徒步/轻户外",
+        "旅行"
+      ],
+      "fit_tags": [
+        "宽松"
+      ],
+      "fabric_tags": [
+        "防晒面料",
+        "防风",
+        "防水",
+        "泼水"
+      ],
+      "risk_tags": [
+        "功能重复",
+        "低利用率风险"
+      ],
+      "value_tags": [
+        "功能款",
+        "重复风险款"
+      ],
+      "applicable_items": [
+        "防晒衣",
+        "风壳",
+        "冲锋衣",
+        "雨壳",
+        "软壳衣"
+      ],
+      "not_applicable_items": [],
+      "content": "功能外套之间常有重叠：防晒、防风、防雨、保暖、轻量、收纳。购买前应先列出已有外套各自解决什么问题，再判断新单品是否真的补缺口。",
+      "decision_points": [
+        "已有外套分别覆盖哪些功能",
+        "候选商品新增了哪个明确功能",
+        "是否能在不同季节或场景提高利用率"
+      ],
+      "outfit_suggestions": [
+        "如果已有防晒衣和雨壳，新增冲锋衣只有在徒步或强雨天场景明确时才更合理。"
+      ],
+      "risk_signals": [
+        "卖点和已有外套完全重叠",
+        "只是不同品牌或颜色",
+        "真实使用场景说不清"
+      ],
+      "decision_bias": {
+        "buy": "补足明确未覆盖功能",
+        "save": "先整理功能外套清单",
+        "skip": "功能高度重复"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "outdoor-retail-categories",
+        "wardrobe-utilization"
+      ],
+      "embedding_text": "功能外套重复：防晒防风防雨保暖轻量收纳需先清点已有覆盖，再判断新增价值。"
+    },
+    {
+      "card_id": "category-032-chiffon-blouse",
+      "topic": "雪纺衫重点看透感和护理",
+      "knowledge_type": "category_rule",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "上衣",
+        "雪纺衫"
+      ],
+      "color_tags": [
+        "白",
+        "米白",
+        "粉"
+      ],
+      "style_tags": [
+        "温柔",
+        "轻熟",
+        "优雅"
+      ],
+      "scenario_tags": [
+        "通勤",
+        "约会",
+        "日常出街"
+      ],
+      "fit_tags": [
+        "宽松",
+        "长袖"
+      ],
+      "fabric_tags": [
+        "雪纺",
+        "轻薄"
+      ],
+      "risk_tags": [
+        "易透",
+        "维护成本"
+      ],
+      "value_tags": [
+        "亮点款",
+        "过渡款"
+      ],
+      "applicable_items": [
+        "雪纺衫",
+        "雪纺上衣",
+        "飘带雪纺衫"
+      ],
+      "not_applicable_items": [],
+      "content": "雪纺衫适合轻熟、通勤和约会，但透感、勾丝、静电和皱感会直接影响真实利用率。购买前应确认是否有内搭方案和可接受的护理成本。",
+      "decision_points": [
+        "是否需要内搭",
+        "是否容易勾丝或静电",
+        "是否能和已有下装搭出通勤或约会造型"
+      ],
+      "outfit_suggestions": [
+        "米白雪纺衫搭黑色直筒裤可轻通勤，搭 A 字裙可偏约会。"
+      ],
+      "risk_signals": [
+        "透感明显但没有内搭",
+        "面料过软塌",
+        "护理麻烦导致不常穿"
+      ],
+      "decision_bias": {
+        "buy": "场景明确且透感可控",
+        "save": "需要确认内搭和护理",
+        "skip": "穿着门槛高且低频"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "ecommerce-category-screenshot",
+        "retail-fabric-naming"
+      ],
+      "embedding_text": "雪纺衫：轻薄温柔，关注透感内搭勾丝静电护理和通勤约会场景。"
+    },
+    {
+      "card_id": "category-033-wool-cashmere-sweater",
+      "topic": "羊毛衫和羊绒衫按质感投资判断",
+      "knowledge_type": "category_rule",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "上衣",
+        "羊毛衫/羊绒衫"
+      ],
+      "color_tags": [
+        "米白",
+        "燕麦色",
+        "灰",
+        "黑"
+      ],
+      "style_tags": [
+        "轻熟",
+        "老钱风",
+        "通勤"
+      ],
+      "scenario_tags": [
+        "通勤",
+        "日常出街"
+      ],
+      "fit_tags": [
+        "合体",
+        "宽松",
+        "高领"
+      ],
+      "fabric_tags": [
+        "羊毛",
+        "羊绒",
+        "针织"
+      ],
+      "risk_tags": [
+        "维护成本",
+        "季节限制强"
+      ],
+      "value_tags": [
+        "基础款",
+        "风格锚点"
+      ],
+      "applicable_items": [
+        "羊毛衫",
+        "羊绒衫",
+        "羊绒毛衣"
+      ],
+      "not_applicable_items": [],
+      "content": "羊毛衫和羊绒衫的价值来自保暖、触感和质感，但价格和维护成本都更高。长期主义判断应看穿着频率、起球、扎肤、清洗方式和颜色复用。",
+      "decision_points": [
+        "是否有秋冬高频场景",
+        "是否能接受手洗或专业护理",
+        "颜色是否能搭多件下装和外套"
+      ],
+      "outfit_suggestions": [
+        "燕麦色羊绒衫搭直筒裤和大衣形成秋冬通勤基础套。"
+      ],
+      "risk_signals": [
+        "怕扎肤",
+        "需要高维护但用户不愿护理",
+        "已有多件同色针织"
+      ],
+      "decision_bias": {
+        "buy": "高频秋冬基础且触感维护可接受",
+        "save": "确认起球扎肤和护理",
+        "skip": "价格高但低频或重复"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "ecommerce-category-screenshot",
+        "cost-per-wear"
+      ],
+      "embedding_text": "羊毛衫羊绒衫：秋冬质感投资，关注起球扎肤清洗颜色复用和价格合理性。"
+    },
+    {
+      "card_id": "category-034-tweed-jacket",
+      "topic": "小香风外套精致但容易场景化",
+      "knowledge_type": "category_rule",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "外套",
+        "小香风外套"
+      ],
+      "color_tags": [
+        "米白",
+        "黑",
+        "粉"
+      ],
+      "style_tags": [
+        "小香风",
+        "优雅",
+        "轻熟"
+      ],
+      "scenario_tags": [
+        "通勤",
+        "约会",
+        "正式活动"
+      ],
+      "fit_tags": [
+        "短款",
+        "合体"
+      ],
+      "fabric_tags": [
+        "挺括",
+        "厚重"
+      ],
+      "risk_tags": [
+        "场景限制",
+        "维护成本"
+      ],
+      "value_tags": [
+        "风格锚点",
+        "亮点款"
+      ],
+      "applicable_items": [
+        "小香风外套",
+        "粗花呢外套"
+      ],
+      "not_applicable_items": [],
+      "content": "小香风外套在电商里是稳定品类，能快速制造精致轻正式感，但也容易显成熟、维护麻烦或只适合少数场景。",
+      "decision_points": [
+        "是否符合用户长期风格",
+        "是否能搭直筒裤或半身裙形成两种场景",
+        "面料是否易勾丝或显旧"
+      ],
+      "outfit_suggestions": [
+        "米白小香风外套搭牛仔裤可日常化，搭直筒裤可轻通勤。"
+      ],
+      "risk_signals": [
+        "只适合拍照或活动",
+        "颜色太浅且易脏",
+        "与衣橱休闲主线割裂"
+      ],
+      "decision_bias": {
+        "buy": "能承担通勤和约会双场景",
+        "save": "确认成熟度和维护",
+        "skip": "风格割裂且低频"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "ecommerce-category-screenshot",
+        "chinese-style-context"
+      ],
+      "embedding_text": "小香风外套：精致轻正式风格锚点，关注成熟度、维护、场景化和衣橱一致性。"
+    },
+    {
+      "card_id": "category-035-shearling-padded-jacket",
+      "topic": "羊羔毛外套和棉服先看保暖缺口",
+      "knowledge_type": "category_rule",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "外套",
+        "羊羔毛外套",
+        "棉服"
+      ],
+      "color_tags": [
+        "米白",
+        "棕",
+        "黑"
+      ],
+      "style_tags": [
+        "休闲",
+        "日系",
+        "户外机能"
+      ],
+      "scenario_tags": [
+        "日常出街",
+        "旅行"
+      ],
+      "fit_tags": [
+        "宽松"
+      ],
+      "fabric_tags": [
+        "羊羔毛",
+        "加绒",
+        "厚重"
+      ],
+      "risk_tags": [
+        "季节限制强",
+        "比例失衡",
+        "维护成本"
+      ],
+      "value_tags": [
+        "功能款",
+        "舒适款"
+      ],
+      "applicable_items": [
+        "羊羔毛外套",
+        "棉服",
+        "羊羔绒外套"
+      ],
+      "not_applicable_items": [],
+      "content": "羊羔毛外套和棉服都偏保暖休闲，购买价值取决于当地冬季、已有羽绒/大衣是否足够，以及厚重体量是否能被日常下装承接。",
+      "decision_points": [
+        "是否真的缺保暖外套",
+        "是否已有羽绒服或大衣替代",
+        "体量是否影响日常搭配"
+      ],
+      "outfit_suggestions": [
+        "米白羊羔毛外套搭深色直筒裤可减少膨胀感；短棉服搭高腰裤更利落。"
+      ],
+      "risk_signals": [
+        "当地冬季短",
+        "容易粘毛显旧",
+        "已有多件保暖外套"
+      ],
+      "decision_bias": {
+        "buy": "保暖缺口明确且冬季高频",
+        "save": "确认体量和清洗",
+        "skip": "功能重复或季节低频"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "ecommerce-category-screenshot",
+        "winter-outerwear"
+      ],
+      "embedding_text": "羊羔毛外套棉服：保暖休闲，关注冬季长度、已有保暖外套、厚重体量和维护。"
+    },
+    {
+      "card_id": "category-036-casual-slim-pants",
+      "topic": "休闲裤和小脚裤要区分舒适与利落",
+      "knowledge_type": "category_rule",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "下装",
+        "休闲裤",
+        "小脚裤"
+      ],
+      "color_tags": [
+        "黑",
+        "卡其",
+        "灰"
+      ],
+      "style_tags": [
+        "休闲",
+        "通勤",
+        "Clean Fit"
+      ],
+      "scenario_tags": [
+        "通勤",
+        "日常出街"
+      ],
+      "fit_tags": [
+        "合体",
+        "小脚",
+        "直筒"
+      ],
+      "fabric_tags": [
+        "棉",
+        "高弹",
+        "垂坠"
+      ],
+      "risk_tags": [
+        "版型舒适度风险",
+        "重复购买风险"
+      ],
+      "value_tags": [
+        "基础款",
+        "过渡款"
+      ],
+      "applicable_items": [
+        "休闲裤",
+        "小脚裤",
+        "修身长裤"
+      ],
+      "not_applicable_items": [],
+      "content": "休闲裤适合日常和轻通勤，小脚裤更强调腿部线条和利落感。两者都要检查活动舒适、膝盖变形和与已有直筒裤的功能差异。",
+      "decision_points": [
+        "是补休闲通勤缺口还是重复基础裤",
+        "坐下和走路是否舒服",
+        "是否能搭常穿上衣长度"
+      ],
+      "outfit_suggestions": [
+        "卡其休闲裤搭 Polo 或衬衫轻通勤；黑色小脚裤搭长款上衣更稳。"
+      ],
+      "risk_signals": [
+        "裤型与已有直筒裤差异不大",
+        "膝盖易鼓包",
+        "小脚裤外穿不自在"
+      ],
+      "decision_bias": {
+        "buy": "补足轻通勤或舒适下装缺口",
+        "save": "确认活动舒适和重复",
+        "skip": "只是重复买基础裤"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "ecommerce-category-screenshot"
+      ],
+      "embedding_text": "休闲裤小脚裤：区分舒适日常和利落线条，检查活动舒适、膝盖变形和重复。"
+    },
+    {
+      "card_id": "category-037-denim-shorts",
+      "topic": "牛仔短裤适合夏季但场景边界明显",
+      "knowledge_type": "category_rule",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "下装",
+        "牛仔短裤"
+      ],
+      "color_tags": [
+        "牛仔蓝",
+        "黑",
+        "白"
+      ],
+      "style_tags": [
+        "休闲",
+        "度假风",
+        "甜酷"
+      ],
+      "scenario_tags": [
+        "旅行",
+        "日常出街"
+      ],
+      "fit_tags": [
+        "短款",
+        "高腰"
+      ],
+      "fabric_tags": [
+        "牛仔"
+      ],
+      "risk_tags": [
+        "场景限制",
+        "季节限制强"
+      ],
+      "value_tags": [
+        "基础款",
+        "低利用率款"
+      ],
+      "applicable_items": [
+        "牛仔短裤",
+        "牛仔热裤"
+      ],
+      "not_applicable_items": [
+        "正式活动",
+        "面试"
+      ],
+      "content": "牛仔短裤是夏季和旅行高频，但露肤、长度和磨边设计会限制通勤与正式场景。购买前应看当地夏季、穿着自在度和已有短裤数量。",
+      "decision_points": [
+        "是否有高频夏季出街或旅行场景",
+        "长度和露肤是否自在",
+        "是否已有相似牛仔短裤"
+      ],
+      "outfit_suggestions": [
+        "高腰牛仔短裤搭宽松衬衫或 T 恤，外加防晒衣适合旅行。"
+      ],
+      "risk_signals": [
+        "只适合拍照",
+        "长度不自在",
+        "季节短且已有替代"
+      ],
+      "decision_bias": {
+        "buy": "夏季旅行高频且舒适自在",
+        "save": "确认长度和场景",
+        "skip": "低频或已有相似短裤"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "ecommerce-category-screenshot"
+      ],
+      "embedding_text": "牛仔短裤：夏季旅行日常，关注长度露肤场景边界季节和重复。"
+    },
+    {
+      "card_id": "category-038-leather-pants",
+      "topic": "皮裤是强风格下装，不宜只为潮流购买",
+      "knowledge_type": "category_rule",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "下装",
+        "皮裤"
+      ],
+      "color_tags": [
+        "黑",
+        "棕"
+      ],
+      "style_tags": [
+        "甜酷",
+        "街头",
+        "辣妹风"
+      ],
+      "scenario_tags": [
+        "日常出街",
+        "聚会"
+      ],
+      "fit_tags": [
+        "修身",
+        "直筒"
+      ],
+      "fabric_tags": [
+        "皮革"
+      ],
+      "risk_tags": [
+        "低利用率风险",
+        "透气不足",
+        "场景限制"
+      ],
+      "value_tags": [
+        "亮点款",
+        "风格锚点"
+      ],
+      "applicable_items": [
+        "皮裤",
+        "仿皮裤"
+      ],
+      "not_applicable_items": [
+        "通勤",
+        "面试"
+      ],
+      "content": "皮裤存在感强，适合甜酷、街头和聚会，但闷热、贴身、维护和低频风险都高。购买前应确认用户是否真的有相应风格和场景。",
+      "decision_points": [
+        "是否符合长期风格方向",
+        "是否能搭已有上衣和外套",
+        "是否能接受闷热和维护"
+      ],
+      "outfit_suggestions": [
+        "黑色直筒皮裤搭简洁针织或白衬衫，降低过强风格。"
+      ],
+      "risk_signals": [
+        "只因潮流心动",
+        "日常场景少",
+        "穿着闷热或行动受限"
+      ],
+      "decision_bias": {
+        "buy": "有明确甜酷或街头场景",
+        "save": "先验证搭配和舒适",
+        "skip": "低频且风格割裂"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "ecommerce-category-screenshot",
+        "chinese-style-context"
+      ],
+      "embedding_text": "皮裤：强风格下装，关注甜酷街头场景、闷热、维护、低频和衣橱一致性。"
+    },
+    {
+      "card_id": "category-039-camisole-dress",
+      "topic": "吊带连衣裙需要叠穿方案",
+      "knowledge_type": "category_rule",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "连衣裙/套装",
+        "吊带连衣裙"
+      ],
+      "color_tags": [
+        "米白",
+        "黑",
+        "粉"
+      ],
+      "style_tags": [
+        "法式",
+        "度假风",
+        "温柔"
+      ],
+      "scenario_tags": [
+        "约会",
+        "旅行",
+        "日常出街"
+      ],
+      "fit_tags": [
+        "无袖",
+        "收腰"
+      ],
+      "fabric_tags": [
+        "轻薄",
+        "缎面"
+      ],
+      "risk_tags": [
+        "场景限制",
+        "低利用率风险"
+      ],
+      "value_tags": [
+        "亮点款"
+      ],
+      "applicable_items": [
+        "吊带连衣裙",
+        "吊带裙"
+      ],
+      "not_applicable_items": [
+        "面试"
+      ],
+      "content": "吊带连衣裙造型完整但场景边界明显。若用户不习惯单穿，需要提前确认衬衫、开衫、西装外套等叠穿方案。",
+      "decision_points": [
+        "是否愿意单穿",
+        "是否有外套或内搭承接",
+        "是否能从旅行约会延伸到日常"
+      ],
+      "outfit_suggestions": [
+        "吊带裙外搭衬衫可日常化，外搭西装外套可轻正式。"
+      ],
+      "risk_signals": [
+        "只能旅行拍照穿",
+        "没有叠穿方案",
+        "露肤边界不自在"
+      ],
+      "decision_bias": {
+        "buy": "约会旅行高频且叠穿清晰",
+        "save": "确认内搭外套",
+        "skip": "只能单一场景低频"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "ecommerce-category-screenshot"
+      ],
+      "embedding_text": "吊带连衣裙：完整但场景边界强，需叠穿方案和单穿舒适边界。"
+    },
+    {
+      "card_id": "category-040-blazer-dress",
+      "topic": "西装连衣裙是轻正式一件式",
+      "knowledge_type": "category_rule",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "连衣裙/套装",
+        "西装连衣裙"
+      ],
+      "color_tags": [
+        "黑",
+        "藏蓝",
+        "米白"
+      ],
+      "style_tags": [
+        "通勤",
+        "商务",
+        "轻熟"
+      ],
+      "scenario_tags": [
+        "通勤",
+        "正式活动",
+        "约会"
+      ],
+      "fit_tags": [
+        "合体",
+        "收腰"
+      ],
+      "fabric_tags": [
+        "挺括"
+      ],
+      "risk_tags": [
+        "场景限制",
+        "版型舒适度风险"
+      ],
+      "value_tags": [
+        "风格锚点",
+        "亮点款"
+      ],
+      "applicable_items": [
+        "西装连衣裙",
+        "西服裙"
+      ],
+      "not_applicable_items": [],
+      "content": "西装连衣裙省搭配、正式度明确，但一件式也容易场景单一。决策时要看坐下活动是否舒适、长度是否合适、是否能通过外套或配色降级日常。",
+      "decision_points": [
+        "是否有通勤或正式活动需求",
+        "坐下和抬手是否舒适",
+        "是否过于职业化或成熟"
+      ],
+      "outfit_suggestions": [
+        "黑色西装连衣裙可搭轻薄内搭或开衫降低正式感。"
+      ],
+      "risk_signals": [
+        "只适合一次活动",
+        "长度或腰部不舒适",
+        "用户日常风格偏休闲"
+      ],
+      "decision_bias": {
+        "buy": "轻正式场景高频且舒适",
+        "save": "确认版型和长度",
+        "skip": "场景窄且低频"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "ecommerce-category-screenshot"
+      ],
+      "embedding_text": "西装连衣裙：轻正式一件式，关注舒适、长度、场景频率和日常降级。"
+    },
+    {
+      "card_id": "category-041-qipao-new-chinese",
+      "topic": "旗袍和新中式适合小比例风格探索",
+      "knowledge_type": "category_rule",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "连衣裙/套装",
+        "旗袍"
+      ],
+      "color_tags": [
+        "黑",
+        "红",
+        "米白"
+      ],
+      "style_tags": [
+        "新中式",
+        "优雅",
+        "复古"
+      ],
+      "scenario_tags": [
+        "约会",
+        "正式活动",
+        "聚会"
+      ],
+      "fit_tags": [
+        "合体",
+        "收腰",
+        "高领"
+      ],
+      "fabric_tags": [
+        "缎面",
+        "挺括"
+      ],
+      "risk_tags": [
+        "场景限制",
+        "低利用率风险"
+      ],
+      "value_tags": [
+        "亮点款",
+        "风格锚点"
+      ],
+      "applicable_items": [
+        "旗袍",
+        "改良旗袍",
+        "新中式旗袍"
+      ],
+      "not_applicable_items": [
+        "高频通勤基础款"
+      ],
+      "content": "旗袍和新中式单品风格识别度高，但容易低频或角色感过强。MVP 中可以识别，但购买建议应更谨慎，强调场景、舒适和复用。",
+      "decision_points": [
+        "是否有明确活动或约会场景",
+        "是否能日常化或只适合一次拍照",
+        "版型是否舒适且行动方便"
+      ],
+      "outfit_suggestions": [
+        "改良旗袍可选低饱和颜色和简洁剪裁，降低仪式感，提高日常复用。"
+      ],
+      "risk_signals": [
+        "只因风格照片心动",
+        "行动受限",
+        "活动后难复用"
+      ],
+      "decision_bias": {
+        "buy": "有明确场景且改良剪裁可复用",
+        "save": "先收藏并确认场景",
+        "skip": "仅拍照低频"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "ecommerce-category-screenshot",
+        "chinese-style-context"
+      ],
+      "embedding_text": "旗袍新中式：风格识别强，低频风险高，关注活动场景、舒适行动和日常化。"
+    },
+    {
+      "card_id": "fabric-011-no-iron-fleece-lined-three-proof",
+      "topic": "免烫、加绒、三防是功能卖点，不是购买理由本身",
+      "knowledge_type": "fabric_care",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "上衣",
+        "外套",
+        "下装"
+      ],
+      "color_tags": [],
+      "style_tags": [
+        "通勤",
+        "户外机能",
+        "休闲"
+      ],
+      "scenario_tags": [
+        "通勤",
+        "旅行",
+        "日常出街"
+      ],
+      "fit_tags": [],
+      "fabric_tags": [
+        "免烫/抗皱",
+        "加绒",
+        "三防"
+      ],
+      "risk_tags": [
+        "功能过剩",
+        "透气不足",
+        "季节限制强"
+      ],
+      "value_tags": [
+        "功能款",
+        "基础款"
+      ],
+      "applicable_items": [
+        "免烫衬衫",
+        "加绒裤",
+        "三防外套"
+      ],
+      "not_applicable_items": [],
+      "content": "免烫、加绒、三防是电商常见功能卖点，但不能替代场景判断。免烫看通勤护理，加绒看真实低温，三防看污渍和雨水频率。",
+      "decision_points": [
+        "功能是否对应真实痛点",
+        "是否会牺牲透气或手感",
+        "是否与已有功能单品重复"
+      ],
+      "outfit_suggestions": [
+        "免烫衬衫适合高频通勤；加绒休闲裤适合寒冷地区日常；三防外套适合旅行或雨天多的城市。"
+      ],
+      "risk_signals": [
+        "只为功能词买单",
+        "功能牺牲舒适",
+        "所在城市用不上"
+      ],
+      "decision_bias": {
+        "buy": "功能对应真实高频痛点",
+        "save": "确认功能是否真实有效",
+        "skip": "功能过剩或重复"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "ecommerce-category-screenshot",
+        "retail-attribute-scan"
+      ],
+      "embedding_text": "免烫加绒三防：功能卖点需对应真实场景，检查透气手感功能重复和季节。"
+    },
+    {
+      "card_id": "fit-013-neckline-sleeve-structure",
+      "topic": "领型和袖型会影响叠穿与场景边界",
+      "knowledge_type": "fit_proportion",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "上衣",
+        "外套",
+        "连衣裙/套装"
+      ],
+      "color_tags": [],
+      "style_tags": [
+        "通勤",
+        "休闲",
+        "轻熟"
+      ],
+      "scenario_tags": [
+        "通勤",
+        "日常出街",
+        "约会"
+      ],
+      "fit_tags": [
+        "高领",
+        "V领",
+        "插肩",
+        "连帽",
+        "无袖",
+        "短袖",
+        "长袖"
+      ],
+      "fabric_tags": [],
+      "risk_tags": [
+        "版型舒适度风险",
+        "搭配复杂度高"
+      ],
+      "value_tags": [
+        "基础款",
+        "过渡款"
+      ],
+      "applicable_items": [
+        "打底衫",
+        "Polo衫",
+        "卫衣",
+        "吊带连衣裙",
+        "毛衣"
+      ],
+      "not_applicable_items": [],
+      "content": "电商分类常把高领、V领、插肩、连帽、无袖、短袖、长袖作为细分入口。它们不一定是品类，但会影响叠穿、正式度、舒适度和季节。",
+      "decision_points": [
+        "领口是否适合用户舒适边界",
+        "袖型是否影响外套叠穿",
+        "结构是否改变场景正式度"
+      ],
+      "outfit_suggestions": [
+        "高领打底适合秋冬叠穿；V领针织更轻盈；连帽卫衣叠穿外套时需避免脖颈拥挤。"
+      ],
+      "risk_signals": [
+        "高领勒脖子",
+        "插肩显得过休闲",
+        "连帽和外套堆叠不舒服"
+      ],
+      "decision_bias": {
+        "buy": "结构提升叠穿和场景适配",
+        "save": "确认领口袖型舒适",
+        "skip": "结构造成穿着门槛"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "ecommerce-category-screenshot",
+        "retail-fit-descriptions"
+      ],
+      "embedding_text": "领型袖型结构：高领V领插肩连帽无袖短袖长袖影响叠穿舒适正式度和季节。"
+    },
+    {
+      "card_id": "style-001-ecommerce-style-tags",
+      "topic": "电商风格词要转成可验证场景",
+      "knowledge_type": "style_mapping",
+      "locale": "zh-CN",
+      "taxonomy_version": "v1",
+      "category_tags": [
+        "上衣",
+        "外套",
+        "下装",
+        "连衣裙/套装"
+      ],
+      "color_tags": [],
+      "style_tags": [
+        "小香风",
+        "新中式",
+        "甜美",
+        "度假风",
+        "商务",
+        "工装风",
+        "优雅",
+        "辣妹风"
+      ],
+      "scenario_tags": [
+        "通勤",
+        "约会",
+        "旅行",
+        "正式活动"
+      ],
+      "fit_tags": [],
+      "fabric_tags": [],
+      "risk_tags": [
+        "低利用率风险",
+        "场景限制"
+      ],
+      "value_tags": [
+        "风格锚点",
+        "亮点款"
+      ],
+      "applicable_items": [
+        "风格型单品",
+        "电商风格标签商品"
+      ],
+      "not_applicable_items": [],
+      "content": "小香风、新中式、甜美、度假风、商务、工装风、优雅、辣妹风都是常见电商风格词。决策时要把风格词翻译成真实场景、已有衣橱承接和穿着舒适。",
+      "decision_points": [
+        "这个风格是否符合用户长期方向",
+        "是否能与已有基础款搭配",
+        "是否有真实穿着场景而非只适合图片"
+      ],
+      "outfit_suggestions": [
+        "风格强的单品只保留一个主风格点，其余用基础款承接。"
+      ],
+      "risk_signals": [
+        "只被风格词吸引",
+        "需要整套重买才能成立",
+        "与衣橱主线割裂"
+      ],
+      "decision_bias": {
+        "buy": "风格与长期方向一致且可复用",
+        "save": "先用小比例尝试",
+        "skip": "风格割裂且低频"
+      },
+      "source_type": "curated",
+      "source_refs": [
+        "ecommerce-category-screenshot",
+        "chinese-style-context"
+      ],
+      "embedding_text": "电商风格词：小香风新中式甜美度假商务工装优雅辣妹需转成真实场景和衣橱承接。"
+    }
+  ]
+}

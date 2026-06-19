@@ -1,11 +1,18 @@
 import { z } from "zod";
 
+import { buildTaxonomyPromptBlock } from "@/lib/ai/taxonomy";
+
+const fitSchema = z.preprocess(
+  (value) => normalizeFitValue(value),
+  z.enum(["slim", "regular", "oversized", "unknown"]),
+);
+
 export const closetAnalysisSchema = z.object({
   itemName: z.string().optional(),
   category: z.string().optional(),
   color: z.string().optional(),
   secondaryColors: z.array(z.string()).optional(),
-  fit: z.enum(["slim", "regular", "oversized", "unknown"]).optional(),
+  fit: fitSchema.optional(),
   length: z.string().optional(),
   sleeveLength: z.string().optional(),
   materialGuess: z.string().optional(),
@@ -28,50 +35,68 @@ export function buildClosetAnalysisPrompt(options: {
   hasDisplayImage?: boolean;
   userFeedback?: string;
 }) {
+  const userFeedback = options.userFeedback?.trim();
+
   return `
 请识别用户真实衣橱照片中的主要衣服，并把它转成衣橱 App 可用的结构化标签。
 
 图片输入说明：
 - 第一张图片是用户上传的原图，是主要事实来源。
-- ${options.hasDisplayImage ? "第二张图片是 Qwen-Edit 生成的展示图，只能作为辅助观察衣服轮廓和细节，不能覆盖原图事实。" : "当前只有原图，请基于原图谨慎识别。"}
-- 如果原图和展示图不一致，必须以原图为准，并在 reviewReasons 中说明需要用户确认。
+- ${
+    options.hasDisplayImage
+      ? "第二张图片是 Qwen-Edit 生成的展示图，只能辅助观察轮廓、颜色和细节，不能覆盖原图事实。"
+      : "当前只有原图，请基于原图谨慎识别。"
+  }
+- 如果原图和展示图不一致，必须以原图为准，并在 reviewReasons 里说明需要用户确认。
+
+${buildTaxonomyPromptBlock()}
 
 识别原则：
-- 只识别图片中最主要的单件衣服。
-- 不猜测品牌、价格、购买渠道、用户身份、用户身材。
-- 不使用淘宝/电商同款图作为依据。
-- 如果背景复杂、衣服折叠、遮挡、光线偏色或不完整，请在 imageQualityFlags 和 reviewReasons 中标记。
-- 如果版型、材质、长度无法确定，请写 unknown 或保守表达，不要强行判断。
+- 只识别图片中最主要的一件衣服。
+- 不猜测品牌、真实价格、购买渠道、用户身份或用户身材。
+- 不使用淘宝/电商同款图作为事实依据。
+- 如果背景复杂、衣服折叠、遮挡、偏色、低光、只拍到局部或衣服不完整，请在 imageQualityFlags 和 reviewReasons 中标记。
+- 如果品类、版型、材质、长度无法确定，写 unknown 或待确认，不要强行判断。
+- fit 只能输出 slim、regular、oversized、unknown。修身/紧身对应 slim；合体/直筒/常规对应 regular；宽松/廓形/落肩对应 oversized。
+- styleTags、scenarioTags、materialGuess 优先使用上面的标签体系。
 
 图片文件名：${options.fileName ?? "unknown"}
-${options.userFeedback?.trim() ? `\n用户对上一次识别的反馈：${options.userFeedback.trim()}\n请优先检查这条反馈提到的问题，并在不违背原图事实的前提下修正结构化标签。` : ""}
+${
+  userFeedback
+    ? `
+用户对上一次识别的反馈：
+${userFeedback}
+请优先检查反馈提到的问题，并在不违背原图事实的前提下修正结构化标签。
+`
+    : ""
+}
 
-只输出严格 JSON，不要输出 Markdown 或解释文本。字段如下：
+只输出严格 JSON，不要输出 Markdown 或解释文字。字段如下：
 {
   "itemName": "适合展示给用户看的短名称，例如 白色宽松阔腿裤",
-  "category": "品类，例如 衬衫/西装外套/连衣裙/半身裙/牛仔裤/长裤/运动鞋/包",
-  "color": "主色，例如 白色/黑色/灰色/蓝色/米色，不确定用 unknown",
+  "category": "品类，优先使用 taxonomy 里的中文品类，例如 Polo衫/防晒衣/冲锋衣/西装外套/背心/直筒裤/连衣裙",
+  "color": "主色，例如 白色/黑色/灰色/牛仔蓝/米白/卡其色，不确定用 unknown",
   "secondaryColors": ["辅助色"],
   "fit": "slim | regular | oversized | unknown",
   "length": "cropped | regular | long | unknown",
   "sleeveLength": "sleeveless | short | long | unknown",
-  "materialGuess": "只能写视觉可见的可能材质，不确定用 unknown",
-  "styleTags": ["简约", "通勤", "休闲", "运动", "温柔", "复古", "正式"],
+  "materialGuess": "视觉可见的可能材质或功能观感，例如 棉感/牛仔/雪纺/防晒面料/户外功能面料，不确定用 unknown",
+  "styleTags": ["极简", "通勤", "休闲"],
   "season": ["spring", "summer", "autumn", "winter", "all-season"],
   "formality": 1,
-  "scenarioTags": ["通勤", "日常", "约会", "面试", "旅行", "运动", "居家"],
+  "scenarioTags": ["通勤", "日常出街", "旅行"],
   "imageQualityFlags": ["background_complex", "folded", "occluded", "partial_view", "low_light", "color_cast", "low_confidence"],
   "needsUserReview": true,
   "reviewReasons": ["需要用户确认的原因"],
   "summary": "一句话描述这件衣服，说明可见信息和不确定信息",
-  "embeddingText": "用于衣橱 RAG 的自然语言摘要，包含品类、颜色、风格、场景、版型、季节和可见材质",
+  "embeddingText": "用于衣橱 RAG 的自然语言摘要，包含品类、颜色、版型、风格、场景、季节、材质/功能观感和搭配价值",
   "aiConfidence": 0.0
 }
 
 评分要求：
 - formality 为 1-5，1 最休闲，5 最正式。
 - aiConfidence 为 0-1。
-- 如果衣服主体清楚但背景复杂，imageQualityFlags 应包含 background_complex，但不一定 low_confidence。
+- 如果衣服主体清晰但背景复杂，imageQualityFlags 应包含 background_complex，但不一定 low_confidence。
 - 如果 aiConfidence 低于 0.7，needsUserReview 必须为 true。
 `.trim();
 }
@@ -114,7 +139,7 @@ export function normalizeClosetAnalysis(result: ClosetAnalysisResult) {
       `风格：${styleTags.join("、") || "待确认"}`,
       `场景：${scenarioTags.join("、") || "待确认"}`,
       `季节：${season.join("、") || "待确认"}`,
-      result.materialGuess ? `可能材质：${result.materialGuess}` : "",
+      result.materialGuess ? `可能材质/功能：${result.materialGuess}` : "",
     ]
       .filter(Boolean)
       .join("；");
@@ -143,6 +168,19 @@ export function normalizeClosetAnalysis(result: ClosetAnalysisResult) {
 
 function buildItemName(color: string, category: string) {
   return `${color === "unknown" ? "" : color}${category}` || "待确认衣服";
+}
+
+function normalizeFitValue(value: unknown) {
+  if (typeof value !== "string") return value;
+  const normalized = value.trim().toLowerCase();
+  if (["slim", "tight", "skinny", "修身", "紧身", "贴身"].includes(normalized)) return "slim";
+  if (["oversized", "loose", "relaxed", "wide", "宽松", "廓形", "落肩"].includes(normalized)) {
+    return "oversized";
+  }
+  if (["regular", "straight", "normal", "合体", "常规", "直筒", "正常"].includes(normalized)) {
+    return "regular";
+  }
+  return normalized || "unknown";
 }
 
 function fitLabel(fit: NonNullable<ClosetAnalysisResult["fit"]>) {

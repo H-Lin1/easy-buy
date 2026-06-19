@@ -1,0 +1,781 @@
+{
+  "testedAt": "2026-06-13T13:37:04.813Z",
+  "appUrl": "http://127.0.0.1:3000",
+  "images": [
+    "微信图片_20260610124157_324_2.jpg",
+    "微信图片_20260610124158_325_2.jpg",
+    "微信图片_20260610124159_326_2.jpg"
+  ],
+  "checks": {
+    "health": {
+      "ok": true,
+      "databaseConfigured": true,
+      "databaseReachable": true,
+      "supabaseConfigured": true,
+      "models": {
+        "vision": "qwen3-vl-plus",
+        "decision": "qwen3.6-plus",
+        "embedding": "BAAI/bge-m3",
+        "rerank": "disabled"
+      }
+    },
+    "knowledge": {
+      "activeV1Count": 117,
+      "rpcReturned": 8,
+      "topTopics": [
+        {
+          "cardId": "color-004-denim-blue-connector",
+          "topic": "牛仔蓝是休闲和通勤的连接色",
+          "similarity": 0.6686,
+          "tags": [
+            "下装",
+            "外套",
+            "牛仔蓝",
+            "白",
+            "黑",
+            "卡其",
+            "休闲",
+            "通勤"
+          ]
+        },
+        {
+          "cardId": "category-001-tank-top-basic",
+          "topic": "背心是基础层也是重复高发品类",
+          "similarity": 0.659,
+          "tags": [
+            "上衣",
+            "白",
+            "米白",
+            "黑",
+            "休闲",
+            "极简",
+            "轻熟",
+            "日常出街"
+          ]
+        },
+        {
+          "cardId": "category-005-blazer-wardrobe-anchor",
+          "topic": "西装外套是通勤衣橱锚点",
+          "similarity": 0.6491,
+          "tags": [
+            "外套",
+            "黑",
+            "灰",
+            "米白",
+            "藏蓝",
+            "通勤",
+            "正式",
+            "极简"
+          ]
+        },
+        {
+          "cardId": "scenario-007-light-sport-boundary",
+          "topic": "轻运动单品要分清运动和日常",
+          "similarity": 0.6443,
+          "tags": [
+            "上衣",
+            "下装",
+            "黑",
+            "灰",
+            "白",
+            "运动休闲",
+            "休闲",
+            "轻运动"
+          ]
+        },
+        {
+          "cardId": "scenario-004-travel-versatility",
+          "topic": "旅行单品优先轻便耐搭",
+          "similarity": 0.6323,
+          "tags": [
+            "上衣",
+            "下装",
+            "白",
+            "黑",
+            "牛仔蓝",
+            "卡其",
+            "休闲",
+            "运动休闲"
+          ]
+        }
+      ],
+      "hasLongTermKnowledge": false
+    },
+    "closet": [
+      {
+        "fileName": "微信图片_20260610124157_324_2.jpg",
+        "closetItemId": "1f62e7b0-4e0f-49f4-b22e-56a8b56b260d",
+        "displayImageStatus": "ready",
+        "analysis": {
+          "itemName": "灰色长袖衬衫",
+          "category": "衬衫",
+          "color": "灰色",
+          "fit": "oversized",
+          "styleTags": [
+            "极简",
+            "休闲",
+            "中性风",
+            "松弛感"
+          ],
+          "scenarioTags": [
+            "日常出街",
+            "通勤",
+            "校园"
+          ],
+          "materialGuess": "棉感",
+          "confidence": 0.65,
+          "imageQualityFlags": [
+            "background_complex",
+            "color_cast"
+          ],
+          "reviewReasons": [
+            "原图存在明显环境光偏黄/冷色干扰（衣架为蓝+紫，背景木纹与白墙混杂），可能导致灰色判断偏差；需用户确认是否为灰绿调或烟灰调",
+            "第二张展示图与原图细节不一致：原图下摆有轻微毛边/磨损痕迹、左袖口有褶皱与缝线细节，展示图则为规整平滑下摆；需用户确认是否为同一件衣服或后期修图导致失真"
+          ]
+        },
+        "confirmation": {
+          "userCorrected": true,
+          "hasEmbeddingText": true,
+          "embeddingText": "灰色长袖衬衫；品类：衬衫；颜色：灰色；版型：宽松；风格：极简、休闲、中性风、松弛感；场景：日常出街、通勤、校园；季节：spring、autumn、all-season；穿着频率：常穿",
+          "flags": [
+            "original_saved",
+            "display_image_ready",
+            "background_complex",
+            "color_cast",
+            "ai_label_ready"
+          ]
+        }
+      },
+      {
+        "fileName": "微信图片_20260610124158_325_2.jpg",
+        "closetItemId": "d5fc6607-63dd-42d5-b60c-50a3fb3c458d",
+        "displayImageStatus": "not_tested",
+        "analysis": {
+          "itemName": "浅灰蓝运动短袖T恤",
+          "category": "T恤",
+          "color": "灰色",
+          "fit": "regular",
+          "styleTags": [
+            "运动休闲",
+            "户外机能"
+          ],
+          "scenarioTags": [
+            "轻运动",
+            "日常出街",
+            "城市防晒"
+          ],
+          "materialGuess": "运动面料",
+          "confidence": 0.68,
+          "imageQualityFlags": [
+            "background_complex"
+          ],
+          "reviewReasons": [
+            "衣领处有半开襟拉链设计，疑似运动功能款，但无法100%确认是否为Polo衫变体或特殊T恤结构，需用户确认品类归属",
+            "颜色受室内灯光影响偏冷调，实际可能为浅灰蓝或米白灰，建议用户确认主色"
+          ]
+        },
+        "confirmation": {
+          "userCorrected": true,
+          "hasEmbeddingText": true,
+          "embeddingText": "浅灰蓝运动短袖T恤；品类：T恤；颜色：灰色；版型：常规；风格：运动休闲、户外机能；场景：轻运动、日常出街、城市防晒；季节：summer、spring；穿着频率：常穿",
+          "flags": [
+            "original_saved",
+            "background_complex",
+            "ai_label_ready"
+          ]
+        }
+      }
+    ],
+    "purchaseDecision": {
+      "candidate": {
+        "productName": "灰色宽松圆领T恤",
+        "category": "上衣",
+        "color": "灰色",
+        "fit": "oversized",
+        "styleTags": [
+          "极简",
+          "休闲",
+          "中性风",
+          "Clean Fit",
+          "松弛感"
+        ],
+        "possibleScenarios": [
+          "日常出街",
+          "居家",
+          "轻运动",
+          "通勤（非正式场合）"
+        ]
+      },
+      "decision": "save",
+      "decisionLabel": "建议先收藏",
+      "usedModel": true,
+      "confidence": 86,
+      "scores": {
+        "wardrobeFit": 86,
+        "outfitPotential": 90,
+        "duplicateRisk": 93,
+        "styleConsistency": 88,
+        "priceValue": 82,
+        "fitComfort": 82,
+        "careCost": 80
+      },
+      "summary": "从长期主义角度看，这件灰色宽松T恤的极简风格与你的衣橱基调一致，但需优先确认它是否能替代或补充现有灰色系上衣，而非单纯增加数量。建议结合面料克重、洗后形态和真实穿着场景做最终决定。",
+      "reasonsToBuy": [
+        "能与衣橱中的「灰色长袖衬衫」「灰色松紧腰运动长裤」形成低决策成本的日常搭配，符合「日常出街需要低决策成本」的知识建议。",
+        "oversized版型与棉感面料观感适合居家与轻运动场景，若厚度适中可兼顾季节过渡。",
+        "无多余装饰的极简设计不易过时，长期复用潜力较高。"
+      ],
+      "reasonsToSave": [
+        "衣橱中已有「浅灰运动短袖T恤」「浅灰蓝运动短袖T恤」及多件灰色系上衣，需警惕横向重复。知识卡提示「已有多件相似基础T」时应优先确认差异点。",
+        "需核实面料克重、领口稳定性及洗后是否易变形，避免「低质棉基础款重复」的风险。",
+        "建议先与现有黑色/灰色T恤对比穿着频率，明确是否属于「替代升级」而非单纯新增。"
+      ],
+      "risks": [
+        "重复购买风险较高：衣橱中已有功能相近的灰色T恤与衬衫，若新旧差异不明确，可能导致利用率分散。",
+        "面料维护成本未知：棉质基础款若克重不足或领口工艺一般，洗后易松垮，影响长期穿着体验。",
+        "场景重叠：若仅用于居家或轻运动，与现有运动T恤功能高度重合，可能降低真实穿着频率。"
+      ],
+      "closetItemCount": 9,
+      "retrievedClosetItems": [
+        {
+          "name": "灰色长袖衬衫",
+          "category": "衬衫",
+          "matchType": "outfit",
+          "score": 98,
+          "reason": "可用于日常出街搭配，和「灰色长袖衬衫」在风格或场景上能互相承接，向量摘要也较接近。"
+        },
+        {
+          "name": "灰色长袖衬衫",
+          "category": "衬衫",
+          "matchType": "outfit",
+          "score": 98,
+          "reason": "可用于日常出街搭配，和「灰色长袖衬衫」在风格或场景上能互相承接，向量摘要也较接近。"
+        },
+        {
+          "name": "灰色松紧腰运动长裤",
+          "category": "长裤",
+          "matchType": "outfit",
+          "score": 98,
+          "reason": "可用于日常出街搭配，和「灰色松紧腰运动长裤」在风格或场景上能互相承接。"
+        },
+        {
+          "name": "白色高腰褶裥长裤",
+          "category": "长裤",
+          "matchType": "outfit",
+          "score": 98,
+          "reason": "可用于日常出街搭配，和「白色高腰褶裥长裤」在风格或场景上能互相承接。"
+        },
+        {
+          "name": "灰绿色连帽拉链夹克",
+          "category": "外套",
+          "matchType": "outfit",
+          "score": 98,
+          "reason": "可用于日常出街搭配，和「灰绿色连帽拉链夹克」在风格或场景上能互相承接。"
+        },
+        {
+          "name": "黑色短袖T恤",
+          "category": "T恤",
+          "matchType": "outfit",
+          "score": 97,
+          "reason": "可用于日常出街搭配，和「黑色短袖T恤」在风格或场景上能互相承接。"
+        },
+        {
+          "name": "浅灰运动短袖T恤",
+          "category": "T恤",
+          "matchType": "outfit",
+          "score": 81,
+          "reason": "可用于日常出街搭配，和「浅灰运动短袖T恤」在风格或场景上能互相承接，向量摘要也较接近。"
+        },
+        {
+          "name": "浅灰蓝运动短袖T恤",
+          "category": "T恤",
+          "matchType": "outfit",
+          "score": 80,
+          "reason": "可用于日常出街搭配，和「浅灰蓝运动短袖T恤」在风格或场景上能互相承接，向量摘要也较接近。"
+        }
+      ],
+      "knowledgeSnippets": [
+        {
+          "cardId": "category-017-polo-smart-casual",
+          "topic": "Polo 衫介于 T 恤和衬衫之间",
+          "tags": [
+            "上衣",
+            "Polo衫",
+            "白",
+            "藏蓝",
+            "黑",
+            "灰",
+            "运动休闲",
+            "通勤",
+            "Clean Fit",
+            "校园"
+          ],
+          "score": 251,
+          "decisionPoints": [
+            "是否补足 T 恤和衬衫之间的轻正式缺口",
+            "领型和门襟是否干净",
+            "与已有 T 恤或衬衫是否功能重复"
+          ],
+          "riskSignals": [
+            "Logo 或撞色过强",
+            "面料太像运动校服",
+            "已有多件基础 T 恤且轻通勤需求不明显"
+          ],
+          "outfitSuggestions": [
+            "藏蓝 Polo 搭卡其直筒裤和乐福鞋，形成轻通勤；白色 Polo 搭牛仔裤和小白鞋，形成干净日常。"
+          ]
+        },
+        {
+          "cardId": "category-002-tshirt-foundation",
+          "topic": "T 恤重点是领口和面料稳定性",
+          "tags": [
+            "上衣",
+            "白",
+            "黑",
+            "灰",
+            "休闲",
+            "极简",
+            "运动休闲",
+            "日常出街",
+            "旅行",
+            "居家"
+          ],
+          "score": 244,
+          "decisionPoints": [
+            "领口是否适合叠穿",
+            "面料是否易变形",
+            "与已有 T 恤差异是什么"
+          ],
+          "riskSignals": [
+            "已有多件相似基础 T",
+            "领口易变形",
+            "面料太薄显内搭"
+          ],
+          "outfitSuggestions": [
+            "白 T 搭西装外套通勤，搭牛仔裤日常，搭运动裤轻休闲"
+          ]
+        },
+        {
+          "cardId": "scenario-005-daily-ease",
+          "topic": "日常出街需要低决策成本",
+          "tags": [
+            "上衣",
+            "下装",
+            "黑",
+            "白",
+            "牛仔蓝",
+            "灰",
+            "休闲",
+            "极简",
+            "运动休闲",
+            "日常出街"
+          ],
+          "score": 241,
+          "decisionPoints": [
+            "是否容易随手搭",
+            "是否需要特殊内搭或鞋包",
+            "是否适合用户常见日程"
+          ],
+          "riskSignals": [
+            "搭配条件复杂",
+            "穿前需要熨烫或特殊护理",
+            "与日常活动不匹配"
+          ],
+          "outfitSuggestions": [
+            "基础 T 恤搭牛仔裤、运动鞋和托特包"
+          ]
+        },
+        {
+          "cardId": "wardrobe-006-replacement-upgrade",
+          "topic": "替代升级比横向重复更值得",
+          "tags": [
+            "上衣",
+            "下装",
+            "黑",
+            "白",
+            "灰",
+            "极简",
+            "通勤",
+            "休闲",
+            "日常出街",
+            "合体"
+          ],
+          "score": 240,
+          "decisionPoints": [
+            "是否会淘汰或替代旧单品",
+            "升级点是否明确",
+            "旧单品低频原因是否被解决"
+          ],
+          "riskSignals": [
+            "旧单品仍好用",
+            "新旧功能完全重叠",
+            "买了也不会处理旧衣"
+          ],
+          "outfitSuggestions": [
+            "用新白 T 替代领口变形旧白 T，保留原有搭配网络"
+          ]
+        },
+        {
+          "cardId": "fabric-007-cotton-easy-care",
+          "topic": "棉质基础款要看厚度和形态保持",
+          "tags": [
+            "上衣",
+            "下装",
+            "白",
+            "黑",
+            "灰",
+            "休闲",
+            "极简",
+            "通勤",
+            "日常出街",
+            "居家"
+          ],
+          "score": 229,
+          "decisionPoints": [
+            "厚度是否适合季节",
+            "是否易变形",
+            "是否容易透"
+          ],
+          "riskSignals": [
+            "领口易松",
+            "白色偏透",
+            "洗后缩水明显"
+          ],
+          "outfitSuggestions": [
+            "厚度适中的白棉 T 可搭西装、牛仔裤和半身裙"
+          ]
+        },
+        {
+          "cardId": "category-036-casual-slim-pants",
+          "topic": "休闲裤和小脚裤要区分舒适与利落",
+          "tags": [
+            "下装",
+            "休闲裤",
+            "小脚裤",
+            "黑",
+            "卡其",
+            "灰",
+            "休闲",
+            "通勤",
+            "Clean Fit",
+            "日常出街"
+          ],
+          "score": 228,
+          "decisionPoints": [
+            "是补休闲通勤缺口还是重复基础裤",
+            "坐下和走路是否舒服",
+            "是否能搭常穿上衣长度"
+          ],
+          "riskSignals": [
+            "裤型与已有直筒裤差异不大",
+            "膝盖易鼓包",
+            "小脚裤外穿不自在"
+          ],
+          "outfitSuggestions": [
+            "卡其休闲裤搭 Polo 或衬衫轻通勤；黑色小脚裤搭长款上衣更稳。"
+          ]
+        },
+        {
+          "cardId": "category-028-sweatpants-joggers",
+          "topic": "运动裤要看能否从居家走向出街",
+          "tags": [
+            "下装",
+            "运动裤",
+            "灰",
+            "黑",
+            "米白",
+            "运动休闲",
+            "休闲",
+            "Clean Fit",
+            "居家",
+            "日常出街"
+          ],
+          "score": 226,
+          "decisionPoints": [
+            "是否能外穿出街",
+            "裤口和裤长是否利落",
+            "是否已有多条居家运动裤"
+          ],
+          "riskSignals": [
+            "膝盖易鼓包",
+            "过于睡衣感",
+            "已有多条低频运动裤"
+          ],
+          "outfitSuggestions": [
+            "灰色直筒运动裤搭白 T、短夹克和简洁运动鞋；黑色束脚裤搭软壳衣适合旅行。"
+          ]
+        },
+        {
+          "cardId": "scenario-006-home-comfort-boundary",
+          "topic": "居家单品也要有外穿边界",
+          "tags": [
+            "上衣",
+            "下装",
+            "灰",
+            "米白",
+            "燕麦色",
+            "休闲",
+            "松弛感",
+            "居家",
+            "日常出街",
+            "宽松"
+          ],
+          "score": 225,
+          "decisionPoints": [
+            "是否能外穿到轻社交场景",
+            "面料是否容易变形",
+            "颜色是否耐脏"
+          ],
+          "riskSignals": [
+            "过于睡衣感",
+            "易变形起球",
+            "只能在家穿"
+          ],
+          "outfitSuggestions": [
+            "燕麦色针织休闲裤搭白 T 和运动鞋，可从居家到轻出街"
+          ]
+        }
+      ],
+      "outfitCombinations": [
+        {
+          "title": "日常低决策搭配",
+          "scenario": "日常出街",
+          "items": [
+            "灰色宽松圆领T恤",
+            "灰色长袖衬衫",
+            "白色高腰褶裥长裤",
+            "灰色长袖衬衫",
+            "灰色松紧腰运动长裤"
+          ],
+          "summary": "将T恤作为内搭或单穿，外搭灰色衬衫增加层次，配白色长裤提亮整体。符合「基础T恤搭牛仔裤/休闲裤」的轻通勤逻辑，适合低决策日常场景。",
+          "visualItemCount": 4
+        },
+        {
+          "title": "居家延伸搭配",
+          "scenario": "居家/轻运动",
+          "items": [
+            "灰色宽松圆领T恤",
+            "灰色松紧腰运动长裤",
+            "灰绿色连帽拉链夹克",
+            "白色高腰褶裥长裤",
+            "黑色短袖T恤"
+          ],
+          "summary": "以T恤搭配运动长裤满足居家舒适需求，外搭灰绿色夹克可延伸至楼下取件或轻社交场景，符合「居家单品也要有外穿边界」的建议。",
+          "visualItemCount": 4
+        }
+      ]
+    }
+  },
+  "createdClosetItemIds": [
+    "1f62e7b0-4e0f-49f4-b22e-56a8b56b260d",
+    "d5fc6607-63dd-42d5-b60c-50a3fb3c458d"
+  ],
+  "createdStoragePaths": [
+    "4ae9dbc7-ea96-487a-a2d5-eb8a8273742f/e2e-ai-workflow/e5446984-76bd-4cbd-a987-59e306262203.jpg",
+    "4ae9dbc7-ea96-487a-a2d5-eb8a8273742f/display/f1127b78-ff3a-4076-960d-e0efd46eda50.png",
+    "4ae9dbc7-ea96-487a-a2d5-eb8a8273742f/e2e-ai-workflow/2b01c04f-1170-4a36-a96e-64bf5e49d349.jpg"
+  ],
+  "userId": "4ae9dbc7-ea96-487a-a2d5-eb8a8273742f",
+  "summary": {
+    "healthOk": true,
+    "knowledge": {
+      "activeV1Count": 117,
+      "rpcReturned": 8,
+      "topTopics": [
+        {
+          "cardId": "color-004-denim-blue-connector",
+          "topic": "牛仔蓝是休闲和通勤的连接色",
+          "similarity": 0.6686,
+          "tags": [
+            "下装",
+            "外套",
+            "牛仔蓝",
+            "白",
+            "黑",
+            "卡其",
+            "休闲",
+            "通勤"
+          ]
+        },
+        {
+          "cardId": "category-001-tank-top-basic",
+          "topic": "背心是基础层也是重复高发品类",
+          "similarity": 0.659,
+          "tags": [
+            "上衣",
+            "白",
+            "米白",
+            "黑",
+            "休闲",
+            "极简",
+            "轻熟",
+            "日常出街"
+          ]
+        },
+        {
+          "cardId": "category-005-blazer-wardrobe-anchor",
+          "topic": "西装外套是通勤衣橱锚点",
+          "similarity": 0.6491,
+          "tags": [
+            "外套",
+            "黑",
+            "灰",
+            "米白",
+            "藏蓝",
+            "通勤",
+            "正式",
+            "极简"
+          ]
+        },
+        {
+          "cardId": "scenario-007-light-sport-boundary",
+          "topic": "轻运动单品要分清运动和日常",
+          "similarity": 0.6443,
+          "tags": [
+            "上衣",
+            "下装",
+            "黑",
+            "灰",
+            "白",
+            "运动休闲",
+            "休闲",
+            "轻运动"
+          ]
+        },
+        {
+          "cardId": "scenario-004-travel-versatility",
+          "topic": "旅行单品优先轻便耐搭",
+          "similarity": 0.6323,
+          "tags": [
+            "上衣",
+            "下装",
+            "白",
+            "黑",
+            "牛仔蓝",
+            "卡其",
+            "休闲",
+            "运动休闲"
+          ]
+        }
+      ],
+      "hasLongTermKnowledge": false
+    },
+    "closetNodes": [
+      {
+        "fileName": "微信图片_20260610124157_324_2.jpg",
+        "displayImageStatus": "ready",
+        "category": "衬衫",
+        "color": "灰色",
+        "confidence": 0.65,
+        "confirmedWithEmbedding": true
+      },
+      {
+        "fileName": "微信图片_20260610124158_325_2.jpg",
+        "displayImageStatus": "not_tested",
+        "category": "T恤",
+        "color": "灰色",
+        "confidence": 0.68,
+        "confirmedWithEmbedding": true
+      }
+    ],
+    "purchaseDecision": {
+      "candidate": {
+        "productName": "灰色宽松圆领T恤",
+        "category": "上衣",
+        "color": "灰色",
+        "fit": "oversized",
+        "styleTags": [
+          "极简",
+          "休闲",
+          "中性风",
+          "Clean Fit",
+          "松弛感"
+        ],
+        "possibleScenarios": [
+          "日常出街",
+          "居家",
+          "轻运动",
+          "通勤（非正式场合）"
+        ]
+      },
+      "decision": "save",
+      "decisionLabel": "建议先收藏",
+      "usedModel": true,
+      "knowledgeTopics": [
+        "Polo 衫介于 T 恤和衬衫之间",
+        "T 恤重点是领口和面料稳定性",
+        "日常出街需要低决策成本",
+        "替代升级比横向重复更值得",
+        "棉质基础款要看厚度和形态保持",
+        "休闲裤和小脚裤要区分舒适与利落",
+        "运动裤要看能否从居家走向出街",
+        "居家单品也要有外穿边界"
+      ],
+      "closetMatches": [
+        {
+          "name": "灰色长袖衬衫",
+          "category": "衬衫",
+          "matchType": "outfit",
+          "score": 98,
+          "reason": "可用于日常出街搭配，和「灰色长袖衬衫」在风格或场景上能互相承接，向量摘要也较接近。"
+        },
+        {
+          "name": "灰色长袖衬衫",
+          "category": "衬衫",
+          "matchType": "outfit",
+          "score": 98,
+          "reason": "可用于日常出街搭配，和「灰色长袖衬衫」在风格或场景上能互相承接，向量摘要也较接近。"
+        },
+        {
+          "name": "灰色松紧腰运动长裤",
+          "category": "长裤",
+          "matchType": "outfit",
+          "score": 98,
+          "reason": "可用于日常出街搭配，和「灰色松紧腰运动长裤」在风格或场景上能互相承接。"
+        },
+        {
+          "name": "白色高腰褶裥长裤",
+          "category": "长裤",
+          "matchType": "outfit",
+          "score": 98,
+          "reason": "可用于日常出街搭配，和「白色高腰褶裥长裤」在风格或场景上能互相承接。"
+        },
+        {
+          "name": "灰绿色连帽拉链夹克",
+          "category": "外套",
+          "matchType": "outfit",
+          "score": 98,
+          "reason": "可用于日常出街搭配，和「灰绿色连帽拉链夹克」在风格或场景上能互相承接。"
+        }
+      ],
+      "outfitCombinations": [
+        {
+          "title": "日常低决策搭配",
+          "scenario": "日常出街",
+          "items": [
+            "灰色宽松圆领T恤",
+            "灰色长袖衬衫",
+            "白色高腰褶裥长裤",
+            "灰色长袖衬衫",
+            "灰色松紧腰运动长裤"
+          ],
+          "summary": "将T恤作为内搭或单穿，外搭灰色衬衫增加层次，配白色长裤提亮整体。符合「基础T恤搭牛仔裤/休闲裤」的轻通勤逻辑，适合低决策日常场景。",
+          "visualItemCount": 4
+        },
+        {
+          "title": "居家延伸搭配",
+          "scenario": "居家/轻运动",
+          "items": [
+            "灰色宽松圆领T恤",
+            "灰色松紧腰运动长裤",
+            "灰绿色连帽拉链夹克",
+            "白色高腰褶裥长裤",
+            "黑色短袖T恤"
+          ],
+          "summary": "以T恤搭配运动长裤满足居家舒适需求，外搭灰绿色夹克可延伸至楼下取件或轻社交场景，符合「居家单品也要有外穿边界」的建议。",
+          "visualItemCount": 4
+        }
+      ]
+    }
+  }
+}

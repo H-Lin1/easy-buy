@@ -72,6 +72,8 @@ export type DecisionItem = {
   risks: string[];
   lastAskedAt: string;
   reminderAt?: string;
+  imagePath?: string;
+  imageUrl?: string;
   palette: string;
 };
 
@@ -86,4 +88,7 @@ export type ChatSession = {
   subtitle: string;
   favorite?: boolean;
   palette: string;
+  thumbnailUrl?: string;
+  imagePath?: string;
+  updatedAt?: string;
 };

@@ -6,12 +6,13 @@ import { closetItems as mockClosetItems } from "@/lib/mock-data";
 import type { ClothingItem } from "@/lib/types";
 import type {
   ClosetMatch,
+  OutfitCombination,
   PurchaseAssessmentRequest,
   PurchaseCandidateAIProfile,
   PurchaseDecisionReport,
   PurchaseWorkflowState,
 } from "@/lib/ai/types";
-import { retrieveBuiltinKnowledge } from "@/lib/ai/knowledge";
+import { retrieveFashionKnowledge } from "@/lib/ai/knowledge";
 import { buildPurchaseEmbeddingText } from "@/lib/ai/purchase-analysis";
 import { embedText, generateDecisionJson, hasAutoDlConfig } from "@/lib/ai/providers";
 
@@ -98,15 +99,31 @@ async function retrieveCloset(state: GraphState): Promise<Partial<GraphState>> {
 async function retrieveKnowledge(state: GraphState): Promise<Partial<GraphState>> {
   const candidate = state.candidate ?? state.request.candidate ?? parseCandidateFromMessage(state.request.message);
   const query = [
+    state.request.message,
+    candidate.productName,
     candidate.category,
     candidate.color,
     candidate.fit,
     ...candidate.styleTags,
     ...candidate.possibleScenarios,
+    ...candidate.sellingPoints,
+    candidate.summary,
+    candidate.embeddingText ?? "",
   ].join(" ");
 
   return {
-    knowledgeSnippets: retrieveBuiltinKnowledge(query),
+    knowledgeSnippets: await retrieveFashionKnowledge(query, {
+      topK: 8,
+      candidate,
+      embedding: state.request.candidateEmbedding,
+      tags: [
+        candidate.category,
+        candidate.color,
+        candidate.fit,
+        ...candidate.styleTags,
+        ...candidate.possibleScenarios,
+      ],
+    }),
   };
 }
 
@@ -124,8 +141,19 @@ async function assessPurchase(state: GraphState): Promise<Partial<GraphState>> {
   }
 
   try {
-    const json = await generateDecisionJson(buildDecisionPrompt(state, fallbackReport));
-    const parsed = parseModelReport(json);
+    const prompt = buildDecisionPrompt(state, fallbackReport);
+    const startedAt = Date.now();
+    console.info("[purchase-workflow] decision model start", {
+      promptChars: prompt.length,
+      closetMatches: state.closetMatches.length,
+      knowledgeSnippets: state.knowledgeSnippets.length,
+    });
+    const json = await generateDecisionJson(prompt);
+    console.info("[purchase-workflow] decision model done", {
+      elapsedMs: Date.now() - startedAt,
+      responseChars: json.length,
+    });
+    const parsed = normalizeModelReport(parseModelReport(json));
 
     return {
       report: {
@@ -136,12 +164,20 @@ async function assessPurchase(state: GraphState): Promise<Partial<GraphState>> {
           ...fallbackReport.scores,
           ...parsed.scores,
         },
+        outfitCombinations: hydrateOutfitCombinations(
+          fallbackReport.candidate,
+          parsed.outfitCombinations ?? fallbackReport.outfitCombinations,
+          fallbackReport.retrievedClosetItems,
+        ),
         retrievedClosetItems: fallbackReport.retrievedClosetItems,
         knowledgeSnippets: fallbackReport.knowledgeSnippets,
         usedModel: true,
       },
     };
   } catch (error) {
+    console.warn("[purchase-workflow] decision model failed, fallback used", {
+      message: error instanceof Error ? error.message : "Decision model failed.",
+    });
     return {
       report: fallbackReport,
       errors: [error instanceof Error ? error.message : "Decision model failed."],
@@ -157,6 +193,34 @@ function parseModelReport(content: string) {
     .trim();
 
   return JSON.parse(extractFirstJsonObject(cleaned)) as Partial<PurchaseDecisionReport>;
+}
+
+function normalizeModelReport(report: Partial<PurchaseDecisionReport>) {
+  const normalized: Partial<PurchaseDecisionReport> = {
+    ...report,
+    outfitCombinations: Array.isArray(report.outfitCombinations)
+      ? report.outfitCombinations
+      : undefined,
+  };
+  const reasonsToBuy = toStringArray((report as { reasonsToBuy?: unknown }).reasonsToBuy);
+  const reasonsToSave = toStringArray((report as { reasonsToSave?: unknown }).reasonsToSave);
+  const risks = toStringArray((report as { risks?: unknown }).risks);
+  const bodyFitNotes = toStringArray((report as { bodyFitNotes?: unknown }).bodyFitNotes);
+
+  if (reasonsToBuy) normalized.reasonsToBuy = reasonsToBuy;
+  if (reasonsToSave) normalized.reasonsToSave = reasonsToSave;
+  if (risks) normalized.risks = risks;
+  if (bodyFitNotes) normalized.bodyFitNotes = bodyFitNotes;
+
+  return normalized;
+}
+
+function toStringArray(value: unknown) {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item).trim()).filter(Boolean);
+  }
+  if (typeof value === "string" && value.trim()) return [value.trim()];
+  return undefined;
 }
 
 function extractFirstJsonObject(content: string) {
@@ -210,7 +274,27 @@ export function parseCandidateFromMessage(message: string): PurchaseCandidateAIP
   const color = inferFirst(message, ["米色", "白色", "黑色", "灰色", "蓝色", "卡其色", "棕色"], "米色");
   const category = inferFirst(
     message,
-    ["西装外套", "西装", "外套", "衬衫", "连衣裙", "半身裙", "牛仔裤", "长裤", "运动鞋", "包"],
+    [
+      "西装外套",
+      "防晒衣",
+      "冲锋衣",
+      "软壳衣",
+      "抓绒衣",
+      "风衣",
+      "大衣",
+      "外套",
+      "Polo衫",
+      "衬衫",
+      "背心",
+      "T恤",
+      "连衣裙",
+      "半身裙",
+      "直筒裤",
+      "阔腿裤",
+      "牛仔裤",
+      "长裤",
+      "套装",
+    ],
     "外套",
   );
   const fit = message.includes("紧身")
@@ -407,9 +491,8 @@ function createOutfitCombinations(
   candidate: PurchaseCandidateAIProfile,
   matches: ClosetMatch[],
 ) {
-  const topItems = matches.slice(0, 6).map((match) => match.item.name);
-  const first = topItems.slice(0, 3);
-  const second = topItems.slice(3, 6);
+  const first = matches.slice(0, 3);
+  const second = matches.slice(3, 6);
 
   if (!first.length) {
     return [
@@ -417,41 +500,155 @@ function createOutfitCombinations(
         title: "衣橱信息不足",
         scenario: candidate.possibleScenarios[0] ?? "日常",
         items: [candidate.productName],
-        summary: "当前可确认的衣橱单品不足，建议先补充常穿上衣、下装和鞋包，再做更稳定的购买判断。",
+        closetItemIds: [],
+        summary: "当前可确认的衣橱单品不足，建议先补充常穿上衣、外套、下装或套装，再做更稳定的购买判断。",
+        visualType: "evidence_board" as const,
+        visualItems: [],
       },
     ];
   }
 
-  return [
-    {
-      title: "高复用搭配",
-      scenario: candidate.possibleScenarios[0] ?? "日常",
-      items: [candidate.productName, ...first],
-      summary: "用已有高匹配单品承接候选商品，优先验证它是否能进入真实生活场景。",
-    },
-    {
-      title: "替代灵感搭配",
-      scenario: candidate.possibleScenarios[1] ?? "周末 / 日常",
-      items: [candidate.productName, ...(second.length ? second : first)],
-      summary: "从不同场景检查搭配弹性，避免只为单一照片效果买单。",
-    },
-  ];
+  return hydrateOutfitCombinations(
+    candidate,
+    [
+      {
+        title: "高复用搭配",
+        scenario: candidate.possibleScenarios[0] ?? "日常",
+        items: [candidate.productName, ...first.map((match) => match.item.name)],
+        closetItemIds: first.map((match) => match.item.id),
+        summary: "用已有高匹配单品承接候选商品，优先验证它是否能进入真实生活场景。",
+      },
+      {
+        title: "替代灵感搭配",
+        scenario: candidate.possibleScenarios[1] ?? "周末 / 日常",
+        items: [candidate.productName, ...(second.length ? second : first).map((match) => match.item.name)],
+        closetItemIds: (second.length ? second : first).map((match) => match.item.id),
+        summary: "从不同场景检查搭配弹性，避免只为单一照片效果买单。",
+      },
+    ],
+    matches,
+  );
+}
+
+function hydrateOutfitCombinations(
+  candidate: PurchaseCandidateAIProfile,
+  combinations: OutfitCombination[],
+  matches: ClosetMatch[],
+): OutfitCombination[] {
+  const outfitMatches = matches.filter((match) => match.matchType === "outfit");
+  const matchById = new Map(matches.map((match) => [match.item.id, match]));
+  const matchByName = new Map(matches.map((match) => [match.item.name, match]));
+
+  return combinations.slice(0, 3).map((combination, index) => {
+    const fallbackMatches = outfitMatches.slice(index * 3, index * 3 + 3);
+    const namedMatches = (combination.items ?? [])
+      .filter((itemName) => itemName !== candidate.productName)
+      .map((itemName) => matchByName.get(itemName))
+      .filter((match): match is ClosetMatch => Boolean(match));
+    const idMatches = (combination.closetItemIds ?? [])
+      .map((itemId) => matchById.get(itemId))
+      .filter((match): match is ClosetMatch => Boolean(match));
+    const selectedMatches = uniqueByItem([
+      ...idMatches,
+      ...namedMatches,
+      ...fallbackMatches,
+      ...outfitMatches,
+    ]).slice(0, 4);
+
+    return {
+      ...combination,
+      items: [candidate.productName, ...selectedMatches.map((match) => match.item.name)],
+      closetItemIds: selectedMatches.map((match) => match.item.id),
+      visualType: "evidence_board",
+      visualItems: selectedMatches.map((match) => ({
+        id: match.item.id,
+        name: match.item.name,
+        category: match.item.category,
+        imageUrl: match.item.displayImageUrl ?? match.item.imageUrl ?? match.item.originalImageUrl,
+        badge: match.item.wearFrequency === "often" ? "常穿" : match.matchType === "duplicate" ? "重复风险" : "已有衣橱",
+        reason: match.reason,
+        tags: [...match.item.styleTags, ...match.item.scenarioTags].slice(0, 4),
+      })),
+    };
+  });
 }
 
 function buildDecisionPrompt(state: GraphState, fallbackReport: PurchaseDecisionReport) {
   return JSON.stringify({
-    task: "基于长期主义输出衣服购买决策报告。请保持字段结构一致，只补充或微调内容。",
+    task: "基于长期主义输出衣服购买决策报告。请保持字段结构一致，直接输出 JSON。",
     outputSchema:
       "返回 JSON，字段包含 decision, decisionStatus, decisionLabel, confidence, summary, scores, reasonsToBuy, reasonsToSave, risks, bodyFitNotes, outfitCombinations, nextStep。",
+    knowledgeUsage:
+      "knowledge 是已检索的穿搭知识卡。请优先使用其中的 content、decisionPoints、riskSignals 和 outfitSuggestions 作为判断证据，并在 summary/reasons/risks/outfitCombinations 中体现具体知识，不要泛泛说百搭或好看。",
     userMessage: state.request.message,
     userProfile: state.request.userProfile,
-    candidate: state.candidate,
-    closetEvidence: state.closetMatches.slice(0, 12),
-    knowledge: state.knowledgeSnippets,
-    draftReport: fallbackReport,
+    candidate: compactCandidate(state.candidate ?? fallbackReport.candidate),
+    closetEvidence: state.closetMatches.slice(0, 6).map(compactClosetMatch),
+    knowledge: state.knowledgeSnippets.slice(0, 5).map(compactKnowledgeSnippet),
+    draftReport: compactDraftReport(fallbackReport),
     safety:
       "BMI 只能用于版型和舒适度风险提示，不允许身材羞辱，不允许绝对审美否定。建议必须温和，不要强硬否定用户审美。",
   });
+}
+
+function compactCandidate(candidate: PurchaseCandidateAIProfile) {
+  return {
+    productName: candidate.productName,
+    category: candidate.category,
+    color: candidate.color,
+    fit: candidate.fit,
+    styleTags: candidate.styleTags,
+    possibleScenarios: candidate.possibleScenarios,
+    estimatedPrice: candidate.estimatedPrice,
+    sellingPoints: candidate.sellingPoints.slice(0, 4),
+    summary: candidate.summary,
+  };
+}
+
+function compactClosetMatch(match: ClosetMatch) {
+  return {
+    matchType: match.matchType,
+    score: match.score,
+    reason: match.reason,
+    item: {
+      id: match.item.id,
+      name: match.item.name,
+      category: match.item.category,
+      color: match.item.color,
+      fit: match.item.fit,
+      styleTags: match.item.styleTags.slice(0, 3),
+      scenarioTags: match.item.scenarioTags.slice(0, 3),
+      wearFrequency: match.item.wearFrequency,
+    },
+  };
+}
+
+function compactKnowledgeSnippet(snippet: PurchaseWorkflowState["knowledgeSnippets"][number]) {
+  return {
+    cardId: snippet.cardId,
+    topic: snippet.topic,
+    knowledgeType: snippet.knowledgeType,
+    tags: snippet.tags.slice(0, 6),
+    decisionPoints: snippet.decisionPoints?.slice(0, 2),
+    outfitSuggestions: snippet.outfitSuggestions?.slice(0, 2),
+    riskSignals: snippet.riskSignals?.slice(0, 2),
+  };
+}
+
+function compactDraftReport(report: PurchaseDecisionReport) {
+  return {
+    decision: report.decision,
+    decisionStatus: report.decisionStatus,
+    decisionLabel: report.decisionLabel,
+    scores: report.scores,
+    baseSummary: report.summary,
+    outfitCombinations: report.outfitCombinations.slice(0, 3).map((combination) => ({
+      title: combination.title,
+      scenario: combination.scenario,
+      items: combination.items.slice(0, 5),
+      summary: combination.summary,
+    })),
+  };
 }
 
 function buildMatchReason(
@@ -471,13 +668,10 @@ function buildMatchReason(
 }
 
 function classifyCategory(category: string) {
-  if (/西装|外套|开衫|夹克|大衣|风衣|马甲/.test(category)) return "outer";
-  if (/衬衫|上衣|T恤|针织|卫衣|毛衣|背心|吊带|短上衣/.test(category)) return "top";
-  if (/裤|半身裙|短裙|长裙|牛仔裤|长裤|短裤/.test(category)) return "bottom";
-  if (/连衣裙|套装/.test(category)) return "onepiece";
-  if (/鞋|靴/.test(category)) return "shoes";
-  if (/包/.test(category)) return "bag";
-  if (/帽|围巾|腰带|配饰|首饰/.test(category)) return "accessory";
+  if (/西装|外套|开衫|夹克|大衣|风衣|马甲|防晒衣|冲锋衣|软壳|硬壳|抓绒|雨衣|雨壳|棒球|工装外套|牛仔外套|皮衣|羽绒|棉服|小香风/.test(category)) return "outer";
+  if (/衬衫|上衣|T恤|针织|卫衣|毛衣|背心|吊带|短上衣|Polo|POLO|polo|打底|防晒衫|雪纺|羊毛衫|羊绒|运动内衣/.test(category)) return "top";
+  if (/裤|半身裙|短裙|长裙|牛仔裤|长裤|短裤|直筒|阔腿|西装裤|休闲裤|工装裤|户外裤|运动裤|卫裤|瑜伽裤|鲨鱼裤|打底裤|皮裤|裙裤|百褶裙|铅笔裙|A字裙/.test(category)) return "bottom";
+  if (/连衣裙|套装|连体裤|旗袍/.test(category)) return "onepiece";
   return "unknown";
 }
 
@@ -487,25 +681,14 @@ function categoryComplementScore(candidateGroup: string, itemGroup: string) {
   const goodPairs = new Set([
     "outer:top",
     "outer:bottom",
-    "outer:shoes",
-    "outer:bag",
+    "outer:onepiece",
     "top:bottom",
     "top:outer",
-    "top:shoes",
+    "top:onepiece",
     "bottom:top",
     "bottom:outer",
-    "bottom:shoes",
     "onepiece:outer",
-    "onepiece:shoes",
-    "onepiece:bag",
-    "shoes:top",
-    "shoes:bottom",
-    "shoes:outer",
-    "shoes:onepiece",
-    "bag:top",
-    "bag:bottom",
-    "bag:outer",
-    "bag:onepiece",
+    "onepiece:top",
   ]);
 
   return goodPairs.has(`${candidateGroup}:${itemGroup}`) ? 20 : 8;

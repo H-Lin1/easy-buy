@@ -1,14 +1,27 @@
 import { z } from "zod";
 
+import { buildTaxonomyPromptBlock } from "@/lib/ai/taxonomy";
+
+const fitSchema = z.preprocess(
+  (value) => normalizeFitValue(value),
+  z.enum(["slim", "regular", "oversized", "unknown"]),
+);
+
 export const purchaseAnalysisSchema = z.object({
   productName: z.string().optional(),
   category: z.string().optional(),
   color: z.string().optional(),
   secondaryColors: z.array(z.string()).optional(),
-  fit: z.enum(["slim", "regular", "oversized", "unknown"]).optional(),
+  fit: fitSchema.optional(),
   styleTags: z.array(z.string()).optional(),
   possibleScenarios: z.array(z.string()).optional(),
-  estimatedPrice: z.number().optional(),
+  estimatedPrice: z.preprocess((value) => {
+    if (typeof value === "string") {
+      const parsed = Number(value.replace(/[^\d.]/g, ""));
+      return Number.isFinite(parsed) ? parsed : undefined;
+    }
+    return value;
+  }, z.number().optional()),
   detectedText: z.string().optional(),
   sellingPoints: z.array(z.string()).optional(),
   summary: z.string().optional(),
@@ -23,27 +36,32 @@ export function buildPurchaseAnalysisPrompt(options: { userIntent?: string }) {
 请识别用户上传的待买衣服商品截图，并转成购买决策助手可用的结构化信息。
 
 用户购买意图或提问：
-${options.userIntent?.trim() || "用户未补充，需基于截图谨慎识别。"}
+${options.userIntent?.trim() || "用户未补充，请基于截图谨慎识别。"}
+
+${buildTaxonomyPromptBlock()}
 
 识别原则：
-- 只识别截图中用户最可能想购买的主要商品。
+- 只识别截图中用户最可能想购买的主要服饰商品。
+- MVP 只关注衣服、外套、裤装、裙装、套装；如果截图主体是鞋、包、配饰，请在 summary 中说明暂不属于 MVP 主范围，并降低 aiConfidence。
 - 不要臆测品牌、真实价格或用户身份。价格只能来自截图文字或用户补充。
 - 如果截图文字不清晰，价格和品类不确定时使用 unknown 或省略。
-- 结果用于和用户真实衣橱做 RAG 检索，所以 embeddingText 必须包含品类、颜色、版型、风格、场景、价格信息和卖点。
-- 输出建议要服务长期主义：能否复用、是否重复、是否有真实场景。
+- fit 只能输出 slim、regular、oversized、unknown。修身/紧身对应 slim；合体/直筒/常规对应 regular；宽松/廓形/落肩对应 oversized。
+- styleTags、possibleScenarios、sellingPoints、embeddingText 优先使用上面的标签体系。
+- embeddingText 必须包含品类、颜色、版型、风格、场景、价格信息、卖点、潜在风险，方便后续和真实衣橱做 RAG 检索。
+- 识别结果服务长期主义购买判断：能否复用、是否重复、是否有真实场景，而不是只看商品图是否好看。
 
 只输出严格 JSON，不要输出 Markdown。字段如下：
 {
   "productName": "商品短名称，例如 米色宽松西装外套",
-  "category": "品类，例如 西装外套/衬衫/连衣裙/半身裙/牛仔裤/长裤/运动鞋/包",
-  "color": "主色，例如 白色/黑色/灰色/蓝色/米色，不确定用 unknown",
+  "category": "品类，优先使用 taxonomy 中文品类，例如 Polo衫/防晒衣/冲锋衣/西装外套/背心/直筒裤/连衣裙",
+  "color": "主色，例如 白色/黑色/灰色/牛仔蓝/米白/卡其色，不确定用 unknown",
   "secondaryColors": ["辅助色"],
   "fit": "slim | regular | oversized | unknown",
-  "styleTags": ["简约", "通勤", "休闲", "运动", "温柔", "复古", "正式"],
-  "possibleScenarios": ["通勤", "日常", "约会", "面试", "旅行", "运动", "居家"],
+  "styleTags": ["极简", "通勤", "休闲"],
+  "possibleScenarios": ["通勤", "日常出街", "旅行"],
   "estimatedPrice": 399,
   "detectedText": "截图中和商品相关的关键文字",
-  "sellingPoints": ["卖点或可见特征"],
+  "sellingPoints": ["卖点或可见特征，例如 防晒面料、宽松版型、易打理"],
   "summary": "一句话描述这个待买商品",
   "embeddingText": "用于购买决策 RAG 的自然语言摘要",
   "aiConfidence": 0.0
@@ -101,7 +119,7 @@ export function normalizePurchaseAnalysis(result: PurchaseAnalysisResult) {
     secondaryColors,
     fit,
     styleTags: styleTags.length ? styleTags : ["待确认"],
-    possibleScenarios: possibleScenarios.length ? possibleScenarios : ["日常"],
+    possibleScenarios: possibleScenarios.length ? possibleScenarios : ["日常出街"],
     estimatedPrice,
     detectedText,
     sellingPoints,
@@ -137,6 +155,19 @@ export function buildPurchaseEmbeddingText(input: {
 
 function buildProductName(color: string, category: string) {
   return `${color === "unknown" ? "" : color}${category}` || "待买商品";
+}
+
+function normalizeFitValue(value: unknown) {
+  if (typeof value !== "string") return value;
+  const normalized = value.trim().toLowerCase();
+  if (["slim", "tight", "skinny", "修身", "紧身", "贴身"].includes(normalized)) return "slim";
+  if (["oversized", "loose", "relaxed", "wide", "宽松", "廓形", "落肩"].includes(normalized)) {
+    return "oversized";
+  }
+  if (["regular", "straight", "normal", "合体", "常规", "直筒", "正常"].includes(normalized)) {
+    return "regular";
+  }
+  return normalized || "unknown";
 }
 
 function fitLabel(fit: "slim" | "regular" | "oversized" | "unknown") {

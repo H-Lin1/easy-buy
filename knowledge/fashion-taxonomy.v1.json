@@ -1,0 +1,2068 @@
+{
+  "taxonomy_version": "v1",
+  "locale": "zh-CN",
+  "coverage": "衣服、裤装/裙装、连衣裙/套装与功能外套；MVP v1 暂不纳入鞋、包、配饰作为核心识别品类。",
+  "granularity": "中细颗粒",
+  "usage": [
+    "约束衣橱图片识别输出",
+    "约束待买商品截图识别输出",
+    "作为知识卡检索标签来源",
+    "为后续 prompt、前端筛选和 RAG 排序提供统一词表",
+    "MVP v1 仅约束衣服、裤装/裙装和功能外套；鞋、包、配饰后续版本再加入。"
+  ],
+  "dimensions": {
+    "category_groups": [
+      {
+        "id": "top",
+        "name": "上衣",
+        "en": "tops",
+        "synonyms": [
+          "上装",
+          "内搭",
+          "上半身单品",
+          "内衬"
+        ],
+        "description": "可单穿或作为内搭的上半身单品。",
+        "items": [
+          "t-shirt",
+          "shirt",
+          "blouse",
+          "knitwear",
+          "sweater",
+          "sweatshirt",
+          "vest",
+          "camisole",
+          "tank-top",
+          "polo",
+          "hoodie",
+          "base-layer",
+          "sports-bra",
+          "sun-shirt",
+          "chiffon-blouse",
+          "wool-cashmere-sweater"
+        ]
+      },
+      {
+        "id": "outerwear",
+        "name": "外套",
+        "en": "outerwear",
+        "synonyms": [
+          "外搭",
+          "第三件",
+          "上层单品"
+        ],
+        "description": "用于叠穿、保暖、正式度提升或造型完成度提升的外层单品。",
+        "items": [
+          "blazer",
+          "cardigan",
+          "trench-coat",
+          "coat",
+          "jacket",
+          "denim-jacket",
+          "leather-jacket",
+          "down-jacket",
+          "vest-outerwear",
+          "windbreaker",
+          "sun-protection-jacket",
+          "hardshell-jacket",
+          "softshell-jacket",
+          "fleece-jacket",
+          "rain-jacket",
+          "bomber-jacket",
+          "utility-jacket",
+          "tweed-jacket",
+          "shearling-jacket",
+          "padded-jacket"
+        ]
+      },
+      {
+        "id": "bottom",
+        "name": "下装",
+        "en": "bottoms",
+        "synonyms": [
+          "裤装",
+          "裙装",
+          "下半身单品",
+          "裤子",
+          "裙子"
+        ],
+        "description": "决定腿部线条、整体比例和场景正式度的重要单品。",
+        "items": [
+          "straight-pants",
+          "wide-leg-pants",
+          "jeans",
+          "trousers",
+          "shorts",
+          "skirt",
+          "a-line-skirt",
+          "pencil-skirt",
+          "pleated-skirt",
+          "culottes",
+          "leggings",
+          "yoga-pants",
+          "shark-pants",
+          "sweatpants",
+          "cargo-pants",
+          "hiking-pants",
+          "casual-pants",
+          "slim-pants",
+          "denim-shorts",
+          "leather-pants"
+        ]
+      },
+      {
+        "id": "onepiece",
+        "name": "连衣裙/套装",
+        "en": "one-piece-and-sets",
+        "synonyms": [
+          "一件式",
+          "套装",
+          "连体单品"
+        ],
+        "description": "本身已经构成主要造型，需要通过外套、鞋包或配饰调整场景。",
+        "items": [
+          "dress",
+          "shirt-dress",
+          "slip-dress",
+          "knit-dress",
+          "jumpsuit",
+          "suit-set",
+          "co-ord-set",
+          "camisole-dress",
+          "blazer-dress",
+          "qipao"
+        ]
+      }
+    ],
+    "item_categories": [
+      {
+        "id": "t-shirt",
+        "name": "T恤",
+        "group": "top",
+        "synonyms": [
+          "短袖",
+          "长袖T",
+          "基础T"
+        ],
+        "notes": "基础高频上衣，需判断材质、领口、透度和重复风险。"
+      },
+      {
+        "id": "shirt",
+        "name": "衬衫",
+        "group": "top",
+        "synonyms": [
+          "衬衣",
+          "button-down"
+        ],
+        "notes": "可通勤、叠穿或休闲化，重点看挺括度、易皱和版型。"
+      },
+      {
+        "id": "blouse",
+        "name": "女式衬衫/罩衫",
+        "group": "top",
+        "synonyms": [
+          "雪纺衫",
+          "飘带衫",
+          "法式上衣"
+        ],
+        "notes": "风格感更强，需判断正式度、透度和护理成本。"
+      },
+      {
+        "id": "knitwear",
+        "name": "针织衫",
+        "group": "top",
+        "synonyms": [
+          "针织上衣",
+          "薄针织"
+        ],
+        "notes": "软糯、温柔或通勤均可，重点看起球、贴身度和季节限制。"
+      },
+      {
+        "id": "sweater",
+        "name": "毛衣",
+        "group": "top",
+        "synonyms": [
+          "套头毛衣",
+          "厚针织"
+        ],
+        "notes": "秋冬高频，需判断厚重感、显臃肿风险和维护成本。"
+      },
+      {
+        "id": "sweatshirt",
+        "name": "卫衣",
+        "group": "top",
+        "synonyms": [
+          "运动卫衣",
+          "休闲卫衣"
+        ],
+        "notes": "偏休闲运动，通勤需通过外套或下装提升正式度。"
+      },
+      {
+        "id": "vest",
+        "name": "背心",
+        "group": "top",
+        "synonyms": [
+          "无袖背心",
+          "针织背心",
+          "基础背心"
+        ],
+        "notes": "可单穿或叠穿，需判断透度、领口、场景正式度和重复风险。"
+      },
+      {
+        "id": "camisole",
+        "name": "吊带",
+        "group": "top",
+        "synonyms": [
+          "细肩带上衣",
+          "吊带背心"
+        ],
+        "notes": "偏夏季或内搭，需注意暴露度、叠穿可能和场景边界。"
+      },
+      {
+        "id": "polo",
+        "name": "Polo衫",
+        "group": "top",
+        "synonyms": [
+          "POLO",
+          "翻领短袖",
+          "翻领T恤",
+          "polo shirt"
+        ],
+        "notes": "介于 T 恤和衬衫之间，适合运动休闲、校园、轻通勤，需判断领型、Logo 和面料正式度。"
+      },
+      {
+        "id": "hoodie",
+        "name": "连帽卫衣",
+        "group": "top",
+        "synonyms": [
+          "帽衫",
+          "连帽上衣"
+        ],
+        "notes": "强休闲和运动属性，适合日常、旅行和校园，通勤场景需通过外套或利落下装平衡。"
+      },
+      {
+        "id": "base-layer",
+        "name": "打底衫",
+        "group": "top",
+        "synonyms": [
+          "内搭打底",
+          "高领打底",
+          "保暖内搭"
+        ],
+        "notes": "服务叠穿和保暖，需判断贴身舒适度、领口露出、透气和起球风险。"
+      },
+      {
+        "id": "sports-bra",
+        "name": "运动内衣",
+        "group": "top",
+        "synonyms": [
+          "运动Bra",
+          "瑜伽内衣",
+          "健身背心"
+        ],
+        "notes": "功能性强，需判断支撑强度、运动场景、外穿边界和舒适度。"
+      },
+      {
+        "id": "sun-shirt",
+        "name": "防晒衫",
+        "group": "top",
+        "synonyms": [
+          "防晒上衣",
+          "UPF上衣",
+          "冰丝防晒衫"
+        ],
+        "notes": "偏夏季功能单品，需判断防晒指标、透气、闷热、是否可日常外穿。"
+      },
+      {
+        "id": "blazer",
+        "name": "西装外套",
+        "group": "outerwear",
+        "synonyms": [
+          "西服外套",
+          "通勤外套"
+        ],
+        "notes": "通勤和轻正式核心单品，重点看肩线、长度、正式度和复用率。"
+      },
+      {
+        "id": "cardigan",
+        "name": "开衫",
+        "group": "outerwear",
+        "synonyms": [
+          "针织开衫",
+          "薄开衫"
+        ],
+        "notes": "适合叠穿和温差场景，需判断易起球、垂坠和松散感。"
+      },
+      {
+        "id": "trench-coat",
+        "name": "风衣",
+        "group": "outerwear",
+        "synonyms": [
+          "长风衣",
+          "短风衣"
+        ],
+        "notes": "春秋高频外套，重点看长度、挺括度、颜色复用和身高友好度。"
+      },
+      {
+        "id": "coat",
+        "name": "大衣",
+        "group": "outerwear",
+        "synonyms": [
+          "毛呢大衣",
+          "长大衣"
+        ],
+        "notes": "秋冬高价单品，需判断保暖、重量、版型和维护成本。"
+      },
+      {
+        "id": "jacket",
+        "name": "夹克",
+        "group": "outerwear",
+        "synonyms": [
+          "短外套",
+          "机车外套"
+        ],
+        "notes": "风格指向强，需判断与现有衣橱风格一致性。"
+      },
+      {
+        "id": "denim-jacket",
+        "name": "牛仔外套",
+        "group": "outerwear",
+        "synonyms": [
+          "牛仔夹克",
+          "丹宁外套"
+        ],
+        "notes": "日常休闲高复用，可弱化正式内搭，但需判断牛仔单品重复和季节厚度。"
+      },
+      {
+        "id": "leather-jacket",
+        "name": "皮衣",
+        "group": "outerwear",
+        "synonyms": [
+          "皮夹克",
+          "机车皮衣"
+        ],
+        "notes": "风格强、维护成本高，适合小比例风格锚点，需判断气候和真实穿着频率。"
+      },
+      {
+        "id": "down-jacket",
+        "name": "羽绒服",
+        "group": "outerwear",
+        "synonyms": [
+          "羽绒外套",
+          "轻羽绒",
+          "棉服"
+        ],
+        "notes": "保暖功能优先，需判断蓬松度、重量、收纳、显臃肿风险和当地冬季长度。"
+      },
+      {
+        "id": "vest-outerwear",
+        "name": "马甲/外穿背心",
+        "group": "outerwear",
+        "synonyms": [
+          "羽绒马甲",
+          "西装马甲",
+          "外穿马甲"
+        ],
+        "notes": "适合叠穿和过渡季，需判断能否激活基础内搭以及手臂保暖边界。"
+      },
+      {
+        "id": "windbreaker",
+        "name": "运动风衣/风壳",
+        "group": "outerwear",
+        "synonyms": [
+          "轻薄风衣",
+          "风壳",
+          "防风外套"
+        ],
+        "notes": "防风和轻户外属性明显，需判断是否能日常化以及是否与冲锋衣、防晒衣功能重复。"
+      },
+      {
+        "id": "sun-protection-jacket",
+        "name": "防晒衣",
+        "group": "outerwear",
+        "synonyms": [
+          "防晒外套",
+          "UPF外套",
+          "冰感防晒衣",
+          "防晒服"
+        ],
+        "notes": "夏季高频功能外套，重点看防晒指标、透气、版型、颜色耐脏和通勤日常化能力。"
+      },
+      {
+        "id": "hardshell-jacket",
+        "name": "冲锋衣",
+        "group": "outerwear",
+        "synonyms": [
+          "硬壳",
+          "户外硬壳",
+          "三合一冲锋衣",
+          "防水外套"
+        ],
+        "notes": "户外防风防雨功能强，城市穿搭需判断专业度是否过高、透气性和真实户外场景。"
+      },
+      {
+        "id": "softshell-jacket",
+        "name": "软壳衣",
+        "group": "outerwear",
+        "synonyms": [
+          "软壳外套",
+          "轻户外外套"
+        ],
+        "notes": "介于运动外套和硬壳之间，适合通勤轻户外，需判断防风、弹性和日常搭配边界。"
+      },
+      {
+        "id": "fleece-jacket",
+        "name": "抓绒衣",
+        "group": "outerwear",
+        "synonyms": [
+          "摇粒绒",
+          "抓绒外套",
+          "绒毛外套"
+        ],
+        "notes": "保暖轻便但休闲感强，需判断起球、静电、粘毛和外穿正式度。"
+      },
+      {
+        "id": "rain-jacket",
+        "name": "雨衣/雨壳",
+        "group": "outerwear",
+        "synonyms": [
+          "防雨外套",
+          "雨壳",
+          "雨披"
+        ],
+        "notes": "防雨功能明确，需判断透气、收纳、城市雨天频率和与冲锋衣功能重叠。"
+      },
+      {
+        "id": "bomber-jacket",
+        "name": "棒球夹克",
+        "group": "outerwear",
+        "synonyms": [
+          "飞行员夹克",
+          "棒球服"
+        ],
+        "notes": "休闲街头属性明显，适合日常出街，需判断肩宽、袖口和下摆收束。"
+      },
+      {
+        "id": "utility-jacket",
+        "name": "工装外套",
+        "group": "outerwear",
+        "synonyms": [
+          "工装夹克",
+          "多口袋外套"
+        ],
+        "notes": "机能和休闲感强，口袋和廓形会增加体量，需判断与用户主风格是否一致。"
+      },
+      {
+        "id": "straight-pants",
+        "name": "直筒裤",
+        "group": "bottom",
+        "synonyms": [
+          "直筒长裤",
+          "烟管裤"
+        ],
+        "notes": "高复用下装，可承接通勤、日常和轻正式。"
+      },
+      {
+        "id": "wide-leg-pants",
+        "name": "阔腿裤",
+        "group": "bottom",
+        "synonyms": [
+          "宽腿裤",
+          "垂坠长裤"
+        ],
+        "notes": "修饰腿部线条，需判断腰线、拖地风险和上装平衡。"
+      },
+      {
+        "id": "jeans",
+        "name": "牛仔裤",
+        "group": "bottom",
+        "synonyms": [
+          "丹宁裤",
+          "牛仔长裤"
+        ],
+        "notes": "日常高频，通勤需看颜色、版型和洗水效果。"
+      },
+      {
+        "id": "trousers",
+        "name": "西装裤",
+        "group": "bottom",
+        "synonyms": [
+          "通勤裤",
+          "正装裤"
+        ],
+        "notes": "通勤基础下装，重点看垂坠、腰线和鞋履适配。"
+      },
+      {
+        "id": "skirt",
+        "name": "半身裙",
+        "group": "bottom",
+        "synonyms": [
+          "裙装",
+          "中长裙"
+        ],
+        "notes": "风格变化大，需判断长度、面料、场景和鞋履适配。"
+      },
+      {
+        "id": "a-line-skirt",
+        "name": "A字裙",
+        "group": "bottom",
+        "synonyms": [
+          "伞裙",
+          "A摆裙"
+        ],
+        "notes": "下摆有量感，适合平衡贴身上衣，需注意上衣长度。"
+      },
+      {
+        "id": "pencil-skirt",
+        "name": "铅笔裙",
+        "group": "bottom",
+        "synonyms": [
+          "包臀裙",
+          "直筒裙"
+        ],
+        "notes": "偏通勤正式，需判断行动舒适度和面料弹性。"
+      },
+      {
+        "id": "shorts",
+        "name": "短裤",
+        "group": "bottom",
+        "synonyms": [
+          "五分裤",
+          "百慕大短裤",
+          "运动短裤"
+        ],
+        "notes": "夏季和运动高频，需判断长度、正式度、露肤边界和搭配鞋型。"
+      },
+      {
+        "id": "pleated-skirt",
+        "name": "百褶裙",
+        "group": "bottom",
+        "synonyms": [
+          "褶裙",
+          "学院风半裙"
+        ],
+        "notes": "学院、甜美或轻复古属性强，需判断裙长、褶皱维护和场景年龄感。"
+      },
+      {
+        "id": "culottes",
+        "name": "裙裤",
+        "group": "bottom",
+        "synonyms": [
+          "阔腿裙裤",
+          "裤裙"
+        ],
+        "notes": "兼具裤装行动方便和裙装量感，需判断垂坠和鞋型承接。"
+      },
+      {
+        "id": "leggings",
+        "name": "打底裤",
+        "group": "bottom",
+        "synonyms": [
+          "紧身裤",
+          "内搭裤"
+        ],
+        "notes": "贴身和功能属性强，需判断外穿边界、厚度、弹性和搭配上衣长度。"
+      },
+      {
+        "id": "yoga-pants",
+        "name": "瑜伽裤",
+        "group": "bottom",
+        "synonyms": [
+          "运动紧身裤",
+          "健身裤"
+        ],
+        "notes": "运动和运动休闲场景高频，日常外穿需判断面料支撑、尴尬线和上衣遮盖。"
+      },
+      {
+        "id": "shark-pants",
+        "name": "鲨鱼裤",
+        "group": "bottom",
+        "synonyms": [
+          "高弹塑形裤",
+          "压力裤"
+        ],
+        "notes": "外穿争议和舒适风险较高，需判断厚度、压迫感、场景边界和用户舒适偏好。"
+      },
+      {
+        "id": "sweatpants",
+        "name": "运动裤",
+        "group": "bottom",
+        "synonyms": [
+          "卫裤",
+          "束脚裤",
+          "休闲运动裤"
+        ],
+        "notes": "舒适休闲高频，通勤或精致场景需用外套、鞋包和颜色提升完整度。"
+      },
+      {
+        "id": "cargo-pants",
+        "name": "工装裤",
+        "group": "bottom",
+        "synonyms": [
+          "多口袋裤",
+          "机能裤"
+        ],
+        "notes": "休闲机能感强，口袋和宽松廓形会增加体量，需判断与上衣平衡。"
+      },
+      {
+        "id": "hiking-pants",
+        "name": "户外裤",
+        "group": "bottom",
+        "synonyms": [
+          "徒步裤",
+          "速干裤",
+          "登山裤"
+        ],
+        "notes": "功能性强，适合旅行和轻户外，城市穿搭需判断面料光泽、口袋和专业度。"
+      },
+      {
+        "id": "dress",
+        "name": "连衣裙",
+        "group": "onepiece",
+        "synonyms": [
+          "裙子",
+          "一件式裙装"
+        ],
+        "notes": "造型完整度高，需通过外套和鞋包调整场景。"
+      },
+      {
+        "id": "suit-set",
+        "name": "西装套装",
+        "group": "onepiece",
+        "synonyms": [
+          "套西",
+          "通勤套装"
+        ],
+        "notes": "正式度高，需判断拆开搭配能力和使用频率。"
+      },
+      {
+        "id": "chiffon-blouse",
+        "name": "雪纺衫",
+        "group": "top",
+        "synonyms": [
+          "雪纺上衣",
+          "雪纺衬衫",
+          "飘带雪纺衫"
+        ],
+        "notes": "轻薄柔和的上衣品类，常用于通勤、约会和轻熟场景，需关注透感、勾丝、静电和护理成本。"
+      },
+      {
+        "id": "wool-cashmere-sweater",
+        "name": "羊毛衫/羊绒衫",
+        "group": "top",
+        "synonyms": [
+          "羊毛衫",
+          "羊绒衫",
+          "羊绒毛衣",
+          "羊毛毛衣"
+        ],
+        "notes": "秋冬质感上衣，保暖和质感价值高，但需关注起球、缩水、清洗方式和价格合理性。"
+      },
+      {
+        "id": "tweed-jacket",
+        "name": "小香风外套",
+        "group": "outerwear",
+        "synonyms": [
+          "香风外套",
+          "粗花呢外套",
+          "小香风开衫"
+        ],
+        "notes": "强风格轻正式外套，适合通勤、约会和精致场景，需判断是否过于场景化、是否显成熟和维护成本。"
+      },
+      {
+        "id": "shearling-jacket",
+        "name": "羊羔毛外套",
+        "group": "outerwear",
+        "synonyms": [
+          "羊羔绒外套",
+          "羊羔毛夹克",
+          "泰迪外套"
+        ],
+        "notes": "秋冬休闲保暖外套，氛围感强但体量大，需关注粘毛、起球、臃肿感和季节利用率。"
+      },
+      {
+        "id": "padded-jacket",
+        "name": "棉服",
+        "group": "outerwear",
+        "synonyms": [
+          "棉衣",
+          "棉袄",
+          "加棉外套"
+        ],
+        "notes": "保暖功能外套，价格通常低于羽绒，需判断厚重感、保暖需求、清洗和与羽绒服功能重复。"
+      },
+      {
+        "id": "casual-pants",
+        "name": "休闲裤",
+        "group": "bottom",
+        "synonyms": [
+          "休闲长裤",
+          "日常裤",
+          "通勤休闲裤"
+        ],
+        "notes": "介于西装裤和运动裤之间的高频裤装，重点看面料垂坠、裤型利落度和通勤边界。"
+      },
+      {
+        "id": "slim-pants",
+        "name": "小脚裤",
+        "group": "bottom",
+        "synonyms": [
+          "紧身裤",
+          "铅笔裤",
+          "修身长裤"
+        ],
+        "notes": "贴腿线条明显的裤装，需判断活动舒适、上衣长度、场景边界和与直筒裤/打底裤的差异。"
+      },
+      {
+        "id": "denim-shorts",
+        "name": "牛仔短裤",
+        "group": "bottom",
+        "synonyms": [
+          "牛仔热裤",
+          "丹宁短裤"
+        ],
+        "notes": "夏季休闲高频下装，需关注长度、露肤边界、磨边设计和旅行/日常场景。"
+      },
+      {
+        "id": "leather-pants",
+        "name": "皮裤",
+        "group": "bottom",
+        "synonyms": [
+          "皮革裤",
+          "仿皮裤"
+        ],
+        "notes": "风格强烈的下装，适合甜酷或街头场景，需关注闷热、贴身舒适、维护和低频风险。"
+      },
+      {
+        "id": "camisole-dress",
+        "name": "吊带连衣裙",
+        "group": "onepiece",
+        "synonyms": [
+          "吊带裙",
+          "细肩带连衣裙"
+        ],
+        "notes": "轻盈或约会感强的一件式单品，需判断叠穿、暴露度、内搭和场景边界。"
+      },
+      {
+        "id": "blazer-dress",
+        "name": "西装连衣裙",
+        "group": "onepiece",
+        "synonyms": [
+          "西服裙",
+          "西装裙"
+        ],
+        "notes": "轻正式和通勤属性强，造型完整但场景较明确，需判断版型舒适度、正式度和复用方式。"
+      },
+      {
+        "id": "qipao",
+        "name": "旗袍",
+        "group": "onepiece",
+        "synonyms": [
+          "改良旗袍",
+          "新中式旗袍"
+        ],
+        "notes": "文化和场景属性强，适合新中式、活动和约会场景，MVP 低频但可识别，需避免绝对审美判断。"
+      }
+    ],
+    "colors": [
+      {
+        "id": "black",
+        "name": "黑色",
+        "family": "neutral",
+        "synonyms": [
+          "黑",
+          "雅黑",
+          "纯黑"
+        ],
+        "notes": "稳定、显正式，需注意过多黑色导致沉闷。"
+      },
+      {
+        "id": "white",
+        "name": "白色",
+        "family": "neutral",
+        "synonyms": [
+          "白",
+          "纯白",
+          "冷白"
+        ],
+        "notes": "清爽基础色，需关注透度、易脏和已有相似款。"
+      },
+      {
+        "id": "off-white",
+        "name": "米白",
+        "family": "light-neutral",
+        "synonyms": [
+          "奶白",
+          "暖白"
+        ],
+        "notes": "柔和浅色基础色，适合日常和通勤叠穿。"
+      },
+      {
+        "id": "ivory",
+        "name": "象牙白",
+        "family": "light-neutral",
+        "synonyms": [
+          "象牙色"
+        ],
+        "notes": "比纯白更柔和，适合温柔或轻熟风格。"
+      },
+      {
+        "id": "oatmeal",
+        "name": "燕麦色",
+        "family": "warm-neutral",
+        "synonyms": [
+          "浅米灰",
+          "麦色"
+        ],
+        "notes": "低饱和温柔中性色，适合针织和通勤休闲。"
+      },
+      {
+        "id": "khaki",
+        "name": "卡其",
+        "family": "warm-neutral",
+        "synonyms": [
+          "浅卡其"
+        ],
+        "notes": "风衣、裤装和包袋高频色，需注意肤色和已有重复。"
+      },
+      {
+        "id": "camel",
+        "name": "驼色",
+        "family": "warm-neutral",
+        "synonyms": [
+          "焦糖驼",
+          "浅驼"
+        ],
+        "notes": "秋冬高质感色，适合外套和包鞋呼应。"
+      },
+      {
+        "id": "brown",
+        "name": "棕色",
+        "family": "warm-neutral",
+        "synonyms": [
+          "棕",
+          "咖色",
+          "巧克力色"
+        ],
+        "notes": "复古、稳定，适合与米色、蓝色、白色搭配。"
+      },
+      {
+        "id": "gray",
+        "name": "灰色",
+        "family": "neutral",
+        "synonyms": [
+          "灰",
+          "浅灰",
+          "深灰"
+        ],
+        "notes": "通勤和基础衣橱高复用色，需避免整体灰暗。"
+      },
+      {
+        "id": "navy",
+        "name": "藏蓝",
+        "family": "cool-neutral",
+        "synonyms": [
+          "深蓝",
+          "海军蓝"
+        ],
+        "notes": "比黑色更柔和的正式色，适合通勤和面试。"
+      },
+      {
+        "id": "denim-blue",
+        "name": "牛仔蓝",
+        "family": "blue",
+        "synonyms": [
+          "水洗蓝",
+          "丹宁蓝"
+        ],
+        "notes": "日常休闲高频色，通勤需看版型和水洗程度。"
+      },
+      {
+        "id": "red",
+        "name": "红色",
+        "family": "accent",
+        "synonyms": [
+          "红",
+          "酒红",
+          "正红"
+        ],
+        "notes": "高存在感强调色，适合作为小面积亮点。"
+      },
+      {
+        "id": "pink",
+        "name": "粉色",
+        "family": "accent",
+        "synonyms": [
+          "粉",
+          "浅粉",
+          "豆沙粉"
+        ],
+        "notes": "柔和或甜美风格，需注意成熟度和场景。"
+      },
+      {
+        "id": "green",
+        "name": "绿色",
+        "family": "accent",
+        "synonyms": [
+          "绿",
+          "橄榄绿",
+          "草绿"
+        ],
+        "notes": "可做亮点或自然感色彩，需中性色承接。"
+      },
+      {
+        "id": "yellow",
+        "name": "黄色",
+        "family": "accent",
+        "synonyms": [
+          "黄",
+          "奶油黄",
+          "姜黄"
+        ],
+        "notes": "明亮感强，适合小面积或低饱和版本。"
+      },
+      {
+        "id": "metallic",
+        "name": "金属色",
+        "family": "accent",
+        "synonyms": [
+          "银色",
+          "金色"
+        ],
+        "notes": "存在感强，适合小面积配饰或聚会亮点。"
+      }
+    ],
+    "fit_and_silhouette": [
+      {
+        "id": "slim",
+        "name": "修身",
+        "synonyms": [
+          "贴身",
+          "窄身"
+        ],
+        "notes": "强调身体线条，需关注舒适度和场景边界。"
+      },
+      {
+        "id": "regular",
+        "name": "合体",
+        "synonyms": [
+          "常规",
+          "适中"
+        ],
+        "notes": "多数场景友好，搭配风险较低。"
+      },
+      {
+        "id": "oversized",
+        "name": "宽松",
+        "synonyms": [
+          "廓形",
+          "大一号"
+        ],
+        "notes": "增加松弛感，需通过下装或腰线避免比例松散。"
+      },
+      {
+        "id": "cropped",
+        "name": "短款",
+        "synonyms": [
+          "短上衣",
+          "短外套"
+        ],
+        "notes": "提高腰线但暴露度或季节限制更强。"
+      },
+      {
+        "id": "longline",
+        "name": "长款",
+        "synonyms": [
+          "长版",
+          "过臀"
+        ],
+        "notes": "增加垂直线条，但需判断身高友好度。"
+      },
+      {
+        "id": "high-waist",
+        "name": "高腰",
+        "synonyms": [
+          "高腰线"
+        ],
+        "notes": "有利于比例塑造，适合搭配短款或塞衣角。"
+      },
+      {
+        "id": "straight",
+        "name": "直筒",
+        "synonyms": [
+          "H型",
+          "直线条"
+        ],
+        "notes": "利落稳定，适合通勤和基础衣橱。"
+      },
+      {
+        "id": "wide-leg",
+        "name": "阔腿",
+        "synonyms": [
+          "宽腿",
+          "大裤腿"
+        ],
+        "notes": "下半身量感较大，适合搭配更短或更贴合上衣。"
+      },
+      {
+        "id": "a-line",
+        "name": "A字",
+        "synonyms": [
+          "伞形",
+          "下摆展开"
+        ],
+        "notes": "下摆有展开感，适合平衡上半身贴身单品。"
+      },
+      {
+        "id": "cinched-waist",
+        "name": "收腰",
+        "synonyms": [
+          "腰线明显"
+        ],
+        "notes": "提升女性化和比例感，需关注舒适度。"
+      },
+      {
+        "id": "midi-length",
+        "name": "中长款",
+        "synonyms": [
+          "中长版",
+          "过膝",
+          "过臀"
+        ],
+        "notes": "覆盖和垂直线条更强，需判断身高友好度、行动方便和季节适配。"
+      },
+      {
+        "id": "high-neck",
+        "name": "高领",
+        "synonyms": [
+          "半高领",
+          "堆堆领"
+        ],
+        "notes": "保暖和成熟感更强，需判断颈部舒适和脸部比例感。"
+      },
+      {
+        "id": "v-neck",
+        "name": "V领",
+        "synonyms": [
+          "V字领"
+        ],
+        "notes": "能拉开领口和增加轻盈感，需判断暴露度和内搭需求。"
+      },
+      {
+        "id": "raglan-sleeve",
+        "name": "插肩",
+        "synonyms": [
+          "插肩袖",
+          "落肩插肩"
+        ],
+        "notes": "运动休闲感更强，肩线模糊，需判断是否显松散。"
+      },
+      {
+        "id": "hooded",
+        "name": "连帽",
+        "synonyms": [
+          "带帽",
+          "帽衫结构"
+        ],
+        "notes": "休闲和功能属性明显，外套叠穿时需关注脖颈堆叠。"
+      },
+      {
+        "id": "sleeveless",
+        "name": "无袖",
+        "synonyms": [
+          "无袖款"
+        ],
+        "notes": "适合夏季或叠穿，需判断场景边界和外套承接。"
+      },
+      {
+        "id": "short-sleeve",
+        "name": "短袖",
+        "synonyms": [
+          "短袖款"
+        ],
+        "notes": "夏季高频，需关注袖长、肩线和是否可叠穿。"
+      },
+      {
+        "id": "long-sleeve",
+        "name": "长袖",
+        "synonyms": [
+          "长袖款"
+        ],
+        "notes": "季节跨度更广，需关注袖长、叠穿和护理。"
+      },
+      {
+        "id": "small-leg",
+        "name": "小脚",
+        "synonyms": [
+          "窄脚",
+          "收脚"
+        ],
+        "notes": "腿部线条更明显，需判断活动舒适和鞋型承接。"
+      }
+    ],
+    "fabric_looks": [
+      {
+        "id": "cotton-like",
+        "name": "棉感",
+        "synonyms": [
+          "棉",
+          "棉质",
+          "棉类"
+        ],
+        "notes": "日常舒适，需关注变形、透度和洗后状态。"
+      },
+      {
+        "id": "knit",
+        "name": "针织",
+        "synonyms": [
+          "毛线感",
+          "织纹"
+        ],
+        "notes": "柔和、温暖，常见起球和贴身风险。"
+      },
+      {
+        "id": "denim",
+        "name": "牛仔",
+        "synonyms": [
+          "丹宁"
+        ],
+        "notes": "休闲耐穿，需判断水洗、硬挺和场景正式度。"
+      },
+      {
+        "id": "chiffon",
+        "name": "雪纺",
+        "synonyms": [
+          "轻薄飘逸"
+        ],
+        "notes": "轻盈女性化，常见透、勾丝和护理成本。"
+      },
+      {
+        "id": "satin",
+        "name": "缎面",
+        "synonyms": [
+          "光泽感",
+          "真丝感"
+        ],
+        "notes": "精致感强，但易显褶皱和护理要求高。"
+      },
+      {
+        "id": "leather",
+        "name": "皮革",
+        "synonyms": [
+          "皮质",
+          "仿皮"
+        ],
+        "notes": "风格强，需判断季节、保养和衣橱一致性。"
+      },
+      {
+        "id": "woolen",
+        "name": "毛呢",
+        "synonyms": [
+          "呢料",
+          "羊毛感"
+        ],
+        "notes": "秋冬外套常见材质，需看重量、保暖和起球。"
+      },
+      {
+        "id": "linen",
+        "name": "亚麻",
+        "synonyms": [
+          "麻料"
+        ],
+        "notes": "透气自然，但易皱是关键风险。"
+      },
+      {
+        "id": "sport-tech",
+        "name": "运动面料",
+        "synonyms": [
+          "速干",
+          "弹力运动"
+        ],
+        "notes": "舒适机能，需判断日常化和正式度边界。"
+      },
+      {
+        "id": "structured",
+        "name": "挺括",
+        "synonyms": [
+          "有型",
+          "硬挺"
+        ],
+        "notes": "适合通勤和轮廓塑造，但舒适度需确认。"
+      },
+      {
+        "id": "drapey",
+        "name": "垂坠",
+        "synonyms": [
+          "垂感",
+          "顺垂"
+        ],
+        "notes": "有利于线条流畅，适合裤装、裙装和衬衫。"
+      },
+      {
+        "id": "lightweight",
+        "name": "轻薄",
+        "synonyms": [
+          "薄款"
+        ],
+        "notes": "适合夏季和叠穿，需关注透度和质感。"
+      },
+      {
+        "id": "heavyweight",
+        "name": "厚重",
+        "synonyms": [
+          "厚款",
+          "重磅"
+        ],
+        "notes": "有质感但可能增加臃肿和季节限制。"
+      },
+      {
+        "id": "uv-protective",
+        "name": "防晒面料",
+        "synonyms": [
+          "UPF",
+          "防紫外线",
+          "冰感防晒"
+        ],
+        "notes": "关注 UPF 标识、覆盖面积、透气性、闷热和洗后防护衰减。"
+      },
+      {
+        "id": "quick-dry",
+        "name": "速干",
+        "synonyms": [
+          "快干",
+          "吸湿速干"
+        ],
+        "notes": "适合运动、旅行和夏季通勤，需判断面料光泽和日常化程度。"
+      },
+      {
+        "id": "waterproof",
+        "name": "防水",
+        "synonyms": [
+          "防雨",
+          "雨壳",
+          "硬壳"
+        ],
+        "notes": "适合雨天和户外，需同时判断透气性、压胶、重量和使用频率。"
+      },
+      {
+        "id": "water-resistant",
+        "name": "泼水",
+        "synonyms": [
+          "防泼水",
+          "轻防水"
+        ],
+        "notes": "适合小雨和城市通勤，不能等同于强防水。"
+      },
+      {
+        "id": "windproof",
+        "name": "防风",
+        "synonyms": [
+          "风壳",
+          "挡风"
+        ],
+        "notes": "适合骑行、徒步和过渡季，需判断闷热和沙沙声。"
+      },
+      {
+        "id": "fleece",
+        "name": "抓绒",
+        "synonyms": [
+          "摇粒绒",
+          "绒面"
+        ],
+        "notes": "保暖轻便但休闲感强，常见起球、静电和粘毛风险。"
+      },
+      {
+        "id": "down",
+        "name": "羽绒",
+        "synonyms": [
+          "轻羽绒",
+          "蓬松保暖"
+        ],
+        "notes": "保暖强但季节限制和收纳体积明显，需关注充绒量、蓬松度和清洗。"
+      },
+      {
+        "id": "stretch",
+        "name": "高弹",
+        "synonyms": [
+          "弹力",
+          "四面弹"
+        ],
+        "notes": "适合运动裤、瑜伽裤和打底类，需判断压迫感、回弹和外穿边界。"
+      },
+      {
+        "id": "wrinkle-resistant",
+        "name": "免烫/抗皱",
+        "synonyms": [
+          "免烫",
+          "抗皱",
+          "易打理"
+        ],
+        "notes": "降低通勤护理成本，但仍需判断实际皱感、面料触感和长期洗后表现。"
+      },
+      {
+        "id": "fleece-lined",
+        "name": "加绒",
+        "synonyms": [
+          "加厚加绒",
+          "内里加绒"
+        ],
+        "notes": "提升保暖但增加厚重和季节限制，裤装和卫衣常见。"
+      },
+      {
+        "id": "three-proof",
+        "name": "三防",
+        "synonyms": [
+          "防水防油防污",
+          "防污",
+          "易清洁"
+        ],
+        "notes": "功能营销常见，需确认是否有真实使用场景和是否影响透气手感。"
+      },
+      {
+        "id": "wool",
+        "name": "羊毛",
+        "synonyms": [
+          "羊毛感",
+          "含羊毛"
+        ],
+        "notes": "保暖和质感较好，需关注起球、缩水、扎肤和清洗方式。"
+      },
+      {
+        "id": "cashmere",
+        "name": "羊绒",
+        "synonyms": [
+          "山羊绒",
+          "羊绒感"
+        ],
+        "notes": "柔软保暖且价格高，需重点判断维护、起球和真实穿着频率。"
+      },
+      {
+        "id": "shearling",
+        "name": "羊羔毛",
+        "synonyms": [
+          "羊羔绒",
+          "泰迪绒"
+        ],
+        "notes": "保暖和氛围感强，但体量大、易粘毛、易显旧。"
+      },
+      {
+        "id": "goose-down",
+        "name": "鹅绒",
+        "synonyms": [
+          "白鹅绒",
+          "灰鹅绒"
+        ],
+        "notes": "羽绒细分材质，保暖和价格更高，需结合充绒量、蓬松度和使用频率判断。"
+      }
+    ],
+    "patterns": [
+      {
+        "id": "solid",
+        "name": "纯色",
+        "synonyms": [
+          "无图案"
+        ],
+        "notes": "复用度高，需靠版型、材质或配饰增加层次。"
+      },
+      {
+        "id": "stripe",
+        "name": "条纹",
+        "synonyms": [
+          "横条",
+          "竖条"
+        ],
+        "notes": "经典图案，需注意线条方向和场景。"
+      },
+      {
+        "id": "check",
+        "name": "格纹",
+        "synonyms": [
+          "格子",
+          "千鸟格"
+        ],
+        "notes": "复古或学院感，需避免与复杂图案冲突。"
+      },
+      {
+        "id": "floral",
+        "name": "碎花",
+        "synonyms": [
+          "花卉印花"
+        ],
+        "notes": "风格感强，适合约会旅行，通勤需克制面积。"
+      },
+      {
+        "id": "polka-dot",
+        "name": "波点",
+        "synonyms": [
+          "圆点"
+        ],
+        "notes": "复古甜美，需关注成熟度和搭配平衡。"
+      },
+      {
+        "id": "print",
+        "name": "印花",
+        "synonyms": [
+          "图案印花"
+        ],
+        "notes": "视觉重点强，需中性色或纯色单品承接。"
+      },
+      {
+        "id": "logo",
+        "name": "Logo",
+        "synonyms": [
+          "字母",
+          "品牌标识"
+        ],
+        "notes": "休闲或潮流感，需判断场景和过时风险。"
+      },
+      {
+        "id": "color-block",
+        "name": "拼色",
+        "synonyms": [
+          "撞色",
+          "色块"
+        ],
+        "notes": "存在感强，需控制全身颜色数量。"
+      }
+    ],
+    "styles": [
+      {
+        "id": "minimal",
+        "name": "极简",
+        "synonyms": [
+          "简约",
+          "干净"
+        ],
+        "notes": "依赖剪裁、材质和颜色质感。"
+      },
+      {
+        "id": "commute",
+        "name": "通勤",
+        "synonyms": [
+          "上班",
+          "职场"
+        ],
+        "notes": "强调舒适、整洁、正式度和高复用。"
+      },
+      {
+        "id": "casual",
+        "name": "休闲",
+        "synonyms": [
+          "日常",
+          "轻松"
+        ],
+        "notes": "舒适优先，需注意正式场景边界。"
+      },
+      {
+        "id": "athleisure",
+        "name": "运动休闲",
+        "synonyms": [
+          "运动风",
+          "机能休闲"
+        ],
+        "notes": "强调舒适和活力，通勤需弱化运动感。"
+      },
+      {
+        "id": "french",
+        "name": "法式",
+        "synonyms": [
+          "法风",
+          "复古优雅"
+        ],
+        "notes": "常见条纹、衬衫、牛仔、茶歇裙等元素。"
+      },
+      {
+        "id": "korean",
+        "name": "韩系",
+        "synonyms": [
+          "韩风",
+          "韩式通勤"
+        ],
+        "notes": "偏柔和、干净、低饱和和比例修饰。"
+      },
+      {
+        "id": "japanese",
+        "name": "日系",
+        "synonyms": [
+          "日杂",
+          "自然感"
+        ],
+        "notes": "偏宽松、层次、自然面料和低饱和。"
+      },
+      {
+        "id": "preppy",
+        "name": "学院风",
+        "synonyms": [
+          "美式学院",
+          "书卷感"
+        ],
+        "notes": "衬衫、针织、百褶、乐福鞋常见。"
+      },
+      {
+        "id": "androgynous",
+        "name": "中性风",
+        "synonyms": [
+          "无性别",
+          "利落"
+        ],
+        "notes": "重线条、廓形和低装饰感。"
+      },
+      {
+        "id": "vintage",
+        "name": "复古",
+        "synonyms": [
+          "怀旧",
+          "retro"
+        ],
+        "notes": "格纹、波点、牛仔、皮革等常见，需避免过度堆砌。"
+      },
+      {
+        "id": "sweet-cool",
+        "name": "甜酷",
+        "synonyms": [
+          "甜辣",
+          "酷甜"
+        ],
+        "notes": "柔和和硬朗元素混搭，需控制复杂度。"
+      },
+      {
+        "id": "old-money",
+        "name": "老钱风",
+        "synonyms": [
+          "静奢",
+          "quiet luxury"
+        ],
+        "notes": "低调质感、合身剪裁、中性色和高维护要求。"
+      },
+      {
+        "id": "relaxed",
+        "name": "松弛感",
+        "synonyms": [
+          "慵懒",
+          "自在"
+        ],
+        "notes": "强调自然舒适，但需避免比例松散。"
+      },
+      {
+        "id": "mature-soft",
+        "name": "轻熟",
+        "synonyms": [
+          "温柔成熟",
+          "轻优雅"
+        ],
+        "notes": "介于休闲和正式之间，适合通勤约会。"
+      },
+      {
+        "id": "gentle",
+        "name": "温柔",
+        "synonyms": [
+          "柔和",
+          "温柔感"
+        ],
+        "notes": "强调低攻击性、柔和色彩和轻盈材质，需避免过度甜腻。"
+      },
+      {
+        "id": "formal",
+        "name": "正式",
+        "synonyms": [
+          "商务",
+          "正装"
+        ],
+        "notes": "强调结构、整洁、低装饰和场景匹配。"
+      },
+      {
+        "id": "outdoor",
+        "name": "户外机能",
+        "synonyms": [
+          "轻户外",
+          "gorpcore",
+          "山系"
+        ],
+        "notes": "强调防风、防雨、速干、多口袋和耐用性，需判断城市日常化能力。"
+      },
+      {
+        "id": "sun-protection",
+        "name": "防晒通勤",
+        "synonyms": [
+          "夏季防晒",
+          "城市防晒"
+        ],
+        "notes": "强调防晒、防闷热、轻量和通勤可接受度。"
+      },
+      {
+        "id": "street",
+        "name": "街头",
+        "synonyms": [
+          "潮流",
+          "宽松街头"
+        ],
+        "notes": "廓形和 Logo 可能更强，需判断与用户长期风格一致性。"
+      },
+      {
+        "id": "clean-fit",
+        "name": "Clean Fit",
+        "synonyms": [
+          "干净穿搭",
+          "简洁休闲"
+        ],
+        "notes": "强调低饱和、中性色、干净线条和低装饰，适合日常与轻通勤。"
+      },
+      {
+        "id": "chanel-style",
+        "name": "小香风",
+        "synonyms": [
+          "香风",
+          "粗花呢风"
+        ],
+        "notes": "精致轻正式、成熟度较高，需关注是否符合用户年龄感、场景和维护意愿。"
+      },
+      {
+        "id": "new-chinese",
+        "name": "新中式",
+        "synonyms": [
+          "国风",
+          "中式改良"
+        ],
+        "notes": "文化符号和设计感较强，适合活动、约会和风格探索，需避免低频和角色感过强。"
+      },
+      {
+        "id": "sweet",
+        "name": "甜美",
+        "synonyms": [
+          "甜系",
+          "少女感"
+        ],
+        "notes": "柔和、可爱或装饰感较强，需关注成熟度、场景和长期风格一致性。"
+      },
+      {
+        "id": "vacation",
+        "name": "度假风",
+        "synonyms": [
+          "海岛风",
+          "旅行感"
+        ],
+        "notes": "适合旅行和拍照场景，日常复用需验证。"
+      },
+      {
+        "id": "business",
+        "name": "商务",
+        "synonyms": [
+          "商务通勤",
+          "职场正式"
+        ],
+        "notes": "比普通通勤更正式，强调结构、低装饰、整洁和可靠感。"
+      },
+      {
+        "id": "workwear",
+        "name": "工装风",
+        "synonyms": [
+          "机能工装",
+          "多口袋风格"
+        ],
+        "notes": "口袋、硬挺、宽松和功能感明显，需控制体量和专业感。"
+      },
+      {
+        "id": "elegant",
+        "name": "优雅",
+        "synonyms": [
+          "精致优雅",
+          "优雅风"
+        ],
+        "notes": "强调垂坠、线条、克制色彩和适度正式，需防止过度场景化。"
+      },
+      {
+        "id": "spicy-girl",
+        "name": "辣妹风",
+        "synonyms": [
+          "辣妹",
+          "甜辣"
+        ],
+        "notes": "强调短款、修身、露肤或强存在感，需结合用户舒适边界和真实场景。"
+      }
+    ],
+    "scenarios": [
+      {
+        "id": "commute",
+        "name": "通勤",
+        "synonyms": [
+          "上班",
+          "职场日常"
+        ],
+        "notes": "舒适、整洁、耐穿、易打理和适度正式。"
+      },
+      {
+        "id": "interview",
+        "name": "面试",
+        "synonyms": [
+          "求职",
+          "正式会面"
+        ],
+        "notes": "可靠、克制、清爽，上半身质感重要。"
+      },
+      {
+        "id": "date",
+        "name": "约会",
+        "synonyms": [
+          "见面",
+          "轻社交"
+        ],
+        "notes": "可增加柔和、精致或个人风格，但需舒适。"
+      },
+      {
+        "id": "travel",
+        "name": "旅行",
+        "synonyms": [
+          "出游",
+          "度假"
+        ],
+        "notes": "多场景复用、舒适、好打理和拍照效果。"
+      },
+      {
+        "id": "daily",
+        "name": "日常出街",
+        "synonyms": [
+          "逛街",
+          "日常"
+        ],
+        "notes": "舒适和个人风格优先，复用率重要。"
+      },
+      {
+        "id": "home",
+        "name": "居家",
+        "synonyms": [
+          "宅家",
+          "休息"
+        ],
+        "notes": "舒适、易清洗，外穿价值需另行判断。"
+      },
+      {
+        "id": "light-sport",
+        "name": "轻运动",
+        "synonyms": [
+          "散步",
+          "瑜伽",
+          "健身通勤"
+        ],
+        "notes": "舒适机能优先，正式场景边界明显。"
+      },
+      {
+        "id": "formal-event",
+        "name": "正式活动",
+        "synonyms": [
+          "宴会",
+          "仪式",
+          "商务活动"
+        ],
+        "notes": "场景适配优先，低频单品需谨慎购买。"
+      },
+      {
+        "id": "party",
+        "name": "聚会",
+        "synonyms": [
+          "朋友聚会",
+          "社交"
+        ],
+        "notes": "可有亮点，但需判断复用和舒适。"
+      },
+      {
+        "id": "city-sun-protection",
+        "name": "城市防晒",
+        "synonyms": [
+          "夏季通勤防晒",
+          "户外通勤"
+        ],
+        "notes": "需要在防晒、透气、好看和通勤场景之间平衡。"
+      },
+      {
+        "id": "hiking",
+        "name": "徒步/轻户外",
+        "synonyms": [
+          "露营",
+          "登山",
+          "郊游"
+        ],
+        "notes": "功能优先，需判断专业装备是否会在城市衣橱中低频。"
+      },
+      {
+        "id": "fitness",
+        "name": "健身/瑜伽",
+        "synonyms": [
+          "健身房",
+          "瑜伽课",
+          "训练"
+        ],
+        "notes": "支撑、弹性、排汗和舒适优先，外穿场景另行判断。"
+      },
+      {
+        "id": "campus",
+        "name": "校园",
+        "synonyms": [
+          "上课",
+          "学生日常"
+        ],
+        "notes": "舒适、轻松、低维护优先，可接受更多运动休闲和学院元素。"
+      }
+    ],
+    "care_risks": [
+      {
+        "id": "wrinkle-prone",
+        "name": "易皱",
+        "synonyms": [
+          "容易皱",
+          "需熨烫"
+        ],
+        "notes": "降低通勤和旅行实穿便利性。"
+      },
+      {
+        "id": "sheerness-risk",
+        "name": "易透",
+        "synonyms": [
+          "透肤",
+          "偏薄"
+        ],
+        "notes": "需要内搭或叠穿，影响场景边界。"
+      },
+      {
+        "id": "lint-prone",
+        "name": "易粘毛",
+        "synonyms": [
+          "吸毛",
+          "显灰"
+        ],
+        "notes": "深色毛呢、针织和部分面料常见。"
+      },
+      {
+        "id": "needs-ironing",
+        "name": "需熨烫",
+        "synonyms": [
+          "护理麻烦"
+        ],
+        "notes": "增加维护时间，影响高频穿着。"
+      },
+      {
+        "id": "hard-to-clean",
+        "name": "难清洗",
+        "synonyms": [
+          "只能干洗",
+          "护理特殊"
+        ],
+        "notes": "降低日常复用价值。"
+      },
+      {
+        "id": "season-limited",
+        "name": "季节限制强",
+        "synonyms": [
+          "只能某季节穿"
+        ],
+        "notes": "购买时需确认真实使用窗口。"
+      },
+      {
+        "id": "breathability-risk",
+        "name": "透气不足",
+        "synonyms": [
+          "闷热",
+          "不透气"
+        ],
+        "notes": "防晒、防水、运动面料常见，影响夏季和运动舒适度。"
+      },
+      {
+        "id": "compression-risk",
+        "name": "压迫感",
+        "synonyms": [
+          "勒感",
+          "束缚感"
+        ],
+        "notes": "紧身裤、鲨鱼裤、运动内衣和修身上衣常见。"
+      },
+      {
+        "id": "technical-overkill",
+        "name": "功能过剩",
+        "synonyms": [
+          "专业度过高",
+          "户外感过强"
+        ],
+        "notes": "功能单品若缺少真实场景，容易在城市衣橱中低频。"
+      },
+      {
+        "id": "function-overlap",
+        "name": "功能重复",
+        "synonyms": [
+          "功能重叠",
+          "已有同功能"
+        ],
+        "notes": "防晒衣、风壳、冲锋衣、雨壳、运动外套之间常见重叠。"
+      }
+    ],
+    "value_tags": [
+      {
+        "id": "basic-item",
+        "name": "基础款",
+        "synonyms": [
+          "百搭款",
+          "打底款"
+        ],
+        "notes": "复用潜力高，但重复购买风险也高。"
+      },
+      {
+        "id": "style-anchor",
+        "name": "风格锚点",
+        "synonyms": [
+          "风格核心",
+          "定调单品"
+        ],
+        "notes": "能明确个人风格方向，需和衣橱长期一致。"
+      },
+      {
+        "id": "statement-item",
+        "name": "亮点款",
+        "synonyms": [
+          "吸睛款",
+          "点睛款"
+        ],
+        "notes": "提升造型趣味，但复用场景需验证。"
+      },
+      {
+        "id": "transition-piece",
+        "name": "过渡款",
+        "synonyms": [
+          "换季款",
+          "叠穿款"
+        ],
+        "notes": "适合季节转换和层次搭配。"
+      },
+      {
+        "id": "duplicate-risk",
+        "name": "重复风险款",
+        "synonyms": [
+          "相似款",
+          "已有替代"
+        ],
+        "notes": "需和已有衣橱比较品类、颜色、场景差异。"
+      },
+      {
+        "id": "low-utilization-risk",
+        "name": "低利用率款",
+        "synonyms": [
+          "低频款",
+          "难搭款"
+        ],
+        "notes": "购买前需明确真实场景和搭配数量。"
+      },
+      {
+        "id": "functional-piece",
+        "name": "功能款",
+        "synonyms": [
+          "机能款",
+          "户外功能款"
+        ],
+        "notes": "以防晒、防风、防雨、速干、保暖等功能为核心，需验证真实使用场景。"
+      },
+      {
+        "id": "comfort-piece",
+        "name": "舒适款",
+        "synonyms": [
+          "好穿款",
+          "懒人款"
+        ],
+        "notes": "舒适度强但可能正式度不足，需判断是否能外穿或通勤化。"
+      }
+    ],
+    "risk_tags": [
+      {
+        "id": "duplicate-risk",
+        "name": "重复购买风险",
+        "notes": "已有同品类、同颜色、同场景单品较多。"
+      },
+      {
+        "id": "low-versatility",
+        "name": "搭配灵活度低",
+        "synonyms": [
+          "搭配复杂度高"
+        ],
+        "notes": "只能搭少数单品或场景。"
+      },
+      {
+        "id": "too-casual-for-work",
+        "name": "通勤正式度不足",
+        "synonyms": [
+          "正式度不足"
+        ],
+        "notes": "单穿或整体风格偏随意。"
+      },
+      {
+        "id": "too-formal-for-daily",
+        "name": "日常正式度过高",
+        "notes": "日常场景穿着压力较大。"
+      },
+      {
+        "id": "fit-comfort-risk",
+        "name": "版型舒适度风险",
+        "notes": "贴身、低腰、包臀、紧袖等可能影响活动。"
+      },
+      {
+        "id": "maintenance-cost",
+        "name": "维护成本高",
+        "synonyms": [
+          "维护成本"
+        ],
+        "notes": "易皱、干洗、易粘毛、难清洗。"
+      },
+      {
+        "id": "trend-risk",
+        "name": "趋势过时风险",
+        "synonyms": [
+          "趋势风险"
+        ],
+        "notes": "强潮流元素可能很快降低使用率。"
+      },
+      {
+        "id": "season-limited",
+        "name": "季节限制",
+        "synonyms": [
+          "季节限制强"
+        ],
+        "notes": "一年内可穿窗口较短。"
+      },
+      {
+        "id": "low-utilization-risk",
+        "name": "低利用率风险",
+        "notes": "真实穿着场景少，容易买后闲置。"
+      },
+      {
+        "id": "scenario-limited",
+        "name": "场景限制",
+        "notes": "适用场景窄，需要明确复用路径。"
+      },
+      {
+        "id": "proportion-imbalance",
+        "name": "比例失衡",
+        "notes": "上下装体量、长度或腰线导致整体轮廓不稳。"
+      },
+      {
+        "id": "low-contrast-blur",
+        "name": "低对比显模糊",
+        "notes": "颜色和材质层次不足，造型边界不清。"
+      },
+      {
+        "id": "breathability-risk",
+        "name": "透气不足",
+        "notes": "夏季、防晒、防雨和运动单品可能因闷热降低利用率。"
+      },
+      {
+        "id": "compression-risk",
+        "name": "压迫感",
+        "notes": "贴身或高弹单品可能造成勒感、卷边和活动限制。"
+      },
+      {
+        "id": "technical-overkill",
+        "name": "功能过剩",
+        "notes": "专业户外功能超过真实生活需要，导致低频或风格割裂。"
+      },
+      {
+        "id": "function-overlap",
+        "name": "功能重复",
+        "notes": "已有同类防晒、防风、防雨、保暖功能单品，新增价值有限。"
+      }
+    ]
+  }
+}
