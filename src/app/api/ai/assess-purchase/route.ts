@@ -9,7 +9,11 @@ import {
 } from "@/lib/ai/purchase-analysis";
 import { embedText, generateVisionJson, toPgVector } from "@/lib/ai/providers";
 import type { UserStyleProfile } from "@/lib/ai/types";
-import { parseCandidateFromMessage, runPurchaseAssessment } from "@/lib/ai/workflow";
+import {
+  parseCandidateFromMessage,
+  runPurchaseAssessment,
+  runPurchaseAssessmentTrace,
+} from "@/lib/ai/workflow";
 import { appEnv } from "@/lib/env";
 import type { ClothingItem } from "@/lib/types";
 
@@ -32,6 +36,7 @@ const requestSchema = z
     imageDataUrl: z.string().startsWith("data:image/").optional(),
     sessionId: z.string().uuid().optional(),
     userProfile: profileSchema,
+    trace: z.boolean().optional(),
   })
   .refine((value) => value.message.trim() || value.imageDataUrl, {
     message: "Message or image is required.",
@@ -95,19 +100,71 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const { message, imageDataUrl, sessionId } = parsed.data;
+    const { message, imageDataUrl, sessionId, trace: shouldTrace } = parsed.data;
+    const routeTrace: Array<{
+      id: string;
+      title: string;
+      elapsedMs: number;
+      input: Record<string, unknown>;
+      output: Record<string, unknown>;
+    }> = [];
     const screenshotPath = imageDataUrl
-      ? await uploadPurchaseScreenshot(supabase, userData.user.id, imageDataUrl)
+      ? await traceStep(routeTrace, "upload_purchase_screenshot", "保存待买商品截图", {
+          hasImage: true,
+          imageBytesApprox: getDataUrlByteLength(imageDataUrl),
+        }, async () => {
+          const path = await uploadPurchaseScreenshot(supabase, userData.user.id, imageDataUrl);
+          return {
+            value: path,
+            output: {
+              screenshotPath: path,
+            },
+          };
+        })
       : undefined;
     const screenshotUrl = screenshotPath
       ? await createSignedImageUrl(supabase, "purchase-screenshots", screenshotPath)
       : undefined;
     const candidate = imageDataUrl
-      ? await analyzePurchaseCandidateSafely(message, imageDataUrl, screenshotPath, screenshotUrl)
-      : parseCandidateFromMessage(message);
+      ? await traceStep(routeTrace, "analyze_purchase_candidate", "识别待买商品截图", {
+          message,
+          hasImage: true,
+          screenshotPath,
+        }, async () => {
+          const result = await analyzePurchaseCandidateSafely(message, imageDataUrl, screenshotPath, screenshotUrl);
+          return {
+            value: result,
+            output: {
+              candidate: sanitizeCandidateForTrace(result),
+            },
+          };
+        })
+      : await traceStep(routeTrace, "parse_candidate_from_message", "从文字描述理解待买商品", {
+          message,
+          hasImage: false,
+        }, async () => {
+          const result = parseCandidateFromMessage(message);
+          return {
+            value: result,
+            output: {
+              candidate: sanitizeCandidateForTrace(result),
+            },
+          };
+        });
     const candidateEmbeddingText =
       candidate.embeddingText ?? buildPurchaseEmbeddingText(candidate);
-    const candidateEmbedding = await embedText(candidateEmbeddingText);
+    const candidateEmbedding = await traceStep(routeTrace, "embed_purchase_candidate", "生成待买商品向量", {
+      embeddingText: candidateEmbeddingText,
+    }, async () => {
+      const result = await embedText(candidateEmbeddingText);
+      return {
+        value: result,
+        output: {
+          dimensions: result.length,
+          preview: result.slice(0, 8).map((value) => Number(value.toFixed(6))),
+        },
+      };
+    });
     let candidateId: string | undefined;
 
     if (screenshotPath) {
@@ -144,8 +201,30 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const closetItems = await loadRealClosetItems(supabase);
-    const report = await runPurchaseAssessment({
+    const closetItems = await traceStep(routeTrace, "load_real_closet", "读取真实衣橱数据", {
+      limit: 120,
+      filter: "status != archived, category 已识别",
+    }, async () => {
+      const result = await loadRealClosetItems(supabase);
+      return {
+        value: result,
+        output: {
+          closetItemCount: result.length,
+          sampleItems: result.slice(0, 10).map((item) => ({
+            id: item.id,
+            name: item.name,
+            category: item.category,
+            color: item.color,
+            fit: item.fit,
+            styleTags: item.styleTags,
+            scenarioTags: item.scenarioTags,
+            wearFrequency: item.wearFrequency,
+            hasEmbedding: Boolean(item.embedding?.length),
+          })),
+        },
+      };
+    });
+    const assessmentRequest = {
       message,
       imageDataUrl,
       userProfile: normalizeUserProfile(parsed.data.userProfile),
@@ -155,7 +234,11 @@ export async function POST(request: NextRequest) {
       },
       candidateEmbedding,
       closetItems,
-    });
+    };
+    const assessmentResult = shouldTrace
+      ? await runPurchaseAssessmentTrace(assessmentRequest)
+      : { report: await runPurchaseAssessment(assessmentRequest), trace: undefined };
+    const report = assessmentResult.report;
     const reportId = await persistAssessmentReport(supabase, {
       userId: userData.user.id,
       sessionId,
@@ -168,6 +251,15 @@ export async function POST(request: NextRequest) {
       candidateId,
       reportId,
       closetItemCount: closetItems.length,
+      ...(shouldTrace
+        ? {
+            trace: {
+              generatedAt: new Date().toISOString(),
+              routeSteps: routeTrace,
+              workflowSteps: assessmentResult.trace,
+            },
+          }
+        : {}),
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Purchase assessment failed.";
@@ -209,9 +301,7 @@ async function persistAssessmentReport(
       risks: report.risks,
       body_fit_notes: report.bodyFitNotes,
       outfit_combinations: report.outfitCombinations,
-      alternatives_from_closet: report.retrievedClosetItems
-        .filter((match) => match.matchType === "alternative")
-        .map((match) => match.item.id),
+      alternatives_from_closet: [],
       retrieved_context: {
         closetMatches: report.retrievedClosetItems.map((match) => ({
           itemId: match.item.id,
@@ -235,6 +325,50 @@ async function persistAssessmentReport(
   }
 
   return data?.id as string | undefined;
+}
+
+async function traceStep<T>(
+  steps: Array<{
+    id: string;
+    title: string;
+    elapsedMs: number;
+    input: Record<string, unknown>;
+    output: Record<string, unknown>;
+  }>,
+  id: string,
+  title: string,
+  input: Record<string, unknown>,
+  runner: () => Promise<{ value: T; output: Record<string, unknown> }>,
+) {
+  const startedAt = Date.now();
+  const result = await runner();
+  steps.push({
+    id,
+    title,
+    elapsedMs: Date.now() - startedAt,
+    input,
+    output: result.output,
+  });
+  return result.value;
+}
+
+function sanitizeCandidateForTrace(candidate: ReturnType<typeof parseCandidateFromMessage>) {
+  return {
+    productName: candidate.productName,
+    category: candidate.category,
+    color: candidate.color,
+    secondaryColors: candidate.secondaryColors,
+    fit: candidate.fit,
+    styleTags: candidate.styleTags,
+    possibleScenarios: candidate.possibleScenarios,
+    estimatedPrice: candidate.estimatedPrice,
+    sellingPoints: candidate.sellingPoints,
+    summary: candidate.summary,
+    embeddingText: candidate.embeddingText,
+    aiConfidence: candidate.aiConfidence,
+    screenshotPath: candidate.screenshotPath,
+    hasScreenshotUrl: Boolean(candidate.screenshotUrl),
+  };
 }
 
 async function analyzePurchaseCandidateSafely(
@@ -370,6 +504,11 @@ function parseImageDataUrl(imageDataUrl: string) {
     mimeType: match[1] === "image/jpg" ? "image/jpeg" : match[1],
     buffer: Buffer.from(match[2], "base64"),
   };
+}
+
+function getDataUrlByteLength(imageDataUrl: string) {
+  const base64 = imageDataUrl.split(",", 2)[1] ?? "";
+  return Math.round((base64.length * 3) / 4);
 }
 
 function parsePgVector(value: string | number[] | null) {

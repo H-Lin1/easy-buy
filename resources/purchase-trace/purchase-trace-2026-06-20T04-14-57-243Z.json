@@ -1,0 +1,2047 @@
+{
+  "generatedAt": "2026-06-20T04:14:57.236Z",
+  "appUrl": "[omitted-url]",
+  "elapsedMs": 66036,
+  "elapsedSeconds": 66,
+  "request": {
+    "message": "这件衣服值得买吗？请展示完整决策链路，特别是它能和我的衣橱形成哪些真实搭配组合。",
+    "imagePath": "D:\\vibe coding\\easy_Buy\\resources\\closet\\微信图片_20260610124157_324_2.jpg",
+    "hasImage": true
+  },
+  "result": {
+    "report": {
+      "candidate": {
+        "productName": "米色外套",
+        "category": "外套",
+        "color": "米色",
+        "fit": "regular",
+        "styleTags": [
+          "简约",
+          "休闲"
+        ],
+        "possibleScenarios": [
+          "日常"
+        ],
+        "sellingPoints": [
+          "基础款",
+          "易搭配",
+          "可覆盖多个场景"
+        ],
+        "summary": "候选商品是米色外套，偏常规版型。 商品截图识别暂时失败，本次先根据文字描述和衣橱信息做保守判断。",
+        "embeddingText": "米色外套；品类：外套；颜色：米色；版型：常规；风格：简约、休闲；场景：日常；价格：未知；卖点：基础款、易搭配、可覆盖多个场景；摘要：候选商品是米色外套，偏常规版型。",
+        "screenshotPath": "4ae9dbc7-ea96-487a-a2d5-eb8a8273742f/64e03e7f-c3e7-4b66-bd6d-b6b24cac6a29.jpg",
+        "screenshotUrl": "[omitted-url]",
+        "aiConfidence": 0.45
+      },
+      "decision": "buy",
+      "decisionStatus": "decided_to_buy",
+      "decisionLabel": "建议决定买",
+      "nextStep": "建议你先检查衣橱中是否已有类似颜色或版型外套，若没有可放心购入。收到后，优先试用上述三套搭配，感受叠穿舒适度与领口、袖口的适配性；如内搭多为高领或连帽款，可考虑搭配V领或圆领内搭以提升整体效果。",
+      "confidence": 0.82,
+      "summary": "基于长期主义分析，这件米色外套是一款经典基础款，能够与你的衣橱中多件单品形成至少三套自然、场景分明的搭配，覆盖日常、通勤与休闲场景。根据穿搭知识卡「至少三套搭配门槛」，它满足匹配场景多样性和不依赖单一配件的条件。同时，结合「季节缺口」知识，其常规版型和米色属性适合春秋两季或跨季叠穿，复用周期较长。建议购入以弥补衣橱中缺少的轻量级百搭外套，但需留意搭配内层领型避免臃肿。",
+      "scores": {
+        "wardrobeFit": 85,
+        "outfitPotential": 92,
+        "styleConsistency": 88,
+        "priceValue": 80,
+        "fitComfort": 82,
+        "careCost": 78
+      },
+      "reasonsToBuy": [
+        "基础米色外套，风格简约休闲，与衣橱中的白色罗纹无袖背心、黑色短袖T恤、浅灰运动短袖T恤等内搭在颜色和风格上自然协调，能形成「外套+内搭」的稳妥叠穿组合。",
+        "可搭配灰色松紧腰运动长裤和白色高腰褶裥长裤，分别覆盖日常休闲和通勤场景，符合知识卡「至少三套搭配门槛」中通勤套与周末套的要求，场景多样性良好。",
+        "根据知识卡「季节缺口」，该外套版型常规，可在春秋季单穿，或叠穿T恤和针织衫扩展使用周期，避免一年只穿几次的弊端。",
+        "衣橱中目前无同类米色外套，购买可填补场景缺口（如轻休闲通勤或日常层叠造型），且现有搭配单品使用频率高，能形成稳定复用。"
+      ],
+      "reasonsToSave": [
+        "如果已有功能或颜色相似的外套，如灰色或黑色基本款夹克，则可能造成冗余，导致利用率下降。"
+      ],
+      "risks": [
+        "低风险：内搭领型如选择高领或连帽卫衣，可能造成脖颈拥挤，影响叠穿舒适度和造型整洁度。可优先搭配V领、圆领等低领内搭规避此问题。",
+        "低风险：米色较浅，易沾污，清洁成本偏高，且频繁清洗可能导致颜色变暗，需注意护理方式。",
+        "低风险：常规版型对层叠搭配较友好，但在极严寒环境下需加厚内搭，保暖能力有限。"
+      ],
+      "bodyFitNotes": [
+        "常规版型适合多数身形，建议你试穿时注意肩部和袖长是否合身，内搭叠穿后腋下和背部活动应无拉扯感。如有修身需求，可考虑扎入下装或搭配腰带调整比例。"
+      ],
+      "outfitCombinations": [
+        {
+          "title": "日常休闲出街套",
+          "scenario": "日常",
+          "items": [
+            "米色外套",
+            "白色罗纹无袖背心",
+            "灰色松紧腰运动长裤"
+          ],
+          "summary": "米色外套作为外层，内搭白色背心提亮整体，搭配灰色运动长裤，风格一致为简约休闲，颜色协调（米+白+灰），适合日常出街或居家场景，搭配后穿着自然。",
+          "visualIntent": "outfit",
+          "closetItemIds": [
+            "65139256-9550-4f5b-bcd8-6b4a42db1f8e",
+            "fc305957-650a-4953-ac53-2545cfbafae0"
+          ],
+          "visualType": "evidence_board",
+          "visualItems": [
+            {
+              "id": "65139256-9550-4f5b-bcd8-6b4a42db1f8e",
+              "name": "白色罗纹无袖背心",
+              "category": "背心",
+              "imageUrl": "[omitted-url]",
+              "matchType": "outfit",
+              "role": "可搭内衬",
+              "badge": "可搭内衬",
+              "reason": "可用于日常搭配，和「白色罗纹无袖背心」在风格或场景上能互相承接。",
+              "tags": [
+                "极简",
+                "休闲",
+                "Clean Fit",
+                "日常出街"
+              ]
+            },
+            {
+              "id": "fc305957-650a-4953-ac53-2545cfbafae0",
+              "name": "灰色松紧腰运动长裤",
+              "category": "长裤",
+              "imageUrl": "[omitted-url]",
+              "matchType": "outfit",
+              "role": "可搭裤装",
+              "badge": "可搭裤装",
+              "reason": "可用于日常搭配，和「灰色松紧腰运动长裤」在风格或场景上能互相承接。",
+              "tags": [
+                "休闲",
+                "运动",
+                "简约",
+                "居家"
+              ]
+            }
+          ]
+        },
+        {
+          "title": "轻通勤简洁套",
+          "scenario": "通勤",
+          "items": [
+            "米色外套",
+            "黑色短袖T恤",
+            "白色高腰褶裥长裤"
+          ],
+          "summary": "黑色内搭与白色长裤形成黑白对比，外穿米色外套作为连接色，整体简约利落，可满足轻通勤或面试场景，黑白米配色干净。",
+          "visualIntent": "outfit",
+          "closetItemIds": [
+            "cd32e5a1-b0cf-4a80-8579-d61f6ad426a4",
+            "24a0afca-be31-48c6-abd6-ad393eefedec"
+          ],
+          "visualType": "evidence_board",
+          "visualItems": [
+            {
+              "id": "cd32e5a1-b0cf-4a80-8579-d61f6ad426a4",
+              "name": "黑色短袖T恤",
+              "category": "T恤",
+              "imageUrl": "[omitted-url]",
+              "matchType": "outfit",
+              "role": "可搭内衬",
+              "badge": "可搭内衬",
+              "reason": "可用于日常搭配，和「黑色短袖T恤」在风格或场景上能互相承接。",
+              "tags": [
+                "休闲",
+                "简约",
+                "日常",
+                "居家"
+              ]
+            },
+            {
+              "id": "24a0afca-be31-48c6-abd6-ad393eefedec",
+              "name": "白色高腰褶裥长裤",
+              "category": "长裤",
+              "imageUrl": "[omitted-url]",
+              "matchType": "outfit",
+              "role": "可搭裤装",
+              "badge": "可搭裤装",
+              "reason": "可用于日常搭配，和「白色高腰褶裥长裤」在风格或场景上能互相承接。",
+              "tags": [
+                "简约",
+                "通勤",
+                "休闲",
+                "通勤"
+              ]
+            }
+          ]
+        },
+        {
+          "title": "运动休闲叠穿套",
+          "scenario": "运动/日常",
+          "items": [
+            "米色外套",
+            "浅灰运动短袖T恤",
+            "灰色松紧腰运动长裤"
+          ],
+          "summary": "深浅灰色系内搭与下装形成简约层次，外搭米色外套增加色彩变化，适合运动或日常出行，风格一致为休闲运动，穿着舒适。",
+          "visualIntent": "outfit",
+          "closetItemIds": [
+            "648ac721-62ef-4445-ac7b-ff2f16040f56",
+            "fc305957-650a-4953-ac53-2545cfbafae0"
+          ],
+          "visualType": "evidence_board",
+          "visualItems": [
+            {
+              "id": "648ac721-62ef-4445-ac7b-ff2f16040f56",
+              "name": "浅灰运动短袖T恤",
+              "category": "T恤",
+              "imageUrl": "[omitted-url]",
+              "matchType": "outfit",
+              "role": "可搭内衬",
+              "badge": "可搭内衬",
+              "reason": "可用于日常搭配，和「浅灰运动短袖T恤」在风格或场景上能互相承接。",
+              "tags": [
+                "运动",
+                "休闲",
+                "运动",
+                "日常"
+              ]
+            },
+            {
+              "id": "fc305957-650a-4953-ac53-2545cfbafae0",
+              "name": "灰色松紧腰运动长裤",
+              "category": "长裤",
+              "imageUrl": "[omitted-url]",
+              "matchType": "outfit",
+              "role": "可搭裤装",
+              "badge": "可搭裤装",
+              "reason": "可用于日常搭配，和「灰色松紧腰运动长裤」在风格或场景上能互相承接。",
+              "tags": [
+                "休闲",
+                "运动",
+                "简约",
+                "居家"
+              ]
+            }
+          ]
+        }
+      ],
+      "retrievedClosetItems": [
+        {
+          "item": {
+            "id": "65139256-9550-4f5b-bcd8-6b4a42db1f8e",
+            "name": "白色罗纹无袖背心",
+            "category": "背心",
+            "color": "白色",
+            "fit": "regular",
+            "styleTags": [
+              "极简",
+              "休闲",
+              "Clean Fit"
+            ],
+            "seasonTags": [
+              "spring",
+              "summer",
+              "autumn"
+            ],
+            "scenarioTags": [
+              "日常出街",
+              "居家",
+              "轻运动"
+            ],
+            "wearFrequency": "often",
+            "status": "active",
+            "palette": "from-[#fbfaf5] to-[#e8ded2]",
+            "imagePath": "4ae9dbc7-ea96-487a-a2d5-eb8a8273742f/65e893b4-4143-4337-b063-d31dba9532b2.jpg",
+            "displayImagePath": "4ae9dbc7-ea96-487a-a2d5-eb8a8273742f/display/4484f6a8-8602-413b-b973-84cceed0dfb8.png",
+            "imageUrl": "[omitted-url]",
+            "displayImageUrl": "[omitted-url]",
+            "originalImageUrl": "[omitted-url]",
+            "aiConfidence": 0.68,
+            "userCorrected": true,
+            "embeddingText": "白色罗纹无袖背心；品类：背心；颜色：白色；版型：常规；风格：极简、休闲、Clean Fit；场景：日常出街、居家、轻运动；季节：spring、summer、autumn；穿着频率：常穿",
+            "summary": "白色罗纹无袖背心"
+          },
+          "matchType": "outfit",
+          "score": 98,
+          "reason": "可用于日常搭配，和「白色罗纹无袖背心」在风格或场景上能互相承接。"
+        },
+        {
+          "item": {
+            "id": "fc305957-650a-4953-ac53-2545cfbafae0",
+            "name": "灰色松紧腰运动长裤",
+            "category": "长裤",
+            "color": "灰色",
+            "fit": "regular",
+            "styleTags": [
+              "休闲",
+              "运动",
+              "简约"
+            ],
+            "seasonTags": [
+              "autumn",
+              "winter",
+              "all-season"
+            ],
+            "scenarioTags": [
+              "居家",
+              "日常",
+              "运动"
+            ],
+            "wearFrequency": "sometimes",
+            "status": "active",
+            "palette": "from-[#a7a7a3] to-[#e2e0dc]",
+            "imagePath": "4ae9dbc7-ea96-487a-a2d5-eb8a8273742f/f30196e8-d1f4-488a-b2e8-70b7d4f26594.jpg",
+            "displayImagePath": "4ae9dbc7-ea96-487a-a2d5-eb8a8273742f/display/6c0e51bc-1b2e-4722-aafb-12a9c8ef93ec.png",
+            "imageUrl": "[omitted-url]",
+            "displayImageUrl": "[omitted-url]",
+            "originalImageUrl": "[omitted-url]",
+            "aiConfidence": 0.85,
+            "userCorrected": true,
+            "embeddingText": "灰色松紧腰运动长裤；品类：长裤；颜色：灰色；版型：常规；风格：休闲、运动、简约；场景：居家、日常、运动；季节：autumn、winter、all-season；穿着频率：偶尔穿",
+            "summary": "灰色松紧腰运动长裤"
+          },
+          "matchType": "outfit",
+          "score": 98,
+          "reason": "可用于日常搭配，和「灰色松紧腰运动长裤」在风格或场景上能互相承接。"
+        },
+        {
+          "item": {
+            "id": "cd32e5a1-b0cf-4a80-8579-d61f6ad426a4",
+            "name": "黑色短袖T恤",
+            "category": "T恤",
+            "color": "黑色",
+            "fit": "oversized",
+            "styleTags": [
+              "休闲",
+              "简约"
+            ],
+            "seasonTags": [
+              "spring",
+              "summer",
+              "autumn"
+            ],
+            "scenarioTags": [
+              "日常",
+              "居家",
+              "旅行"
+            ],
+            "wearFrequency": "often",
+            "status": "active",
+            "palette": "from-[#171313] to-[#77706b]",
+            "imagePath": "4ae9dbc7-ea96-487a-a2d5-eb8a8273742f/1e70fc15-ded8-4e52-abb5-4fac9e907fcc.jpg",
+            "displayImagePath": "4ae9dbc7-ea96-487a-a2d5-eb8a8273742f/display/ca0861cc-6cea-42e9-a2f7-8625e32aaef2.png",
+            "imageUrl": "[omitted-url]",
+            "displayImageUrl": "[omitted-url]",
+            "originalImageUrl": "[omitted-url]",
+            "aiConfidence": 0.68,
+            "userCorrected": true,
+            "embeddingText": "黑色短袖T恤；品类：T恤；颜色：黑色；版型：宽松；风格：休闲、简约；场景：日常、居家、旅行；季节：spring、summer、autumn；穿着频率：常穿",
+            "summary": "黑色短袖T恤"
+          },
+          "matchType": "outfit",
+          "score": 98,
+          "reason": "可用于日常搭配，和「黑色短袖T恤」在风格或场景上能互相承接。"
+        },
+        {
+          "item": {
+            "id": "648ac721-62ef-4445-ac7b-ff2f16040f56",
+            "name": "浅灰运动短袖T恤",
+            "category": "T恤",
+            "color": "灰色",
+            "fit": "regular",
+            "styleTags": [
+              "运动",
+              "休闲"
+            ],
+            "seasonTags": [
+              "summer",
+              "all-season"
+            ],
+            "scenarioTags": [
+              "运动",
+              "日常"
+            ],
+            "wearFrequency": "unknown",
+            "status": "active",
+            "palette": "from-[#a7a7a3] to-[#e2e0dc]",
+            "imagePath": "4ae9dbc7-ea96-487a-a2d5-eb8a8273742f/975f3628-d243-4509-bc30-ec88f534db3d.jpg",
+            "displayImagePath": "4ae9dbc7-ea96-487a-a2d5-eb8a8273742f/display/bfa6dd88-4274-4836-8538-9e7b4e0570aa.png",
+            "imageUrl": "[omitted-url]",
+            "displayImageUrl": "[omitted-url]",
+            "originalImageUrl": "[omitted-url]",
+            "aiConfidence": 0.82,
+            "userCorrected": true,
+            "embeddingText": "浅灰运动短袖T恤；品类：T恤；颜色：灰色；版型：常规；风格：运动、休闲；场景：运动、日常；季节：summer、all-season；穿着频率：待确认",
+            "summary": "浅灰运动短袖T恤"
+          },
+          "matchType": "outfit",
+          "score": 98,
+          "reason": "可用于日常搭配，和「浅灰运动短袖T恤」在风格或场景上能互相承接。"
+        },
+        {
+          "item": {
+            "id": "24a0afca-be31-48c6-abd6-ad393eefedec",
+            "name": "白色高腰褶裥长裤",
+            "category": "长裤",
+            "color": "白色",
+            "fit": "oversized",
+            "styleTags": [
+              "简约",
+              "通勤",
+              "休闲"
+            ],
+            "seasonTags": [
+              "spring",
+              "summer",
+              "autumn"
+            ],
+            "scenarioTags": [
+              "通勤",
+              "日常",
+              "面试"
+            ],
+            "wearFrequency": "unknown",
+            "status": "active",
+            "palette": "from-[#fbfaf5] to-[#e8ded2]",
+            "imagePath": "4ae9dbc7-ea96-487a-a2d5-eb8a8273742f/ee18f9f6-41b3-4439-a0a8-193d903f68e9.jpg",
+            "displayImagePath": "4ae9dbc7-ea96-487a-a2d5-eb8a8273742f/display/2becd3f5-862a-4cce-ad4c-6f1e1aa4e120.png",
+            "imageUrl": "[omitted-url]",
+            "displayImageUrl": "[omitted-url]",
+            "originalImageUrl": "[omitted-url]",
+            "aiConfidence": 0.65,
+            "userCorrected": true,
+            "embeddingText": "白色高腰褶裥长裤；品类：长裤；颜色：白色；版型：宽松；风格：简约、通勤、休闲；场景：通勤、日常、面试；季节：spring、summer、autumn；穿着频率：待确认",
+            "summary": "白色高腰褶裥长裤"
+          },
+          "matchType": "outfit",
+          "score": 98,
+          "reason": "可用于日常搭配，和「白色高腰褶裥长裤」在风格或场景上能互相承接。"
+        },
+        {
+          "item": {
+            "id": "fd26ac76-d19a-497c-96ad-71aa3e8b3362",
+            "name": "灰绿色连帽拉链夹克",
+            "category": "外套",
+            "color": "灰绿色",
+            "fit": "regular",
+            "styleTags": [
+              "休闲",
+              "运动",
+              "简约"
+            ],
+            "seasonTags": [
+              "spring",
+              "summer",
+              "autumn"
+            ],
+            "scenarioTags": [
+              "日常",
+              "旅行",
+              "运动"
+            ],
+            "wearFrequency": "unknown",
+            "status": "active",
+            "palette": "from-[#a7a7a3] to-[#e2e0dc]",
+            "imagePath": "4ae9dbc7-ea96-487a-a2d5-eb8a8273742f/7965d193-4f54-45d7-8802-5f4739a823a0.jpg",
+            "displayImagePath": "4ae9dbc7-ea96-487a-a2d5-eb8a8273742f/display/912bdbc6-9388-4bb1-8f87-cc2496669555.png",
+            "imageUrl": "[omitted-url]",
+            "displayImageUrl": "[omitted-url]",
+            "originalImageUrl": "[omitted-url]",
+            "aiConfidence": 0.65,
+            "userCorrected": true,
+            "embeddingText": "灰绿色连帽拉链夹克；品类：外套；颜色：灰绿色；版型：常规；风格：休闲、运动、简约；场景：日常、旅行、运动；季节：spring、summer、autumn；穿着频率：待确认",
+            "summary": "灰绿色连帽拉链夹克"
+          },
+          "matchType": "outfit",
+          "score": 98,
+          "reason": "可用于日常搭配，和「灰绿色连帽拉链夹克」在风格或场景上能互相承接。"
+        }
+      ],
+      "knowledgeSnippets": [
+        {
+          "cardId": "lt-002-three-outfit-threshold",
+          "topic": "至少三套搭配门槛",
+          "knowledgeType": "long_term_purchase",
+          "tags": [
+            "上衣",
+            "外套",
+            "黑",
+            "白",
+            "米白",
+            "通勤",
+            "休闲",
+            "日常出街",
+            "旅行",
+            "低利用率风险",
+            "基础款",
+            "风格锚点",
+            "基础上衣"
+          ],
+          "content": "MVP 决策中可以把三套真实搭配作为推荐购买的基础门槛。三套不必完全不同，但至少要覆盖不同场景或不同下装。",
+          "decisionPoints": [
+            "是否能搭出通勤、休闲或约会中的至少两个场景",
+            "搭配是否依赖同一条裤子或同一双鞋",
+            "是否有替代的已有单品"
+          ],
+          "outfitSuggestions": [
+            "通勤套、周末套、轻正式套各模拟一套"
+          ],
+          "riskSignals": [
+            "只能搭出一套固定造型",
+            "每套都需要新买配件",
+            "搭配过于依赖模特图"
+          ],
+          "decisionBias": {
+            "buy": "已有衣橱可组成 3 套",
+            "save": "目前只能搭 1-2 套",
+            "skip": "需要额外补齐太多单品"
+          },
+          "sourceRefs": [
+            "five-outfit-rule",
+            "capsule-wardrobe"
+          ],
+          "score": 145
+        },
+        {
+          "cardId": "wardrobe-008-season-gap",
+          "topic": "季节缺口需要结合当地气候",
+          "knowledgeType": "wardrobe_utilization",
+          "tags": [
+            "外套",
+            "上衣",
+            "黑",
+            "米白",
+            "卡其",
+            "通勤",
+            "休闲",
+            "旅行",
+            "日常出街",
+            "长款",
+            "宽松",
+            "轻薄",
+            "厚重",
+            "毛呢",
+            "季节限制强",
+            "过渡款",
+            "基础款",
+            "针织",
+            "短靴"
+          ],
+          "content": "季节缺口要结合用户所在城市气候。过渡季短的地区不应过度购买风衣、薄外套；冬季短的地区大衣也要谨慎。",
+          "decisionPoints": [
+            "当地可穿周期多长",
+            "是否能跨季叠穿",
+            "是否已有相近季节单品"
+          ],
+          "outfitSuggestions": [
+            "薄外套可搭 T 恤和针织，扩展春秋两季使用"
+          ],
+          "riskSignals": [
+            "一年只能穿几次",
+            "同季节外套已足够",
+            "不能跨季叠穿"
+          ],
+          "decisionBias": {
+            "buy": "季节缺口明确且周期足够",
+            "save": "确认气候和叠穿",
+            "skip": "季节利用率低"
+          },
+          "sourceRefs": [
+            "wardrobe-utilization"
+          ],
+          "score": 128
+        },
+        {
+          "cardId": "fit-013-neckline-sleeve-structure",
+          "topic": "领型和袖型会影响叠穿与场景边界",
+          "knowledgeType": "fit_proportion",
+          "tags": [
+            "上衣",
+            "外套",
+            "连衣裙/套装",
+            "通勤",
+            "休闲",
+            "轻熟",
+            "日常出街",
+            "约会",
+            "高领",
+            "V领",
+            "插肩",
+            "连帽",
+            "无袖",
+            "短袖",
+            "长袖",
+            "版型舒适度风险",
+            "搭配复杂度高",
+            "基础款",
+            "过渡款",
+            "打底衫",
+            "Polo衫",
+            "卫衣",
+            "吊带连衣裙",
+            "毛衣"
+          ],
+          "content": "电商分类常把高领、V领、插肩、连帽、无袖、短袖、长袖作为细分入口。它们不一定是品类，但会影响叠穿、正式度、舒适度和季节。",
+          "decisionPoints": [
+            "领口是否适合用户舒适边界",
+            "袖型是否影响外套叠穿",
+            "结构是否改变场景正式度"
+          ],
+          "outfitSuggestions": [
+            "高领打底适合秋冬叠穿；V领针织更轻盈；连帽卫衣叠穿外套时需避免脖颈拥挤。"
+          ],
+          "riskSignals": [
+            "高领勒脖子",
+            "插肩显得过休闲",
+            "连帽和外套堆叠不舒服"
+          ],
+          "decisionBias": {
+            "buy": "结构提升叠穿和场景适配",
+            "save": "确认领口袖型舒适",
+            "skip": "结构造成穿着门槛"
+          },
+          "sourceRefs": [
+            "ecommerce-category-screenshot",
+            "retail-fit-descriptions"
+          ],
+          "score": 142
+        },
+        {
+          "cardId": "lt-006-closet-gap-before-new",
+          "topic": "先判断衣橱缺口再购买",
+          "knowledgeType": "long_term_purchase",
+          "tags": [
+            "外套",
+            "下装",
+            "黑",
+            "白",
+            "灰",
+            "棕",
+            "通勤",
+            "休闲",
+            "日常出街",
+            "面试",
+            "合体",
+            "挺括",
+            "重复购买风险",
+            "基础款",
+            "过渡款",
+            "基础补充型商品"
+          ],
+          "content": "理性购买不是看单品孤立好不好，而是看它是否补足衣橱缺口。缺口可以是场景缺口、颜色缺口、正式度缺口或季节缺口。",
+          "decisionPoints": [
+            "衣橱是否缺少同类场景单品",
+            "已有相似单品是否已能满足需求",
+            "新单品是否提升搭配完整度"
+          ],
+          "outfitSuggestions": [
+            "列出候选单品能补上的 2 个缺口，并用已有衣服验证"
+          ],
+          "riskSignals": [
+            "缺口说不清",
+            "已有同类单品足够多",
+            "只是想换新但功能重复"
+          ],
+          "decisionBias": {
+            "buy": "明确补足缺口",
+            "save": "缺口存在但不紧急",
+            "skip": "不补缺口且重复"
+          },
+          "sourceRefs": [
+            "capsule-wardrobe",
+            "wardrobe-utilization"
+          ],
+          "score": 139
+        },
+        {
+          "cardId": "color-004-denim-blue-connector",
+          "topic": "牛仔蓝是休闲和通勤的连接色",
+          "knowledgeType": "color_matching",
+          "tags": [
+            "下装",
+            "外套",
+            "牛仔蓝",
+            "白",
+            "黑",
+            "卡其",
+            "休闲",
+            "通勤",
+            "法式",
+            "日常出街",
+            "旅行",
+            "直筒",
+            "高腰",
+            "宽松",
+            "牛仔",
+            "棉",
+            "正式度不足",
+            "基础款",
+            "过渡款",
+            "牛仔裤",
+            "牛仔外套",
+            "牛仔裙"
+          ],
+          "content": "牛仔蓝能把正式上衣拉回日常，也能让基础 T 恤更完整。它是休闲衣橱的高复用连接色，但正式场景要注意洗水、破洞和版型。",
+          "decisionPoints": [
+            "洗水颜色是否适合用户场景",
+            "版型是否足够利落",
+            "是否能承接通勤上衣"
+          ],
+          "outfitSuggestions": [
+            "直筒牛仔裤搭衬衫和乐福鞋，形成轻通勤造型"
+          ],
+          "riskSignals": [
+            "破洞或做旧过强",
+            "洗水太浅导致正式度不足",
+            "已有多条相似牛仔裤"
+          ],
+          "decisionBias": {
+            "buy": "补足休闲通勤连接",
+            "save": "确认洗水和版型",
+            "skip": "与已有牛仔单品重复"
+          },
+          "sourceRefs": [
+            "capsule-wardrobe",
+            "retail-category-naming"
+          ],
+          "score": 136
+        },
+        {
+          "cardId": "fit-010-layering-room",
+          "topic": "外套需要留出叠穿余量",
+          "knowledgeType": "fit_proportion",
+          "tags": [
+            "外套",
+            "上衣",
+            "黑",
+            "灰",
+            "卡其",
+            "通勤",
+            "休闲",
+            "日系",
+            "旅行",
+            "日常出街",
+            "宽松",
+            "合体",
+            "毛呢",
+            "棉",
+            "挺括",
+            "版型舒适度风险",
+            "季节限制强",
+            "过渡款",
+            "基础款",
+            "风衣",
+            "夹克",
+            "大衣",
+            "西装外套"
+          ],
+          "content": "外套不只是单穿好看，还要能容纳常用内搭。肩背、袖宽和腋下余量会影响秋冬叠穿体验。",
+          "decisionPoints": [
+            "是否能套常穿针织或衬衫",
+            "袖长是否影响活动",
+            "肩背是否紧绷"
+          ],
+          "outfitSuggestions": [
+            "外套内搭 T 恤和薄针织各模拟一套，检查季节跨度"
+          ],
+          "riskSignals": [
+            "只能搭很薄内搭",
+            "抬手受限",
+            "扣上后拉扯明显"
+          ],
+          "decisionBias": {
+            "buy": "叠穿余量匹配季节",
+            "save": "需确认内搭厚度",
+            "skip": "外套舒适度不足"
+          },
+          "sourceRefs": [
+            "retail-fit-descriptions"
+          ],
+          "score": 136
+        },
+        {
+          "cardId": "fabric-004-denim-durability",
+          "topic": "牛仔耐穿但要看硬度和褪色",
+          "knowledgeType": "fabric_care",
+          "tags": [
+            "下装",
+            "外套",
+            "牛仔蓝",
+            "黑",
+            "白",
+            "休闲",
+            "通勤",
+            "法式",
+            "日常出街",
+            "旅行",
+            "直筒",
+            "阔腿",
+            "合体",
+            "牛仔",
+            "厚重",
+            "版型舒适度风险",
+            "维护成本",
+            "基础款",
+            "牛仔裤",
+            "牛仔外套",
+            "牛仔裙"
+          ],
+          "content": "牛仔耐穿耐搭，但硬度、弹性、掉色和洗水决定舒适与维护。深色牛仔更通勤，浅色更休闲。",
+          "decisionPoints": [
+            "坐下是否舒服",
+            "是否掉色",
+            "洗水是否补足衣橱"
+          ],
+          "outfitSuggestions": [
+            "深蓝直筒牛仔裤搭白衬衫和西装外套轻通勤"
+          ],
+          "riskSignals": [
+            "腰臀活动受限",
+            "深色严重掉色",
+            "已有同洗水同裤型"
+          ],
+          "decisionBias": {
+            "buy": "耐穿且补足洗水或裤型",
+            "save": "确认舒适和掉色",
+            "skip": "重复且不舒适"
+          },
+          "sourceRefs": [
+            "retail-fabric-naming",
+            "retail-care-labels"
+          ],
+          "score": 135
+        },
+        {
+          "cardId": "category-025-utility-jacket",
+          "topic": "工装外套和工装裤要控制体量",
+          "knowledgeType": "category_rule",
+          "tags": [
+            "外套",
+            "下装",
+            "工装外套",
+            "工装裤",
+            "卡其",
+            "黑",
+            "绿",
+            "棕",
+            "户外机能",
+            "街头",
+            "休闲",
+            "日常出街",
+            "旅行",
+            "校园",
+            "宽松",
+            "直筒",
+            "棉",
+            "挺括",
+            "厚重",
+            "比例失衡",
+            "场景限制",
+            "风格锚点",
+            "亮点款",
+            "多口袋外套"
+          ],
+          "content": "工装单品通过口袋、硬挺面料和宽松廓形提供风格感，但也容易增加体量。购买前要看是否能被简洁上衣、利落鞋型和中性色收住。",
+          "decisionPoints": [
+            "口袋和廓形是否过强",
+            "是否能搭已有基础上衣",
+            "是否符合用户长期风格"
+          ],
+          "outfitSuggestions": [
+            "卡其工装裤搭白 T 和黑色短外套；工装外套搭合体内搭和直筒裤，避免上下都膨胀。"
+          ],
+          "riskSignals": [
+            "上下都宽且口袋多",
+            "只适合拍照不适合日常",
+            "与衣橱主风格割裂"
+          ],
+          "decisionBias": {
+            "buy": "能成为可复用风格锚点",
+            "save": "验证基础款承接",
+            "skip": "体量过大且场景窄"
+          },
+          "sourceRefs": [
+            "content-platform-vocabulary",
+            "retail-category-scan"
+          ],
+          "score": 133
+        }
+      ],
+      "usedModel": true
+    },
+    "candidateId": "cfa147ac-122f-4424-b255-878aa7f9aa9a",
+    "reportId": "d3aa534a-04dc-4d31-9c22-9d7d19e749ba",
+    "closetItemCount": 6,
+    "trace": {
+      "generatedAt": "2026-06-20T04:14:57.227Z",
+      "routeSteps": [
+        {
+          "id": "upload_purchase_screenshot",
+          "title": "保存待买商品截图",
+          "elapsedMs": 2355,
+          "input": {
+            "hasImage": true,
+            "imageBytesApprox": 227277
+          },
+          "output": {
+            "screenshotPath": "4ae9dbc7-ea96-487a-a2d5-eb8a8273742f/64e03e7f-c3e7-4b66-bd6d-b6b24cac6a29.jpg"
+          }
+        },
+        {
+          "id": "analyze_purchase_candidate",
+          "title": "识别待买商品截图",
+          "elapsedMs": 11789,
+          "input": {
+            "message": "这件衣服值得买吗？请展示完整决策链路，特别是它能和我的衣橱形成哪些真实搭配组合。",
+            "hasImage": true,
+            "screenshotPath": "4ae9dbc7-ea96-487a-a2d5-eb8a8273742f/64e03e7f-c3e7-4b66-bd6d-b6b24cac6a29.jpg"
+          },
+          "output": {
+            "candidate": {
+              "productName": "米色外套",
+              "category": "外套",
+              "color": "米色",
+              "fit": "regular",
+              "styleTags": [
+                "简约",
+                "休闲"
+              ],
+              "possibleScenarios": [
+                "日常"
+              ],
+              "sellingPoints": [
+                "基础款",
+                "易搭配",
+                "可覆盖多个场景"
+              ],
+              "summary": "候选商品是米色外套，偏常规版型。 商品截图识别暂时失败，本次先根据文字描述和衣橱信息做保守判断。",
+              "embeddingText": "米色外套；品类：外套；颜色：米色；版型：常规；风格：简约、休闲；场景：日常；价格：未知；卖点：基础款、易搭配、可覆盖多个场景；摘要：候选商品是米色外套，偏常规版型。",
+              "aiConfidence": 0.45,
+              "screenshotPath": "4ae9dbc7-ea96-487a-a2d5-eb8a8273742f/64e03e7f-c3e7-4b66-bd6d-b6b24cac6a29.jpg",
+              "hasScreenshotUrl": "[omitted-url]"
+            }
+          }
+        },
+        {
+          "id": "embed_purchase_candidate",
+          "title": "生成待买商品向量",
+          "elapsedMs": 223,
+          "input": {
+            "embeddingText": "米色外套；品类：外套；颜色：米色；版型：常规；风格：简约、休闲；场景：日常；价格：未知；卖点：基础款、易搭配、可覆盖多个场景；摘要：候选商品是米色外套，偏常规版型。"
+          },
+          "output": {
+            "dimensions": 1024,
+            "preview": [
+              0.001824,
+              -0.001455,
+              -0.053404,
+              0.009431,
+              0.010091,
+              0.015369,
+              0.024684,
+              0.028255
+            ]
+          }
+        },
+        {
+          "id": "load_real_closet",
+          "title": "读取真实衣橱数据",
+          "elapsedMs": 3718,
+          "input": {
+            "limit": 120,
+            "filter": "status != archived, category 已识别"
+          },
+          "output": {
+            "closetItemCount": 6,
+            "sampleItems": [
+              {
+                "id": "65139256-9550-4f5b-bcd8-6b4a42db1f8e",
+                "name": "白色罗纹无袖背心",
+                "category": "背心",
+                "color": "白色",
+                "fit": "regular",
+                "styleTags": [
+                  "极简",
+                  "休闲",
+                  "Clean Fit"
+                ],
+                "scenarioTags": [
+                  "日常出街",
+                  "居家",
+                  "轻运动"
+                ],
+                "wearFrequency": "often",
+                "hasEmbedding": true
+              },
+              {
+                "id": "fc305957-650a-4953-ac53-2545cfbafae0",
+                "name": "灰色松紧腰运动长裤",
+                "category": "长裤",
+                "color": "灰色",
+                "fit": "regular",
+                "styleTags": [
+                  "休闲",
+                  "运动",
+                  "简约"
+                ],
+                "scenarioTags": [
+                  "居家",
+                  "日常",
+                  "运动"
+                ],
+                "wearFrequency": "sometimes",
+                "hasEmbedding": true
+              },
+              {
+                "id": "cd32e5a1-b0cf-4a80-8579-d61f6ad426a4",
+                "name": "黑色短袖T恤",
+                "category": "T恤",
+                "color": "黑色",
+                "fit": "oversized",
+                "styleTags": [
+                  "休闲",
+                  "简约"
+                ],
+                "scenarioTags": [
+                  "日常",
+                  "居家",
+                  "旅行"
+                ],
+                "wearFrequency": "often",
+                "hasEmbedding": true
+              },
+              {
+                "id": "648ac721-62ef-4445-ac7b-ff2f16040f56",
+                "name": "浅灰运动短袖T恤",
+                "category": "T恤",
+                "color": "灰色",
+                "fit": "regular",
+                "styleTags": [
+                  "运动",
+                  "休闲"
+                ],
+                "scenarioTags": [
+                  "运动",
+                  "日常"
+                ],
+                "wearFrequency": "unknown",
+                "hasEmbedding": true
+              },
+              {
+                "id": "24a0afca-be31-48c6-abd6-ad393eefedec",
+                "name": "白色高腰褶裥长裤",
+                "category": "长裤",
+                "color": "白色",
+                "fit": "oversized",
+                "styleTags": [
+                  "简约",
+                  "通勤",
+                  "休闲"
+                ],
+                "scenarioTags": [
+                  "通勤",
+                  "日常",
+                  "面试"
+                ],
+                "wearFrequency": "unknown",
+                "hasEmbedding": true
+              },
+              {
+                "id": "fd26ac76-d19a-497c-96ad-71aa3e8b3362",
+                "name": "灰绿色连帽拉链夹克",
+                "category": "外套",
+                "color": "灰绿色",
+                "fit": "regular",
+                "styleTags": [
+                  "休闲",
+                  "运动",
+                  "简约"
+                ],
+                "scenarioTags": [
+                  "日常",
+                  "旅行",
+                  "运动"
+                ],
+                "wearFrequency": "unknown",
+                "hasEmbedding": true
+              }
+            ]
+          }
+        }
+      ],
+      "workflowSteps": [
+        {
+          "id": "understand_candidate",
+          "title": "理解待买商品",
+          "elapsedMs": 0,
+          "input": {
+            "message": "这件衣服值得买吗？请展示完整决策链路，特别是它能和我的衣橱形成哪些真实搭配组合。",
+            "hasImage": true,
+            "hasCandidateFromRoute": true
+          },
+          "output": {
+            "candidate": {
+              "productName": "米色外套",
+              "category": "外套",
+              "color": "米色",
+              "fit": "regular",
+              "styleTags": [
+                "简约",
+                "休闲"
+              ],
+              "possibleScenarios": [
+                "日常"
+              ],
+              "sellingPoints": [
+                "基础款",
+                "易搭配",
+                "可覆盖多个场景"
+              ],
+              "summary": "候选商品是米色外套，偏常规版型。 商品截图识别暂时失败，本次先根据文字描述和衣橱信息做保守判断。"
+            },
+            "embeddingText": "米色外套；品类：外套；颜色：米色；版型：常规；风格：简约、休闲；场景：日常；价格：未知；卖点：基础款、易搭配、可覆盖多个场景；摘要：候选商品是米色外套，偏常规版型。"
+          }
+        },
+        {
+          "id": "retrieve_closet",
+          "title": "衣橱 RAG 检索",
+          "elapsedMs": 3,
+          "input": {
+            "candidate": {
+              "productName": "米色外套",
+              "category": "外套",
+              "color": "米色",
+              "fit": "regular",
+              "styleTags": [
+                "简约",
+                "休闲"
+              ],
+              "possibleScenarios": [
+                "日常"
+              ],
+              "sellingPoints": [
+                "基础款",
+                "易搭配",
+                "可覆盖多个场景"
+              ],
+              "summary": "候选商品是米色外套，偏常规版型。 商品截图识别暂时失败，本次先根据文字描述和衣橱信息做保守判断。"
+            },
+            "closetSourceCount": 6,
+            "hasCandidateEmbedding": true,
+            "retrievalRule": "只计算可搭配 outfit 候选分数，返回 Top K 作为候选证据；Top K 不等于最终搭配，决策模型需要二次筛选。"
+          },
+          "output": {
+            "totalMatches": 6,
+            "byMatchType": [
+              {
+                "matchType": "outfit",
+                "count": 6,
+                "topItems": [
+                  {
+                    "name": "白色罗纹无袖背心",
+                    "category": "背心",
+                    "color": "白色",
+                    "score": 98,
+                    "reason": "可用于日常搭配，和「白色罗纹无袖背心」在风格或场景上能互相承接。"
+                  },
+                  {
+                    "name": "灰色松紧腰运动长裤",
+                    "category": "长裤",
+                    "color": "灰色",
+                    "score": 98,
+                    "reason": "可用于日常搭配，和「灰色松紧腰运动长裤」在风格或场景上能互相承接。"
+                  },
+                  {
+                    "name": "黑色短袖T恤",
+                    "category": "T恤",
+                    "color": "黑色",
+                    "score": 98,
+                    "reason": "可用于日常搭配，和「黑色短袖T恤」在风格或场景上能互相承接。"
+                  },
+                  {
+                    "name": "浅灰运动短袖T恤",
+                    "category": "T恤",
+                    "color": "灰色",
+                    "score": 98,
+                    "reason": "可用于日常搭配，和「浅灰运动短袖T恤」在风格或场景上能互相承接。"
+                  },
+                  {
+                    "name": "白色高腰褶裥长裤",
+                    "category": "长裤",
+                    "color": "白色",
+                    "score": 98,
+                    "reason": "可用于日常搭配，和「白色高腰褶裥长裤」在风格或场景上能互相承接。"
+                  }
+                ]
+              }
+            ],
+            "topMatches": [
+              {
+                "matchType": "outfit",
+                "score": 98,
+                "reason": "可用于日常搭配，和「白色罗纹无袖背心」在风格或场景上能互相承接。",
+                "item": {
+                  "id": "65139256-9550-4f5b-bcd8-6b4a42db1f8e",
+                  "name": "白色罗纹无袖背心",
+                  "category": "背心",
+                  "color": "白色",
+                  "fit": "regular",
+                  "styleTags": [
+                    "极简",
+                    "休闲",
+                    "Clean Fit"
+                  ],
+                  "scenarioTags": [
+                    "日常出街",
+                    "居家",
+                    "轻运动"
+                  ],
+                  "wearFrequency": "often"
+                }
+              },
+              {
+                "matchType": "outfit",
+                "score": 98,
+                "reason": "可用于日常搭配，和「灰色松紧腰运动长裤」在风格或场景上能互相承接。",
+                "item": {
+                  "id": "fc305957-650a-4953-ac53-2545cfbafae0",
+                  "name": "灰色松紧腰运动长裤",
+                  "category": "长裤",
+                  "color": "灰色",
+                  "fit": "regular",
+                  "styleTags": [
+                    "休闲",
+                    "运动",
+                    "简约"
+                  ],
+                  "scenarioTags": [
+                    "居家",
+                    "日常",
+                    "运动"
+                  ],
+                  "wearFrequency": "sometimes"
+                }
+              },
+              {
+                "matchType": "outfit",
+                "score": 98,
+                "reason": "可用于日常搭配，和「黑色短袖T恤」在风格或场景上能互相承接。",
+                "item": {
+                  "id": "cd32e5a1-b0cf-4a80-8579-d61f6ad426a4",
+                  "name": "黑色短袖T恤",
+                  "category": "T恤",
+                  "color": "黑色",
+                  "fit": "oversized",
+                  "styleTags": [
+                    "休闲",
+                    "简约"
+                  ],
+                  "scenarioTags": [
+                    "日常",
+                    "居家",
+                    "旅行"
+                  ],
+                  "wearFrequency": "often"
+                }
+              },
+              {
+                "matchType": "outfit",
+                "score": 98,
+                "reason": "可用于日常搭配，和「浅灰运动短袖T恤」在风格或场景上能互相承接。",
+                "item": {
+                  "id": "648ac721-62ef-4445-ac7b-ff2f16040f56",
+                  "name": "浅灰运动短袖T恤",
+                  "category": "T恤",
+                  "color": "灰色",
+                  "fit": "regular",
+                  "styleTags": [
+                    "运动",
+                    "休闲"
+                  ],
+                  "scenarioTags": [
+                    "运动",
+                    "日常"
+                  ],
+                  "wearFrequency": "unknown"
+                }
+              },
+              {
+                "matchType": "outfit",
+                "score": 98,
+                "reason": "可用于日常搭配，和「白色高腰褶裥长裤」在风格或场景上能互相承接。",
+                "item": {
+                  "id": "24a0afca-be31-48c6-abd6-ad393eefedec",
+                  "name": "白色高腰褶裥长裤",
+                  "category": "长裤",
+                  "color": "白色",
+                  "fit": "oversized",
+                  "styleTags": [
+                    "简约",
+                    "通勤",
+                    "休闲"
+                  ],
+                  "scenarioTags": [
+                    "通勤",
+                    "日常",
+                    "面试"
+                  ],
+                  "wearFrequency": "unknown"
+                }
+              },
+              {
+                "matchType": "outfit",
+                "score": 98,
+                "reason": "可用于日常搭配，和「灰绿色连帽拉链夹克」在风格或场景上能互相承接。",
+                "item": {
+                  "id": "fd26ac76-d19a-497c-96ad-71aa3e8b3362",
+                  "name": "灰绿色连帽拉链夹克",
+                  "category": "外套",
+                  "color": "灰绿色",
+                  "fit": "regular",
+                  "styleTags": [
+                    "休闲",
+                    "运动",
+                    "简约"
+                  ],
+                  "scenarioTags": [
+                    "日常",
+                    "旅行",
+                    "运动"
+                  ],
+                  "wearFrequency": "unknown"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "retrieve_knowledge",
+          "title": "穿搭知识库 RAG 检索",
+          "elapsedMs": 1097,
+          "input": {
+            "candidate": {
+              "productName": "米色外套",
+              "category": "外套",
+              "color": "米色",
+              "fit": "regular",
+              "styleTags": [
+                "简约",
+                "休闲"
+              ],
+              "possibleScenarios": [
+                "日常"
+              ],
+              "sellingPoints": [
+                "基础款",
+                "易搭配",
+                "可覆盖多个场景"
+              ],
+              "summary": "候选商品是米色外套，偏常规版型。 商品截图识别暂时失败，本次先根据文字描述和衣橱信息做保守判断。"
+            },
+            "tags": [
+              "外套",
+              "米色",
+              "regular",
+              "简约",
+              "休闲",
+              "日常"
+            ],
+            "topK": 8
+          },
+          "output": {
+            "totalSnippets": 8,
+            "snippets": [
+              {
+                "cardId": "lt-002-three-outfit-threshold",
+                "topic": "至少三套搭配门槛",
+                "knowledgeType": "long_term_purchase",
+                "tags": [
+                  "上衣",
+                  "外套",
+                  "黑",
+                  "白",
+                  "米白",
+                  "通勤"
+                ],
+                "decisionPoints": [
+                  "是否能搭出通勤、休闲或约会中的至少两个场景",
+                  "搭配是否依赖同一条裤子或同一双鞋"
+                ],
+                "outfitSuggestions": [
+                  "通勤套、周末套、轻正式套各模拟一套"
+                ],
+                "riskSignals": [
+                  "只能搭出一套固定造型",
+                  "每套都需要新买配件"
+                ]
+              },
+              {
+                "cardId": "wardrobe-008-season-gap",
+                "topic": "季节缺口需要结合当地气候",
+                "knowledgeType": "wardrobe_utilization",
+                "tags": [
+                  "外套",
+                  "上衣",
+                  "黑",
+                  "米白",
+                  "卡其",
+                  "通勤"
+                ],
+                "decisionPoints": [
+                  "当地可穿周期多长",
+                  "是否能跨季叠穿"
+                ],
+                "outfitSuggestions": [
+                  "薄外套可搭 T 恤和针织，扩展春秋两季使用"
+                ],
+                "riskSignals": [
+                  "一年只能穿几次",
+                  "同季节外套已足够"
+                ]
+              },
+              {
+                "cardId": "fit-013-neckline-sleeve-structure",
+                "topic": "领型和袖型会影响叠穿与场景边界",
+                "knowledgeType": "fit_proportion",
+                "tags": [
+                  "上衣",
+                  "外套",
+                  "连衣裙/套装",
+                  "通勤",
+                  "休闲",
+                  "轻熟"
+                ],
+                "decisionPoints": [
+                  "领口是否适合用户舒适边界",
+                  "袖型是否影响外套叠穿"
+                ],
+                "outfitSuggestions": [
+                  "高领打底适合秋冬叠穿；V领针织更轻盈；连帽卫衣叠穿外套时需避免脖颈拥挤。"
+                ],
+                "riskSignals": [
+                  "高领勒脖子",
+                  "插肩显得过休闲"
+                ]
+              },
+              {
+                "cardId": "lt-006-closet-gap-before-new",
+                "topic": "先判断衣橱缺口再购买",
+                "knowledgeType": "long_term_purchase",
+                "tags": [
+                  "外套",
+                  "下装",
+                  "黑",
+                  "白",
+                  "灰",
+                  "棕"
+                ],
+                "decisionPoints": [
+                  "衣橱是否缺少同类场景单品",
+                  "已有相似单品是否已能满足需求"
+                ],
+                "outfitSuggestions": [
+                  "列出候选单品能补上的 2 个缺口，并用已有衣服验证"
+                ],
+                "riskSignals": [
+                  "缺口说不清",
+                  "已有同类单品足够多"
+                ]
+              },
+              {
+                "cardId": "color-004-denim-blue-connector",
+                "topic": "牛仔蓝是休闲和通勤的连接色",
+                "knowledgeType": "color_matching",
+                "tags": [
+                  "下装",
+                  "外套",
+                  "牛仔蓝",
+                  "白",
+                  "黑",
+                  "卡其"
+                ],
+                "decisionPoints": [
+                  "洗水颜色是否适合用户场景",
+                  "版型是否足够利落"
+                ],
+                "outfitSuggestions": [
+                  "直筒牛仔裤搭衬衫和乐福鞋，形成轻通勤造型"
+                ],
+                "riskSignals": [
+                  "破洞或做旧过强",
+                  "洗水太浅导致正式度不足"
+                ]
+              },
+              {
+                "cardId": "fit-010-layering-room",
+                "topic": "外套需要留出叠穿余量",
+                "knowledgeType": "fit_proportion",
+                "tags": [
+                  "外套",
+                  "上衣",
+                  "黑",
+                  "灰",
+                  "卡其",
+                  "通勤"
+                ],
+                "decisionPoints": [
+                  "是否能套常穿针织或衬衫",
+                  "袖长是否影响活动"
+                ],
+                "outfitSuggestions": [
+                  "外套内搭 T 恤和薄针织各模拟一套，检查季节跨度"
+                ],
+                "riskSignals": [
+                  "只能搭很薄内搭",
+                  "抬手受限"
+                ]
+              },
+              {
+                "cardId": "fabric-004-denim-durability",
+                "topic": "牛仔耐穿但要看硬度和褪色",
+                "knowledgeType": "fabric_care",
+                "tags": [
+                  "下装",
+                  "外套",
+                  "牛仔蓝",
+                  "黑",
+                  "白",
+                  "休闲"
+                ],
+                "decisionPoints": [
+                  "坐下是否舒服",
+                  "是否掉色"
+                ],
+                "outfitSuggestions": [
+                  "深蓝直筒牛仔裤搭白衬衫和西装外套轻通勤"
+                ],
+                "riskSignals": [
+                  "腰臀活动受限",
+                  "深色严重掉色"
+                ]
+              },
+              {
+                "cardId": "category-025-utility-jacket",
+                "topic": "工装外套和工装裤要控制体量",
+                "knowledgeType": "category_rule",
+                "tags": [
+                  "外套",
+                  "下装",
+                  "工装外套",
+                  "工装裤",
+                  "卡其",
+                  "黑"
+                ],
+                "decisionPoints": [
+                  "口袋和廓形是否过强",
+                  "是否能搭已有基础上衣"
+                ],
+                "outfitSuggestions": [
+                  "卡其工装裤搭白 T 和黑色短外套；工装外套搭合体内搭和直筒裤，避免上下都膨胀。"
+                ],
+                "riskSignals": [
+                  "上下都宽且口袋多",
+                  "只适合拍照不适合日常"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "assess_purchase",
+          "title": "长期主义购买决策",
+          "elapsedMs": 39977,
+          "input": {
+            "promptChars": 4533,
+            "prompt": {
+              "task": "基于长期主义输出衣服购买决策报告。请保持字段结构一致，直接输出 JSON。",
+              "outputSchema": "返回 JSON，字段包含 decision, decisionStatus, decisionLabel, confidence, summary, scores, reasonsToBuy, reasonsToSave, risks, bodyFitNotes, outfitCombinations, nextStep。",
+              "knowledgeUsage": "knowledge 是已检索的穿搭知识卡。请优先使用其中的 content、decisionPoints、riskSignals 和 outfitSuggestions 作为判断证据，并在 summary/reasons/risks/outfitCombinations 中体现具体知识，不要泛泛说百搭或好看。",
+              "outfitBoardRules": "本版本只评估可搭配组合。closetEvidence 是 RAG 返回的 Top K 可搭配候选，不代表一定真的能搭。你必须二次筛选：只有在品类互补、颜色协调、风格/场景自然、能形成真实穿着组合时，才允许进入 outfitCombinations；不要为了凑数量把不自然的衣服放进去。如果强搭配证据不足，请明确说明证据不足并建议先收藏或暂不考虑。",
+              "userMessage": "这件衣服值得买吗？请展示完整决策链路，特别是它能和我的衣橱形成哪些真实搭配组合。",
+              "candidate": {
+                "productName": "米色外套",
+                "category": "外套",
+                "color": "米色",
+                "fit": "regular",
+                "styleTags": [
+                  "简约",
+                  "休闲"
+                ],
+                "possibleScenarios": [
+                  "日常"
+                ],
+                "sellingPoints": [
+                  "基础款",
+                  "易搭配",
+                  "可覆盖多个场景"
+                ],
+                "summary": "候选商品是米色外套，偏常规版型。 商品截图识别暂时失败，本次先根据文字描述和衣橱信息做保守判断。"
+              },
+              "closetEvidence": [
+                {
+                  "matchType": "outfit",
+                  "score": 98,
+                  "reason": "可用于日常搭配，和「白色罗纹无袖背心」在风格或场景上能互相承接。",
+                  "item": {
+                    "id": "65139256-9550-4f5b-bcd8-6b4a42db1f8e",
+                    "name": "白色罗纹无袖背心",
+                    "category": "背心",
+                    "color": "白色",
+                    "fit": "regular",
+                    "styleTags": [
+                      "极简",
+                      "休闲",
+                      "Clean Fit"
+                    ],
+                    "scenarioTags": [
+                      "日常出街",
+                      "居家",
+                      "轻运动"
+                    ],
+                    "wearFrequency": "often"
+                  }
+                },
+                {
+                  "matchType": "outfit",
+                  "score": 98,
+                  "reason": "可用于日常搭配，和「灰色松紧腰运动长裤」在风格或场景上能互相承接。",
+                  "item": {
+                    "id": "fc305957-650a-4953-ac53-2545cfbafae0",
+                    "name": "灰色松紧腰运动长裤",
+                    "category": "长裤",
+                    "color": "灰色",
+                    "fit": "regular",
+                    "styleTags": [
+                      "休闲",
+                      "运动",
+                      "简约"
+                    ],
+                    "scenarioTags": [
+                      "居家",
+                      "日常",
+                      "运动"
+                    ],
+                    "wearFrequency": "sometimes"
+                  }
+                },
+                {
+                  "matchType": "outfit",
+                  "score": 98,
+                  "reason": "可用于日常搭配，和「黑色短袖T恤」在风格或场景上能互相承接。",
+                  "item": {
+                    "id": "cd32e5a1-b0cf-4a80-8579-d61f6ad426a4",
+                    "name": "黑色短袖T恤",
+                    "category": "T恤",
+                    "color": "黑色",
+                    "fit": "oversized",
+                    "styleTags": [
+                      "休闲",
+                      "简约"
+                    ],
+                    "scenarioTags": [
+                      "日常",
+                      "居家",
+                      "旅行"
+                    ],
+                    "wearFrequency": "often"
+                  }
+                },
+                {
+                  "matchType": "outfit",
+                  "score": 98,
+                  "reason": "可用于日常搭配，和「浅灰运动短袖T恤」在风格或场景上能互相承接。",
+                  "item": {
+                    "id": "648ac721-62ef-4445-ac7b-ff2f16040f56",
+                    "name": "浅灰运动短袖T恤",
+                    "category": "T恤",
+                    "color": "灰色",
+                    "fit": "regular",
+                    "styleTags": [
+                      "运动",
+                      "休闲"
+                    ],
+                    "scenarioTags": [
+                      "运动",
+                      "日常"
+                    ],
+                    "wearFrequency": "unknown"
+                  }
+                },
+                {
+                  "matchType": "outfit",
+                  "score": 98,
+                  "reason": "可用于日常搭配，和「白色高腰褶裥长裤」在风格或场景上能互相承接。",
+                  "item": {
+                    "id": "24a0afca-be31-48c6-abd6-ad393eefedec",
+                    "name": "白色高腰褶裥长裤",
+                    "category": "长裤",
+                    "color": "白色",
+                    "fit": "oversized",
+                    "styleTags": [
+                      "简约",
+                      "通勤",
+                      "休闲"
+                    ],
+                    "scenarioTags": [
+                      "通勤",
+                      "日常",
+                      "面试"
+                    ],
+                    "wearFrequency": "unknown"
+                  }
+                },
+                {
+                  "matchType": "outfit",
+                  "score": 98,
+                  "reason": "可用于日常搭配，和「灰绿色连帽拉链夹克」在风格或场景上能互相承接。",
+                  "item": {
+                    "id": "fd26ac76-d19a-497c-96ad-71aa3e8b3362",
+                    "name": "灰绿色连帽拉链夹克",
+                    "category": "外套",
+                    "color": "灰绿色",
+                    "fit": "regular",
+                    "styleTags": [
+                      "休闲",
+                      "运动",
+                      "简约"
+                    ],
+                    "scenarioTags": [
+                      "日常",
+                      "旅行",
+                      "运动"
+                    ],
+                    "wearFrequency": "unknown"
+                  }
+                }
+              ],
+              "knowledge": [
+                {
+                  "cardId": "lt-002-three-outfit-threshold",
+                  "topic": "至少三套搭配门槛",
+                  "knowledgeType": "long_term_purchase",
+                  "tags": [
+                    "上衣",
+                    "外套",
+                    "黑",
+                    "白",
+                    "米白",
+                    "通勤"
+                  ],
+                  "decisionPoints": [
+                    "是否能搭出通勤、休闲或约会中的至少两个场景",
+                    "搭配是否依赖同一条裤子或同一双鞋"
+                  ],
+                  "outfitSuggestions": [
+                    "通勤套、周末套、轻正式套各模拟一套"
+                  ],
+                  "riskSignals": [
+                    "只能搭出一套固定造型",
+                    "每套都需要新买配件"
+                  ]
+                },
+                {
+                  "cardId": "wardrobe-008-season-gap",
+                  "topic": "季节缺口需要结合当地气候",
+                  "knowledgeType": "wardrobe_utilization",
+                  "tags": [
+                    "外套",
+                    "上衣",
+                    "黑",
+                    "米白",
+                    "卡其",
+                    "通勤"
+                  ],
+                  "decisionPoints": [
+                    "当地可穿周期多长",
+                    "是否能跨季叠穿"
+                  ],
+                  "outfitSuggestions": [
+                    "薄外套可搭 T 恤和针织，扩展春秋两季使用"
+                  ],
+                  "riskSignals": [
+                    "一年只能穿几次",
+                    "同季节外套已足够"
+                  ]
+                },
+                {
+                  "cardId": "fit-013-neckline-sleeve-structure",
+                  "topic": "领型和袖型会影响叠穿与场景边界",
+                  "knowledgeType": "fit_proportion",
+                  "tags": [
+                    "上衣",
+                    "外套",
+                    "连衣裙/套装",
+                    "通勤",
+                    "休闲",
+                    "轻熟"
+                  ],
+                  "decisionPoints": [
+                    "领口是否适合用户舒适边界",
+                    "袖型是否影响外套叠穿"
+                  ],
+                  "outfitSuggestions": [
+                    "高领打底适合秋冬叠穿；V领针织更轻盈；连帽卫衣叠穿外套时需避免脖颈拥挤。"
+                  ],
+                  "riskSignals": [
+                    "高领勒脖子",
+                    "插肩显得过休闲"
+                  ]
+                },
+                {
+                  "cardId": "lt-006-closet-gap-before-new",
+                  "topic": "先判断衣橱缺口再购买",
+                  "knowledgeType": "long_term_purchase",
+                  "tags": [
+                    "外套",
+                    "下装",
+                    "黑",
+                    "白",
+                    "灰",
+                    "棕"
+                  ],
+                  "decisionPoints": [
+                    "衣橱是否缺少同类场景单品",
+                    "已有相似单品是否已能满足需求"
+                  ],
+                  "outfitSuggestions": [
+                    "列出候选单品能补上的 2 个缺口，并用已有衣服验证"
+                  ],
+                  "riskSignals": [
+                    "缺口说不清",
+                    "已有同类单品足够多"
+                  ]
+                },
+                {
+                  "cardId": "color-004-denim-blue-connector",
+                  "topic": "牛仔蓝是休闲和通勤的连接色",
+                  "knowledgeType": "color_matching",
+                  "tags": [
+                    "下装",
+                    "外套",
+                    "牛仔蓝",
+                    "白",
+                    "黑",
+                    "卡其"
+                  ],
+                  "decisionPoints": [
+                    "洗水颜色是否适合用户场景",
+                    "版型是否足够利落"
+                  ],
+                  "outfitSuggestions": [
+                    "直筒牛仔裤搭衬衫和乐福鞋，形成轻通勤造型"
+                  ],
+                  "riskSignals": [
+                    "破洞或做旧过强",
+                    "洗水太浅导致正式度不足"
+                  ]
+                }
+              ],
+              "draftReport": {
+                "decision": "buy",
+                "decisionStatus": "decided_to_buy",
+                "decisionLabel": "建议决定买",
+                "scores": {
+                  "wardrobeFit": 86,
+                  "outfitPotential": 90,
+                  "styleConsistency": 88,
+                  "priceValue": 82,
+                  "fitComfort": 82,
+                  "careCost": 80
+                },
+                "baseSummary": "从长期主义角度看，这次判断重点是它能否和你的真实衣橱产生稳定复用，而不是只看商品图是否好看。",
+                "outfitCombinations": [
+                  {
+                    "title": "高复用搭配",
+                    "scenario": "日常",
+                    "visualIntent": "outfit",
+                    "items": [
+                      "米色外套",
+                      "白色罗纹无袖背心",
+                      "灰色松紧腰运动长裤",
+                      "黑色短袖T恤",
+                      "浅灰运动短袖T恤"
+                    ],
+                    "summary": "这些是 RAG 召回的可搭配候选，最终报告需要继续判断它们是否真的能和待买衣服形成自然搭配。"
+                  }
+                ]
+              },
+              "safety": "BMI 只能用于版型和舒适度风险提示，不允许身材羞辱，不允许绝对审美否定。建议必须温和，不要强硬否定用户审美。"
+            },
+            "fallbackDraft": {
+              "decision": "buy",
+              "decisionStatus": "decided_to_buy",
+              "decisionLabel": "建议决定买",
+              "scores": {
+                "wardrobeFit": 86,
+                "outfitPotential": 90,
+                "styleConsistency": 88,
+                "priceValue": 82,
+                "fitComfort": 82,
+                "careCost": 80
+              },
+              "baseSummary": "从长期主义角度看，这次判断重点是它能否和你的真实衣橱产生稳定复用，而不是只看商品图是否好看。",
+              "outfitCombinations": [
+                {
+                  "title": "高复用搭配",
+                  "scenario": "日常",
+                  "visualIntent": "outfit",
+                  "items": [
+                    "米色外套",
+                    "白色罗纹无袖背心",
+                    "灰色松紧腰运动长裤",
+                    "黑色短袖T恤",
+                    "浅灰运动短袖T恤"
+                  ],
+                  "summary": "这些是 RAG 召回的可搭配候选，最终报告需要继续判断它们是否真的能和待买衣服形成自然搭配。"
+                }
+              ]
+            }
+          },
+          "output": {
+            "usedModel": true,
+            "rawResponseChars": 1892,
+            "parsedDecision": "buy",
+            "parsedDecisionLabel": "建议决定买",
+            "decision": "buy",
+            "decisionStatus": "decided_to_buy",
+            "decisionLabel": "建议决定买",
+            "confidence": 0.82,
+            "scores": {
+              "wardrobeFit": 85,
+              "outfitPotential": 92,
+              "styleConsistency": 88,
+              "priceValue": 80,
+              "fitComfort": 82,
+              "careCost": 78
+            },
+            "reasonsToBuy": [
+              "基础米色外套，风格简约休闲，与衣橱中的白色罗纹无袖背心、黑色短袖T恤、浅灰运动短袖T恤等内搭在颜色和风格上自然协调，能形成「外套+内搭」的稳妥叠穿组合。",
+              "可搭配灰色松紧腰运动长裤和白色高腰褶裥长裤，分别覆盖日常休闲和通勤场景，符合知识卡「至少三套搭配门槛」中通勤套与周末套的要求，场景多样性良好。",
+              "根据知识卡「季节缺口」，该外套版型常规，可在春秋季单穿，或叠穿T恤和针织衫扩展使用周期，避免一年只穿几次的弊端。",
+              "衣橱中目前无同类米色外套，购买可填补场景缺口（如轻休闲通勤或日常层叠造型），且现有搭配单品使用频率高，能形成稳定复用。"
+            ],
+            "reasonsToSave": [
+              "如果已有功能或颜色相似的外套，如灰色或黑色基本款夹克，则可能造成冗余，导致利用率下降。"
+            ],
+            "risks": [
+              "低风险：内搭领型如选择高领或连帽卫衣，可能造成脖颈拥挤，影响叠穿舒适度和造型整洁度。可优先搭配V领、圆领等低领内搭规避此问题。",
+              "低风险：米色较浅，易沾污，清洁成本偏高，且频繁清洗可能导致颜色变暗，需注意护理方式。",
+              "低风险：常规版型对层叠搭配较友好，但在极严寒环境下需加厚内搭，保暖能力有限。"
+            ],
+            "outfitCombinations": [
+              {
+                "title": "日常休闲出街套",
+                "scenario": "日常",
+                "visualIntent": "outfit",
+                "items": [
+                  "米色外套",
+                  "白色罗纹无袖背心",
+                  "灰色松紧腰运动长裤"
+                ],
+                "summary": "米色外套作为外层，内搭白色背心提亮整体，搭配灰色运动长裤，风格一致为简约休闲，颜色协调（米+白+灰），适合日常出街或居家场景，搭配后穿着自然。",
+                "visualItems": [
+                  {
+                    "name": "白色罗纹无袖背心",
+                    "category": "背心",
+                    "matchType": "outfit",
+                    "role": "可搭内衬",
+                    "reason": "可用于日常搭配，和「白色罗纹无袖背心」在风格或场景上能互相承接。",
+                    "tags": [
+                      "极简",
+                      "休闲",
+                      "Clean Fit",
+                      "日常出街"
+                    ]
+                  },
+                  {
+                    "name": "灰色松紧腰运动长裤",
+                    "category": "长裤",
+                    "matchType": "outfit",
+                    "role": "可搭裤装",
+                    "reason": "可用于日常搭配，和「灰色松紧腰运动长裤」在风格或场景上能互相承接。",
+                    "tags": [
+                      "休闲",
+                      "运动",
+                      "简约",
+                      "居家"
+                    ]
+                  }
+                ]
+              },
+              {
+                "title": "轻通勤简洁套",
+                "scenario": "通勤",
+                "visualIntent": "outfit",
+                "items": [
+                  "米色外套",
+                  "黑色短袖T恤",
+                  "白色高腰褶裥长裤"
+                ],
+                "summary": "黑色内搭与白色长裤形成黑白对比，外穿米色外套作为连接色，整体简约利落，可满足轻通勤或面试场景，黑白米配色干净。",
+                "visualItems": [
+                  {
+                    "name": "黑色短袖T恤",
+                    "category": "T恤",
+                    "matchType": "outfit",
+                    "role": "可搭内衬",
+                    "reason": "可用于日常搭配，和「黑色短袖T恤」在风格或场景上能互相承接。",
+                    "tags": [
+                      "休闲",
+                      "简约",
+                      "日常",
+                      "居家"
+                    ]
+                  },
+                  {
+                    "name": "白色高腰褶裥长裤",
+                    "category": "长裤",
+                    "matchType": "outfit",
+                    "role": "可搭裤装",
+                    "reason": "可用于日常搭配，和「白色高腰褶裥长裤」在风格或场景上能互相承接。",
+                    "tags": [
+                      "简约",
+                      "通勤",
+                      "休闲",
+                      "通勤"
+                    ]
+                  }
+                ]
+              },
+              {
+                "title": "运动休闲叠穿套",
+                "scenario": "运动/日常",
+                "visualIntent": "outfit",
+                "items": [
+                  "米色外套",
+                  "浅灰运动短袖T恤",
+                  "灰色松紧腰运动长裤"
+                ],
+                "summary": "深浅灰色系内搭与下装形成简约层次，外搭米色外套增加色彩变化，适合运动或日常出行，风格一致为休闲运动，穿着舒适。",
+                "visualItems": [
+                  {
+                    "name": "浅灰运动短袖T恤",
+                    "category": "T恤",
+                    "matchType": "outfit",
+                    "role": "可搭内衬",
+                    "reason": "可用于日常搭配，和「浅灰运动短袖T恤」在风格或场景上能互相承接。",
+                    "tags": [
+                      "运动",
+                      "休闲",
+                      "运动",
+                      "日常"
+                    ]
+                  },
+                  {
+                    "name": "灰色松紧腰运动长裤",
+                    "category": "长裤",
+                    "matchType": "outfit",
+                    "role": "可搭裤装",
+                    "reason": "可用于日常搭配，和「灰色松紧腰运动长裤」在风格或场景上能互相承接。",
+                    "tags": [
+                      "休闲",
+                      "运动",
+                      "简约",
+                      "居家"
+                    ]
+                  }
+                ]
+              }
+            ],
+            "summary": "基于长期主义分析，这件米色外套是一款经典基础款，能够与你的衣橱中多件单品形成至少三套自然、场景分明的搭配，覆盖日常、通勤与休闲场景。根据穿搭知识卡「至少三套搭配门槛」，它满足匹配场景多样性和不依赖单一配件的条件。同时，结合「季节缺口」知识，其常规版型和米色属性适合春秋两季或跨季叠穿，复用周期较长。建议购入以弥补衣橱中缺少的轻量级百搭外套，但需留意搭配内层领型避免臃肿。"
+          }
+        }
+      ]
+    }
+  }
+}

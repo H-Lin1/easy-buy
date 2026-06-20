@@ -63,6 +63,7 @@ export type OutfitCombination = {
   items: string[];
   closetItemIds?: string[];
   summary: string;
+  visualIntent?: "outfit" | "alternative";
   visualType?: "evidence_board";
   visualItems?: OutfitEvidenceItem[];
 };
@@ -72,6 +73,8 @@ export type OutfitEvidenceItem = {
   name: string;
   category: string;
   imageUrl?: string;
+  matchType?: ClosetMatch["matchType"];
+  role?: string;
   badge: string;
   reason: string;
   tags: string[];

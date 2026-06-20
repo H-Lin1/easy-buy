@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "trace:purchase": "node scripts/trace-purchase-decision.mjs"
   },
   "dependencies": {
     "@langchain/core": "^1.1.48",

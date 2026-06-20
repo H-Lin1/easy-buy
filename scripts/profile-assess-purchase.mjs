@@ -44,7 +44,8 @@ const response = await fetch(`${appUrl.replace(/\/$/, "")}/api/ai/assess-purchas
     "Content-Type": "application/json",
   },
   body: JSON.stringify({
-    message: "这件衣服值得买吗？请结合我的真实衣橱、穿搭知识库、长期主义和重复购买风险判断。",
+    message:
+      "这件衣服值得买吗？请只判断它能否和我的真实衣橱形成自然、可复用的搭配组合，不要讨论重复购买或替代灵感。",
     imageDataUrl: imageToDataUrl(imagePath),
   }),
 });

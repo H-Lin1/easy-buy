@@ -189,9 +189,9 @@ const wearFrequencyOptions: Array<{ value: ClothingItem["wearFrequency"]; label:
 const decisionProgressSteps = [
   "识别待买商品",
   "检索你的衣橱",
-  "匹配可搭配单品",
-  "检查重复购买风险",
-  "补充穿搭灵感",
+  "匹配可搭配候选",
+  "筛选真实搭配组合",
+  "补充穿搭知识",
   "长期主义决策思考",
 ];
 
@@ -1736,7 +1736,7 @@ function AuthView() {
               衣服购买决策助手
             </h1>
             <p className="mt-5 max-w-xl text-lg leading-8 text-[#7b5b51]">
-              用长期主义帮你判断一件衣服是否真的适合自己：能不能搭、会不会重复、是否有真实场景，以及是否值得现在买。
+              用长期主义帮你判断一件衣服是否真的适合自己：能不能和真实衣橱形成稳定搭配、是否有真实场景，以及是否值得现在买。
             </p>
           </div>
 
@@ -2333,7 +2333,6 @@ function DecisionReportCard({
   const reportScoreItems = [
     { label: "衣橱适配度", value: assessment.scores.wardrobeFit },
     { label: "搭配潜力", value: assessment.scores.outfitPotential },
-    { label: "重复购买风险", value: assessment.scores.duplicateRisk },
     { label: "风格一致性", value: assessment.scores.styleConsistency },
     { label: "价格与使用频率", value: assessment.scores.priceValue },
     { label: "体型/版型友好度", value: assessment.scores.fitComfort },
@@ -2342,7 +2341,10 @@ function DecisionReportCard({
   const decisionLabel = assessment.decisionLabel;
   const reportSummary = assessment.summary;
   const reportConfidence = assessment.confidence;
-  const dynamicOutfits = assessment.outfitCombinations.slice(0, 2);
+  const highReuseBoards = assessment.outfitCombinations.filter(
+    (idea) => idea.visualIntent === "outfit" || idea.title.includes("高复用"),
+  );
+  const dynamicOutfits = highReuseBoards.length ? highReuseBoards.slice(0, 2) : assessment.outfitCombinations.slice(0, 1);
   const candidate = assessment.candidate;
   const candidateTitle = candidate.productName ?? "待买商品";
   const candidateSubtitle = candidate.summary ?? "AI 已根据截图和描述生成候选商品信息";
@@ -2353,6 +2355,23 @@ function DecisionReportCard({
     ...candidate.styleTags.slice(0, 2),
     ...candidate.possibleScenarios.slice(0, 2),
   ].filter((tag): tag is string => Boolean(tag));
+  const reportDetailSections = [
+    {
+      title: "支持购买的证据",
+      items: assessment.reasonsToBuy.slice(0, 3),
+      tone: "bg-emerald-50 text-emerald-700",
+    },
+    {
+      title: "建议先观察的点",
+      items: assessment.reasonsToSave.slice(0, 3),
+      tone: "bg-amber-50 text-amber-700",
+    },
+    {
+      title: "主要风险",
+      items: assessment.risks.slice(0, 3),
+      tone: "bg-rose-50 text-rose-700",
+    },
+  ].filter((section) => section.items.length);
 
   return (
     <article className={cn("mt-5 rounded-[16px] border border-[#ead9d0] bg-white p-4 shadow-sm", isAssessing && "opacity-75")}>
@@ -2362,84 +2381,121 @@ function DecisionReportCard({
           : ""}
       </p>
 
-      <div className="mt-4 grid gap-4 xl:grid-cols-[1.1fr_0.9fr_1.2fr]">
-        <section className="rounded-[14px] border border-[#ead9d0] p-4">
-          <div className="flex gap-4">
-            {candidateImageDataUrl ? (
-              <div
-                className="h-40 w-36 shrink-0 rounded-[10px] bg-cover bg-center"
-                style={{ backgroundImage: `url(${candidateImageDataUrl})` }}
-              />
-            ) : (
-              <MockProductImage palette="from-[#c9a58e] to-[#f4ded4]" className="h-40 w-36 shrink-0" />
-            )}
-            <div className="min-w-0 flex-1">
-              <h3 className="text-lg font-semibold text-[#3d281f]">{candidateTitle}</h3>
-              <p className="mt-1 line-clamp-2 text-sm text-[#8b6258]">{candidateSubtitle}</p>
-              <p className="mt-4 text-2xl font-semibold text-[#3d281f]">{candidatePrice}</p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {candidateTags.slice(0, 6).map((tag) => (
-                  <span key={tag} className="rounded-full bg-[#f8efea] px-3 py-1 text-xs text-[#8b6258]">
-                    {tag}
-                  </span>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-5 rounded-[12px] bg-gradient-to-br from-[#fbf5f1] to-[#f2e2db] p-5">
-            <div className="flex items-center gap-4">
-              <span className="text-lg font-semibold text-[#3d281f]">综合结论</span>
-              <span className="text-lg font-semibold text-[#c96f67]">{decisionLabel}</span>
-            </div>
-            <p className="mt-3 leading-7 text-[#7b5b51]">
-              {reportSummary}
-            </p>
-            <p className="mt-5 text-sm text-[#8b6258]">
-              置信度 {reportConfidence}%{assessment && !assessment.usedModel ? " · 规则兜底版" : ""}
-            </p>
-          </div>
-        </section>
-
-        <section className="rounded-[14px] border border-[#ead9d0] p-4">
-          <div className="space-y-4">
-            {reportScoreItems.map((item) => (
-              <div key={item.label} className="grid grid-cols-[120px_1fr] items-center gap-3">
-                <span className="text-sm text-[#6e5148]">{item.label}</span>
-                <ScoreStars value={item.value} />
-              </div>
-            ))}
-          </div>
-          <button className="mx-auto mt-6 flex items-center gap-2 text-sm text-[#8b6258]">
-            评分说明
-            <Info className="size-4" />
-          </button>
-        </section>
-
-        <section className="rounded-[14px] border border-[#ead9d0] p-4">
-          <div className="flex items-center justify-between">
-            <h3 className="font-semibold text-[#3d281f]">2-3 套真实衣橱搭配板</h3>
-            <span className="text-xs text-[#a08278]">基于真实图片，非 AI 重绘</span>
-          </div>
-          <div className="mt-4 space-y-4">
-            {dynamicOutfits.length
-              ? dynamicOutfits.map((idea) => (
-                  <OutfitEvidenceBoard
-                    key={idea.title}
-                    idea={idea}
-                    candidateName={candidateTitle}
-                    candidateCategory={candidate?.category ?? "待买商品"}
-                    candidateImageUrl={candidateImageDataUrl ?? candidate?.screenshotUrl}
-                    candidateTags={candidateTags.slice(0, 4)}
-                  />
-                ))
-              : (
-                  <div className="rounded-[12px] border border-dashed border-[#ead9d0] bg-[#fffaf7] px-4 py-8 text-center text-sm leading-6 text-[#8b6258]">
-                    衣橱证据还不够稳定，建议先确认更多衣服标签后再生成搭配板。
+      <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(380px,0.85fr)]">
+        <div className="space-y-4">
+          <section className="rounded-[14px] border border-[#ead9d0] p-4">
+            <div className="grid gap-5 lg:grid-cols-[180px_1fr]">
+              {candidateImageDataUrl ? (
+                <div
+                  className="h-56 rounded-[12px] bg-[#f8f3ef] bg-cover bg-center"
+                  style={{ backgroundImage: `url(${candidateImageDataUrl})` }}
+                />
+              ) : (
+                <MockProductImage palette="from-[#c9a58e] to-[#f4ded4]" className="h-56 w-full" />
+              )}
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <h3 className="text-2xl font-semibold text-[#3d281f]">{candidateTitle}</h3>
+                    <p className="mt-2 line-clamp-2 text-sm leading-6 text-[#8b6258]">{candidateSubtitle}</p>
                   </div>
-                )}
-          </div>
-        </section>
+                  <span className="rounded-full bg-[#f8efea] px-4 py-2 text-sm font-medium text-[#b2605e]">
+                    {decisionLabel}
+                  </span>
+                </div>
+                <p className="mt-4 text-3xl font-semibold text-[#3d281f]">{candidatePrice}</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {candidateTags.slice(0, 7).map((tag) => (
+                    <span key={tag} className="rounded-full bg-[#f8efea] px-3 py-1 text-xs text-[#8b6258]">
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+                <div className="mt-5 rounded-[12px] bg-gradient-to-br from-[#fbf5f1] to-[#f2e2db] p-5">
+                  <div className="flex items-center justify-between gap-4">
+                    <span className="text-lg font-semibold text-[#3d281f]">综合结论</span>
+                    <span className="text-sm text-[#8b6258]">
+                      置信度 {reportConfidence}%{assessment && !assessment.usedModel ? " · 规则兜底版" : ""}
+                    </span>
+                  </div>
+                  <p className="mt-3 leading-7 text-[#7b5b51]">{reportSummary}</p>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section className="rounded-[14px] border border-[#ead9d0] p-4">
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="font-semibold text-[#3d281f]">评分拆解</h3>
+              <button className="inline-flex items-center gap-2 text-sm text-[#8b6258]">
+                评分说明
+                <Info className="size-4" />
+              </button>
+            </div>
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              {reportScoreItems.map((item) => (
+                <div key={item.label} className="rounded-[12px] bg-[#fffaf7] px-4 py-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-sm text-[#6e5148]">{item.label}</span>
+                    <ScoreStars value={item.value} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className="rounded-[14px] border border-[#ead9d0] p-4">
+            <h3 className="font-semibold text-[#3d281f]">判断依据</h3>
+            <div className="mt-4 grid gap-3 lg:grid-cols-3">
+              {reportDetailSections.map((section) => (
+                <div key={section.title} className="rounded-[12px] bg-[#fffaf7] p-4">
+                  <span className={cn("rounded-full px-3 py-1 text-xs font-medium", section.tone)}>
+                    {section.title}
+                  </span>
+                  <ul className="mt-3 space-y-2 text-sm leading-6 text-[#7b5b51]">
+                    {section.items.map((item) => (
+                      <li key={item}>· {item}</li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+            {assessment.bodyFitNotes.length ? (
+              <div className="mt-3 rounded-[12px] bg-[#fbf3ef] px-4 py-3 text-sm leading-6 text-[#7b5b51]">
+                {assessment.bodyFitNotes[0]}
+              </div>
+            ) : null}
+          </section>
+        </div>
+
+        <aside className="space-y-4 self-start xl:sticky xl:top-4">
+          <section className="rounded-[14px] border border-[#ead9d0] bg-white p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h3 className="font-semibold text-[#3d281f]">真实搭配证据</h3>
+                <p className="mt-1 text-xs text-[#a08278]">基于真实衣橱图片，非 AI 重绘</p>
+              </div>
+            </div>
+            <div className="mt-4 space-y-4">
+              {dynamicOutfits.length
+                ? dynamicOutfits.map((idea) => (
+                    <OutfitEvidenceBoard
+                      key={`${idea.visualIntent ?? "board"}-${idea.title}`}
+                      idea={idea}
+                      candidateName={candidateTitle}
+                      candidateCategory={candidate.category ?? "待买商品"}
+                      candidateImageUrl={candidateImageDataUrl ?? candidate.screenshotUrl}
+                      candidateTags={candidateTags.slice(0, 4)}
+                    />
+                  ))
+                : (
+                    <div className="rounded-[12px] border border-dashed border-[#ead9d0] bg-[#fffaf7] px-4 py-8 text-center text-sm leading-6 text-[#8b6258]">
+                      衣橱证据还不够稳定，建议先确认更多衣服标签后再生成搭配板。
+                    </div>
+                  )}
+            </div>
+          </section>
+        </aside>
       </div>
 
       <div className="mt-4 grid gap-4 lg:grid-cols-3">
@@ -2503,6 +2559,8 @@ function OutfitEvidenceBoard({
   candidateTags: string[];
 }) {
   const evidenceItems = idea.visualItems ?? [];
+  const boardLabel = "高复用搭配";
+  const candidateReason = "作为本次待判断的核心单品，先验证它能否被真实衣橱里的互补单品承接。";
 
   return (
     <div className="overflow-hidden rounded-[12px] border border-[#ead9d0] bg-[#fffaf7]">
@@ -2512,79 +2570,86 @@ function OutfitEvidenceBoard({
           <p className="mt-0.5 text-xs text-[#a08278]">{idea.scenario}</p>
         </div>
         <span className="rounded-full bg-white px-2.5 py-1 text-[11px] text-[#8b6258]">
-          证据搭配
+          {boardLabel}
         </span>
       </div>
 
-      <div className="grid gap-3 p-3 md:grid-cols-[0.9fr_1.25fr]">
-        <div className="rounded-[10px] bg-white p-2">
-          <div className="relative">
+      <div className="space-y-3 p-3">
+        <div className="rounded-[10px] bg-white p-3">
+          <div className="flex gap-3">
             {candidateImageUrl ? (
               <div
-                className="h-44 rounded-[9px] bg-[#f8f3ef] bg-cover bg-center"
+                className="h-24 w-20 shrink-0 rounded-[9px] bg-[#f8f3ef] bg-cover bg-center"
                 style={{ backgroundImage: `url(${candidateImageUrl})` }}
               />
             ) : (
-              <MockProductImage palette="from-[#c9a58e] to-[#f4ded4]" className="h-44 w-full" />
+              <MockProductImage palette="from-[#c9a58e] to-[#f4ded4]" className="h-24 w-20 shrink-0" />
             )}
-            <span className="absolute left-2 top-2 rounded-full bg-[#3d281f]/80 px-2.5 py-1 text-[11px] text-white">
-              待买
-            </span>
-          </div>
-          <p className="mt-2 line-clamp-1 text-sm font-medium text-[#3d281f]">{candidateName}</p>
-          <p className="mt-0.5 text-xs text-[#8b6258]">{candidateCategory}</p>
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {candidateTags.slice(0, 3).map((tag) => (
-              <span key={tag} className="rounded-full bg-[#f8efea] px-2 py-1 text-[11px] text-[#8b6258]">
-                {tag}
-              </span>
-            ))}
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <span className="rounded-full bg-[#3d281f] px-2.5 py-1 text-[11px] text-white">
+                  待买衣服
+                </span>
+                <span className="truncate text-xs text-[#8b6258]">{candidateCategory}</span>
+              </div>
+              <p className="mt-2 line-clamp-1 text-sm font-medium text-[#3d281f]">{candidateName}</p>
+              <p className="mt-1 line-clamp-2 text-xs leading-5 text-[#8b6258]">{candidateReason}</p>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {candidateTags.slice(0, 3).map((tag) => (
+                  <span key={tag} className="rounded-full bg-[#f8efea] px-2 py-1 text-[11px] text-[#8b6258]">
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
 
-        <div>
-          <div className="grid grid-cols-2 gap-2">
-            {evidenceItems.length ? (
-              evidenceItems.slice(0, 4).map((item) => (
-                <div key={item.id} className="rounded-[10px] bg-white p-2">
-                  <div className="relative">
-                    {item.imageUrl ? (
-                      <div
-                        className="h-24 rounded-[8px] bg-[#f8f3ef] bg-cover bg-center"
-                        style={{ backgroundImage: `url(${item.imageUrl})` }}
-                      />
-                    ) : (
-                      <MockThumb palette="from-[#f2eee7] to-[#d7c4ad]" className="h-24 w-full" />
-                    )}
-                    <span className="absolute left-1.5 top-1.5 rounded-full bg-white/90 px-2 py-0.5 text-[10px] text-[#6e5148] shadow-sm">
-                      {item.badge}
+        {evidenceItems.length ? (
+          evidenceItems.slice(0, 4).map((item) => (
+            <div key={item.id} className="rounded-[10px] bg-white p-3">
+              <div className="flex gap-3">
+                {item.imageUrl ? (
+                  <div
+                    className="h-20 w-[72px] shrink-0 rounded-[8px] bg-[#f8f3ef] bg-cover bg-center"
+                    style={{ backgroundImage: `url(${item.imageUrl})` }}
+                  />
+                ) : (
+                  <MockThumb palette="from-[#f2eee7] to-[#d7c4ad]" className="h-20 w-[72px] shrink-0" />
+                )}
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="rounded-full bg-[#f8efea] px-2.5 py-1 text-[11px] font-medium text-[#8b6258]">
+                      {item.role ?? item.badge}
                     </span>
+                    <span className="truncate text-xs text-[#a08278]">{item.category}</span>
                   </div>
-                  <p className="mt-1.5 line-clamp-1 text-xs font-medium text-[#3d281f]">{item.name}</p>
-                  <p className="mt-0.5 line-clamp-1 text-[11px] text-[#8b6258]">{item.category}</p>
+                  <p className="mt-1.5 line-clamp-1 text-sm font-medium text-[#3d281f]">{item.name}</p>
+                  <p className="mt-1 line-clamp-2 text-xs leading-5 text-[#8b6258]">{item.reason}</p>
                 </div>
-              ))
-            ) : (
-              <div className="col-span-2 rounded-[10px] border border-dashed border-[#ead9d0] bg-white px-3 py-6 text-center text-sm leading-6 text-[#8b6258]">
-                当前衣橱证据不足，建议先确认更多衣服标签。
               </div>
-            )}
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {item.tags.slice(0, 3).map((tag) => (
+                  <span key={tag} className="rounded-full bg-[#fbf3ef] px-2 py-1 text-[11px] text-[#a08278]">
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            </div>
+          ))
+        ) : (
+          <div className="rounded-[10px] border border-dashed border-[#ead9d0] bg-white px-3 py-6 text-center text-sm leading-6 text-[#8b6258]">
+            当前衣橱证据不足，建议先确认更多衣服标签，避免为了凑数量强行生成搭配。
           </div>
-        </div>
+        )}
       </div>
 
       <div className="border-t border-[#f0e1da] px-3 py-3">
         <p className="text-sm leading-6 text-[#7b5b51]">{idea.summary}</p>
-        {evidenceItems[0]?.reason && (
-          <p className="mt-2 line-clamp-2 text-xs leading-5 text-[#a08278]">
-            选择依据：{evidenceItems[0].reason}
-          </p>
-        )}
       </div>
     </div>
   );
 }
-
 function ClosetView({
   items,
   isLoading,
