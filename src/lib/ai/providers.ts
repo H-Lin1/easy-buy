@@ -80,7 +80,7 @@ export async function generateVisionJson(prompt: string, imageDataUrls: string[]
       {
         role: "system",
         content:
-          "你是衣橱图片识别助手。你只输出严格 JSON，帮助用户把真实衣服照片转成可确认的衣橱标签。你不重绘衣服，不猜测品牌、价格、用户身份或用户身材。",
+          "你是服装图片和商品截图识别助手。你只输出严格 JSON，帮助用户把真实衣服照片或待买商品截图转成可确认的服装标签。你不重绘衣服，不猜测品牌、价格、用户身份或用户身材；价格只能来自图片文字或用户补充。",
       },
       {
         role: "user",

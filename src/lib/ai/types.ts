@@ -16,6 +16,8 @@ export type PurchaseAssessmentRequest = {
   candidate?: PurchaseCandidateAIProfile;
   candidateEmbedding?: number[];
   closetItems?: ClothingItem[];
+  ideaMode?: "standard" | "more_inspiration";
+  previousOutfitCombinations?: OutfitCombination[];
 };
 
 export type PurchaseCandidateAIProfile = {

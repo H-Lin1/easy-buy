@@ -565,11 +565,12 @@ function extractFirstJsonObject(content: string) {
 }
 
 export function parseCandidateFromMessage(message: string): PurchaseCandidateAIProfile {
-  const priceMatch = message.match(/(?:¥|￥|价格\s*)?(\d{2,5})/);
+  const trimmedMessage = message.trim();
+  const priceMatch = trimmedMessage.match(/(?:¥|￥|价格\s*)?(\d{2,5})/);
   const estimatedPrice = priceMatch ? Number(priceMatch[1]) : undefined;
-  const color = inferFirst(message, ["米色", "白色", "黑色", "灰色", "蓝色", "卡其色", "棕色"], "米色");
+  const color = inferFirst(trimmedMessage, ["米色", "白色", "黑色", "灰色", "蓝色", "卡其色", "棕色"], "unknown");
   const category = inferFirst(
-    message,
+    trimmedMessage,
     [
       "西装外套",
       "防晒衣",
@@ -591,29 +592,35 @@ export function parseCandidateFromMessage(message: string): PurchaseCandidateAIP
       "长裤",
       "套装",
     ],
-    "外套",
+    "待确认品类",
   );
-  const fit = message.includes("紧身")
+  const fit = trimmedMessage.includes("紧身")
     ? "slim"
-    : message.includes("宽松")
+    : trimmedMessage.includes("宽松")
       ? "oversized"
-      : "regular";
+      : "unknown";
   const possibleScenarios = [
-    ...(message.includes("通勤") || message.includes("上班") ? ["通勤"] : []),
-    ...(message.includes("面试") ? ["面试"] : []),
-    ...(message.includes("约会") ? ["约会"] : []),
+    ...(trimmedMessage.includes("通勤") || trimmedMessage.includes("上班") ? ["通勤"] : []),
+    ...(trimmedMessage.includes("面试") ? ["面试"] : []),
+    ...(trimmedMessage.includes("约会") ? ["约会"] : []),
     "日常",
   ];
+  const productName =
+    color !== "unknown" && category !== "待确认品类" ? `${color}${category}` : "待确认商品";
   const candidate = {
-    productName: `${color}${category}`,
+    productName,
     category,
     color,
     fit,
-    styleTags: ["简约", possibleScenarios.includes("通勤") ? "通勤" : "休闲"],
+    styleTags: trimmedMessage ? ["简约", possibleScenarios.includes("通勤") ? "通勤" : "休闲"] : ["待确认"],
     possibleScenarios: Array.from(new Set(possibleScenarios)),
     estimatedPrice,
-    sellingPoints: ["基础款", "易搭配", "可覆盖多个场景"],
-    summary: `候选商品是${color}${category}，偏${fit === "oversized" ? "宽松" : fit === "slim" ? "修身" : "常规"}版型。`,
+    sellingPoints: trimmedMessage ? ["基础款", "易搭配", "可覆盖多个场景"] : ["截图识别失败，等待补充信息"],
+    summary:
+      color !== "unknown" && category !== "待确认品类"
+        ? `候选商品是${color}${category}，版型${fit === "unknown" ? "待确认" : fit === "oversized" ? "偏宽松" : fit === "slim" ? "偏修身" : "常规"}。`
+        : "商品截图识别暂时失败，当前缺少足够信息，建议补充品类、颜色或场景后再判断。",
+    aiConfidence: color !== "unknown" || category !== "待确认品类" ? 0.45 : 0.25,
   } satisfies PurchaseCandidateAIProfile;
 
   return {
@@ -643,6 +650,11 @@ function scoreClosetItem(
     item.wearFrequency === "often" ? 10 : item.wearFrequency === "sometimes" ? 6 : item.wearFrequency === "rarely" ? 1 : 3;
   const userCorrectedScore = item.userCorrected === false ? -4 : 3;
   const complementScore = categoryComplementScore(candidateGroup, itemGroup);
+  const compatibility = outfitCompatibility(candidate, item);
+
+  if (!compatibility.compatible) {
+    return [];
+  }
 
   const outfitScore =
     34 +
@@ -661,7 +673,7 @@ function scoreClosetItem(
       item,
       matchType: "outfit",
       score: clampScore(outfitScore),
-      reason: buildMatchReason("outfit", item, candidate, semantic),
+      reason: buildMatchReason("outfit", item, candidate, semantic, compatibility.role),
     },
   ];
 }
@@ -833,8 +845,8 @@ function hydrateOutfitCombinations(
         category: match.item.category,
         imageUrl: match.item.displayImageUrl ?? match.item.imageUrl ?? match.item.originalImageUrl,
         matchType: match.matchType,
-        role: getEvidenceRole(match),
-        badge: getEvidenceRole(match),
+        role: getEvidenceRole(match, candidate),
+        badge: getEvidenceRole(match, candidate),
         reason: match.reason,
         tags: [...match.item.styleTags, ...match.item.scenarioTags].slice(0, 4),
       })),
@@ -842,13 +854,8 @@ function hydrateOutfitCombinations(
   });
 }
 
-function getEvidenceRole(match: ClosetMatch) {
-  const group = classifyCategory(match.item.category);
-  if (group === "top") return "可搭内衬";
-  if (group === "outer") return "可搭外套";
-  if (group === "bottom") return "可搭裤装";
-  if (group === "onepiece") return "可搭裙装";
-  return "可搭单品";
+function getEvidenceRole(match: ClosetMatch, candidate: PurchaseCandidateAIProfile) {
+  return outfitCompatibility(candidate, match.item).role;
 }
 
 function buildOutfitSummary(candidate: PurchaseCandidateAIProfile, matches: ClosetMatch[]) {
@@ -870,9 +877,16 @@ function buildDecisionPrompt(state: GraphState, fallbackReport: PurchaseDecision
     knowledgeUsage:
       "knowledge 是已检索的穿搭知识卡。请优先使用其中的 content、decisionPoints、riskSignals 和 outfitSuggestions 作为判断证据，并在 summary/reasons/risks/outfitCombinations 中体现具体知识，不要泛泛说百搭或好看。",
     outfitBoardRules:
-      "本版本只评估可搭配组合。closetEvidence 是 RAG 返回的 Top K 可搭配候选，不代表一定真的能搭。你必须二次筛选：只有在品类互补、颜色协调、风格/场景自然、能形成真实穿着组合时，才允许进入 outfitCombinations；不要为了凑数量把不自然的衣服放进去。如果强搭配证据不足，请明确说明证据不足并建议先收藏或暂不考虑。",
+      "本版本只评估可搭配组合。closetEvidence 是 RAG 返回的 Top K 可搭配候选，不代表一定真的能搭。你必须二次筛选：只有在品类互补、颜色协调、风格/场景自然、能形成真实穿着组合时，才允许进入 outfitCombinations；不要为了凑数量把不自然的衣服放进去。不是每套搭配都需要内搭：如果待买商品是 T恤、卫衣、针织衫、普通上衣等可单穿上衣，优先只搭配裤装/裙装，必要时再加外套，不要强行加入背心或另一件上衣。同一件衣服可以在多套搭配里复用，例如一件背心作为外套/衬衫的稳定内搭，分别连接两条不同裤装形成不同方案。如果强搭配证据不足，请明确说明证据不足并建议先收藏或暂不考虑。",
     excludedScope:
       "当前版本不要讨论重复购买、相似替代、已有同类、冗余购买或替代灵感。即使你观察到这类风险，也不要写入 summary、reasonsToBuy、reasonsToSave、risks、nextStep 或 outfitCombinations。只判断待买商品能否和真实衣橱组成自然搭配。",
+    ideaMode:
+      state.request.ideaMode === "more_inspiration"
+        ? "更多灵感模式：请基于重新检索到的衣橱证据，优先生成 previousOutfitCombinations 之外的新搭配。只有确实能形成自然新组合时才返回 outfitCombinations；如果新组合只是重复、牵强或证据不足，可以返回空数组，并在 summary/nextStep 说明没有新的可靠灵感。"
+        : "标准购买决策模式",
+    previousOutfitCombinations: (state.request.previousOutfitCombinations ?? []).map(
+      compactOutfitCombination,
+    ),
     userMessage: state.request.message,
     userProfile: state.request.userProfile,
     candidate: compactCandidate(state.candidate ?? fallbackReport.candidate),
@@ -986,10 +1000,12 @@ function buildMatchReason(
   item: ClothingItem,
   candidate: PurchaseCandidateAIProfile,
   semantic: number,
+  role?: string,
 ) {
   const semanticText = semantic >= 0.72 ? "，向量摘要也较接近" : "";
   if (type === "outfit") {
-    return `可用于${candidate.possibleScenarios[0] ?? "日常"}搭配，和「${item.name}」在风格或场景上能互相承接${semanticText}。`;
+    const roleText = role ? `作为${role.replace(/^可搭/, "")}` : "作为搭配单品";
+    return `${roleText}可用于${candidate.possibleScenarios[0] ?? "日常"}搭配，和待买衣服在风格或场景上能互相承接${semanticText}。`;
   }
   return `可作为候选搭配证据，但需要最终模型继续判断是否真的自然成套${semanticText}。`;
 }
@@ -1019,6 +1035,51 @@ function categoryComplementScore(candidateGroup: string, itemGroup: string) {
   ]);
 
   return goodPairs.has(`${candidateGroup}:${itemGroup}`) ? 20 : 8;
+}
+
+function outfitCompatibility(candidate: PurchaseCandidateAIProfile, item: ClothingItem) {
+  const candidateGroup = classifyCategory(candidate.category);
+  const itemGroup = classifyCategory(item.category);
+  const candidateCategory = candidate.category;
+  const itemCategory = item.category;
+
+  if (candidateGroup === "unknown" || itemGroup === "unknown") {
+    return { compatible: false, role: "可搭单品" };
+  }
+
+  if (candidateGroup === "top") {
+    if (itemGroup === "bottom") return { compatible: true, role: "可搭裤装" };
+    if (itemGroup === "outer") return { compatible: true, role: "可搭外套" };
+    if (itemGroup === "onepiece") return { compatible: false, role: "可搭裙装" };
+
+    const candidateCanLayerAsOuter = /衬衫|开衫|马甲|防晒衫|针织开衫/.test(candidateCategory);
+    const itemCanBeInner = /背心|吊带|打底|T恤|短袖|长袖/.test(itemCategory);
+    return {
+      compatible: candidateCanLayerAsOuter && itemCanBeInner,
+      role: candidateCanLayerAsOuter ? "可搭内搭" : "可搭上衣",
+    };
+  }
+
+  if (candidateGroup === "outer") {
+    if (itemGroup === "top") return { compatible: true, role: "可搭内搭" };
+    if (itemGroup === "bottom") return { compatible: true, role: "可搭裤装" };
+    if (itemGroup === "onepiece") return { compatible: true, role: "可搭裙装" };
+    return { compatible: false, role: "可搭外套" };
+  }
+
+  if (candidateGroup === "bottom") {
+    if (itemGroup === "top") return { compatible: true, role: "可搭上衣" };
+    if (itemGroup === "outer") return { compatible: true, role: "可搭外套" };
+    return { compatible: false, role: "可搭单品" };
+  }
+
+  if (candidateGroup === "onepiece") {
+    if (itemGroup === "outer") return { compatible: true, role: "可搭外套" };
+    const canLayerInside = /吊带裙|背心裙|无袖/.test(candidateCategory) && /T恤|衬衫|打底/.test(itemCategory);
+    return { compatible: canLayerInside, role: canLayerInside ? "可搭内搭" : "可搭单品" };
+  }
+
+  return { compatible: false, role: "可搭单品" };
 }
 
 function colorHarmonyScore(itemColor: string, candidateColor: string) {

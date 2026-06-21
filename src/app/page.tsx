@@ -29,7 +29,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
-import type { ReactNode } from "react";
+import type { DragEvent, ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { PurchaseDecisionReport } from "@/lib/ai/types";
@@ -170,7 +170,7 @@ type DecisionChatState = {
   notice: string;
 };
 
-const defaultChatPrompt = "这件米色西装外套适合我通勤穿吗？价格 399，值得买吗？";
+const composerPlaceholder = "请上传您需要决策的衣服，也可以补充价格、场景或犹豫点。";
 
 const fitOptions: Array<{ value: ClothingItem["fit"]; label: string }> = [
   { value: "slim", label: "修身" },
@@ -290,6 +290,84 @@ async function createStorageSignedUrl(
   return data?.signedUrl;
 }
 
+function hydrateReportForDisplay(
+  report: PurchaseDecisionReport | undefined,
+  closetItems: ClothingItem[],
+  candidateImageUrl?: string,
+): PurchaseDecisionReport | undefined {
+  if (!report) return undefined;
+
+  const closetById = new Map(closetItems.map((item) => [item.id, item]));
+
+  return {
+    ...report,
+    candidate: {
+      ...report.candidate,
+      screenshotUrl: candidateImageUrl ?? report.candidate.screenshotUrl,
+    },
+    outfitCombinations: report.outfitCombinations.map((combination) => {
+      const existingVisualItems = combination.visualItems ?? [];
+      const existingVisualById = new Map(existingVisualItems.map((item) => [item.id, item]));
+      const ids = combination.closetItemIds?.length
+        ? combination.closetItemIds
+        : existingVisualItems.map((item) => item.id);
+      const hydratedVisualItems = ids
+        .map((itemId) => {
+          const closetItem = closetById.get(itemId);
+          const existing = existingVisualById.get(itemId);
+
+          if (!closetItem) return existing;
+
+          return {
+            id: closetItem.id,
+            name: existing?.name ?? closetItem.name,
+            category: existing?.category ?? closetItem.category,
+            imageUrl: closetItem.displayImageUrl ?? closetItem.imageUrl ?? closetItem.originalImageUrl ?? existing?.imageUrl,
+            matchType: existing?.matchType ?? "outfit",
+            role: existing?.role ?? getClosetEvidenceRole(closetItem.category, report.candidate.category),
+            badge: existing?.badge ?? getClosetEvidenceRole(closetItem.category, report.candidate.category),
+            reason:
+              existing?.reason ??
+              `可用于${combination.scenario || "日常"}搭配，和待买衣服在风格或场景上能自然衔接。`,
+            tags: existing?.tags?.length
+              ? existing.tags
+              : [...closetItem.styleTags, ...closetItem.scenarioTags].slice(0, 4),
+          };
+        })
+        .filter((item): item is NonNullable<typeof item> => Boolean(item));
+
+      return {
+        ...combination,
+        closetItemIds: hydratedVisualItems.map((item) => item.id),
+        items: [report.candidate.productName, ...hydratedVisualItems.map((item) => item.name)],
+        visualItems: hydratedVisualItems,
+      };
+    }),
+  };
+}
+
+function getClosetEvidenceRole(category: string, candidateCategory?: string) {
+  const itemIsTop = /背心|吊带|T恤|衬衫|针织|卫衣|上衣|Polo/i.test(category);
+  const candidateIsOuter = /外套|西装|风衣|大衣|夹克|防晒衣|冲锋衣|马甲/i.test(candidateCategory ?? "");
+  const candidateCanLayerAsOuter = /衬衫|开衫|马甲|防晒衫|针织开衫/i.test(candidateCategory ?? "");
+
+  if (itemIsTop) return candidateIsOuter || candidateCanLayerAsOuter ? "可搭内搭" : "可搭上衣";
+  if (/外套|西装|风衣|大衣|夹克|防晒衣|冲锋衣|马甲/i.test(category)) return "可搭外套";
+  if (/裤|裙|下装/i.test(category)) return "可搭裤装";
+  if (/连衣裙|套装/i.test(category)) return "可搭套装";
+  return "可搭单品";
+}
+
+function formatCandidatePrice(candidate: PurchaseDecisionReport["candidate"]) {
+  if (!candidate.estimatedPrice) return "";
+  const evidenceText = candidate.detectedText ?? "";
+  const hasExplicitPrice = /(?:[¥￥]\s*\d{2,5}|\d{2,5}\s*元|价格\s*[:：]?\s*\d{2,5}|售价\s*[:：]?\s*\d{2,5}|到手\s*[:：]?\s*\d{2,5}|券后\s*[:：]?\s*\d{2,5})/.test(
+    evidenceText,
+  );
+
+  return hasExplicitPrice ? `¥${candidate.estimatedPrice}` : "";
+}
+
 function getPaletteByColor(color?: string | null) {
   if (!color) return "from-[#f2eee7] to-[#d7c4ad]";
   if (color.includes("黑")) return "from-[#171313] to-[#77706b]";
@@ -316,7 +394,7 @@ function createConfirmationDraft(item: ClothingItem): ClosetConfirmationDraft {
 
 function createEmptyChatState(): DecisionChatState {
   return {
-    message: defaultChatPrompt,
+    message: "",
     lastUserMessage: "",
     assessment: null,
     error: "",
@@ -1488,12 +1566,11 @@ export default function Home() {
       latestUserMessage?.image_path,
     );
 
-    if (restoredReport?.candidate && signedImageUrl) {
-      restoredReport.candidate = {
-        ...restoredReport.candidate,
-        screenshotUrl: signedImageUrl,
-      };
-    }
+    const hydratedReport = hydrateReportForDisplay(
+      restoredReport,
+      userClosetItems,
+      signedImageUrl,
+    );
 
     setActiveChatId(sessionId);
     setChatState({
@@ -1501,7 +1578,7 @@ export default function Home() {
       lastUserMessage: latestUserMessage?.content ?? "",
       purchaseImageDataUrl: signedImageUrl,
       purchaseImageName: latestUserMessage?.metadata?.imageName as string | undefined,
-      assessment: restoredReport ?? null,
+      assessment: hydratedReport ?? null,
       candidateId:
         latestAssistantMessage?.candidate_id ?? latestUserMessage?.candidate_id ?? undefined,
       reportId: latestAssistantMessage?.report_id ?? latestUserMessage?.report_id ?? undefined,
@@ -1509,6 +1586,34 @@ export default function Home() {
       notice: "",
     });
     setView("chat");
+  }
+
+  async function deleteChatSession(sessionId: string) {
+    if (!user) return;
+
+    setChatSessions((sessions) => sessions.filter((session) => session.id !== sessionId));
+    if (activeChatId === sessionId) {
+      setActiveChatId(undefined);
+      setChatState(createEmptyChatState());
+    }
+
+    const { error } = await supabase
+      .from("chat_sessions")
+      .update({
+        status: "archived",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", sessionId)
+      .eq("user_id", user.id);
+
+    if (error) {
+      setChatState((current) => ({
+        ...current,
+        error: `删除对话失败：${error.message}`,
+        notice: "",
+      }));
+      await loadChatSessions(user.id);
+    }
   }
 
   async function saveCurrentDecision(status: DecisionStatus) {
@@ -1622,6 +1727,7 @@ export default function Home() {
           onViewChange={setView}
           onNewChat={() => void startNewChat()}
           onOpenChat={(sessionId) => void openChatSession(sessionId)}
+          onDeleteChat={(sessionId) => void deleteChatSession(sessionId)}
         />
         <section className="flex min-w-0 flex-1 overflow-hidden rounded-[18px] border border-[#ead9d0] bg-[#fffdfb] shadow-[0_18px_60px_rgba(92,55,42,0.08)]">
           {activeView === "chat" && (
@@ -1848,6 +1954,7 @@ function Sidebar({
   onViewChange,
   onNewChat,
   onOpenChat,
+  onDeleteChat,
 }: {
   currentView: AppView;
   user: User;
@@ -1860,6 +1967,7 @@ function Sidebar({
   onViewChange: (view: AppView) => void;
   onNewChat: () => void;
   onOpenChat: (sessionId: string) => void;
+  onDeleteChat: (sessionId: string) => void;
 }) {
   const navItems = [
     { id: "chat" as const, label: "决策聊天", count: counts.chats, icon: MessageCircle },
@@ -1920,25 +2028,42 @@ function Sidebar({
         <div className="space-y-4">
           {chats.length ? (
             chats.map((chat) => (
-              <button
+              <div
                 key={chat.id}
-                onClick={() => onOpenChat(chat.id)}
-                className="flex w-full items-center gap-3 rounded-[10px] p-1.5 text-left transition hover:bg-[#f8efea]"
+                className="group flex w-full items-center gap-2 rounded-[10px] p-1.5 text-left transition hover:bg-[#f8efea]"
               >
-                {chat.thumbnailUrl ? (
-                  <div
-                    className="size-14 shrink-0 rounded-[10px] bg-[#f8f3ef] bg-cover bg-center"
-                    style={{ backgroundImage: `url(${chat.thumbnailUrl})` }}
-                  />
-                ) : (
-                  <MockThumb palette={chat.palette} className="size-14" />
-                )}
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-[15px] font-medium text-[#50382f]">{chat.title}</p>
-                  <p className="mt-1 truncate text-xs text-[#a08278]">{chat.subtitle}</p>
-                </div>
-                {chat.favorite && <Star className="size-4 fill-[#d58883] text-[#d58883]" />}
-              </button>
+                <button
+                  type="button"
+                  onClick={() => onOpenChat(chat.id)}
+                  className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                >
+                  {chat.thumbnailUrl ? (
+                    <div
+                      className="size-14 shrink-0 rounded-[10px] bg-[#f8f3ef] bg-cover bg-center"
+                      style={{ backgroundImage: `url(${chat.thumbnailUrl})` }}
+                    />
+                  ) : (
+                    <MockThumb palette={chat.palette} className="size-14" />
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[15px] font-medium text-[#50382f]">{chat.title}</p>
+                    <p className="mt-1 truncate text-xs text-[#a08278]">{chat.subtitle}</p>
+                  </div>
+                  {chat.favorite && <Star className="size-4 fill-[#d58883] text-[#d58883]" />}
+                </button>
+                <button
+                  type="button"
+                  aria-label={`删除对话：${chat.title}`}
+                  title="删除对话"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onDeleteChat(chat.id);
+                  }}
+                  className="flex size-8 shrink-0 items-center justify-center rounded-full text-[#c28b82] opacity-0 transition hover:bg-[#f1ded8] hover:text-[#a9514f] group-hover:opacity-100"
+                >
+                  <Trash2 className="size-4" />
+                </button>
+              </div>
             ))
           ) : (
             <div className="rounded-[10px] border border-dashed border-[#ead9d0] px-4 py-5 text-sm leading-6 text-[#a08278]">
@@ -1995,7 +2120,9 @@ function ChatView({
 }) {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const [isAssessing, setIsAssessing] = useState(false);
+  const [isRequestingMoreOutfits, setIsRequestingMoreOutfits] = useState(false);
   const [decisionProgressIndex, setDecisionProgressIndex] = useState(0);
+  const [activeOutfitIndex, setActiveOutfitIndex] = useState(0);
   const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
   const {
     message,
@@ -2042,6 +2169,7 @@ function ChatView({
     });
     setIsAssessing(true);
     setDecisionProgressIndex(0);
+    setActiveOutfitIndex(0);
 
     try {
       const sessionId =
@@ -2118,10 +2246,91 @@ function ChatView({
     }
   }
 
+  async function handleRequestMoreOutfits() {
+    if (!assessment || isAssessing || isRequestingMoreOutfits) return;
+
+    setIsRequestingMoreOutfits(true);
+    updateChatState({
+      error: "",
+      notice: "正在重新检索衣橱，寻找更多真实搭配灵感...",
+    });
+
+    try {
+      const { data } = await supabase.auth.getSession();
+      const token = data.session?.access_token;
+      if (!token) throw new Error("登录状态已过期，请重新登录。");
+
+      const response = await fetch("/api/ai/more-outfit-ideas", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          candidate: assessment.candidate,
+          previousOutfitCombinations: assessment.outfitCombinations,
+          userProfile: {
+            heightCm: profile.heightCm ?? undefined,
+            weightKg: profile.weightKg ?? undefined,
+            bmi: profile.bmi ?? undefined,
+            stylePreferences: profile.stylePreferences,
+            commonScenarios: profile.commonScenarios,
+            budgetSensitivity: profile.budgetSensitivity,
+          },
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = (await response.json().catch(() => null)) as { message?: string } | null;
+        throw new Error(errorData?.message ?? "更多灵感接口暂时不可用，请稍后再试。");
+      }
+
+      const result = (await response.json()) as {
+        outfitCombinations?: PurchaseDecisionReport["outfitCombinations"];
+        message?: string;
+        usedModel?: boolean;
+      };
+      const newOutfits = result.outfitCombinations ?? [];
+
+      if (!newOutfits.length) {
+        updateChatState({
+          notice: result.message ?? "暂时没有新的可靠搭配灵感。",
+          error: "",
+        });
+        return;
+      }
+
+      onChatStateChange((current) => {
+        if (!current.assessment) return current;
+        return {
+          ...current,
+          assessment: {
+            ...current.assessment,
+            outfitCombinations: [
+              ...newOutfits,
+              ...current.assessment.outfitCombinations,
+            ],
+          },
+          notice: result.message ?? "已找到新的搭配灵感，并放到顶层卡片。",
+          error: "",
+        };
+      });
+      setActiveOutfitIndex(0);
+    } catch (currentError) {
+      updateChatState({
+        error: currentError instanceof Error ? currentError.message : "生成更多灵感失败",
+        notice: "",
+      });
+    } finally {
+      setIsRequestingMoreOutfits(false);
+    }
+  }
+
   function handleClearConversation() {
     if (isAssessing) return;
     onClearConversation();
     setDecisionProgressIndex(0);
+    setActiveOutfitIndex(0);
   }
 
   return (
@@ -2226,8 +2435,12 @@ function ChatView({
         <DecisionReportCard
           assessment={assessment}
           isAssessing={isAssessing}
+          isRequestingMoreOutfits={isRequestingMoreOutfits}
+          activeOutfitIndex={activeOutfitIndex}
           candidateImageDataUrl={purchaseImageDataUrl}
           selectedDecisionStatus={chatState.selectedDecisionStatus}
+          onActiveOutfitIndexChange={setActiveOutfitIndex}
+          onRequestMoreOutfits={handleRequestMoreOutfits}
           onDecision={onDecision}
           onOpenDecisions={onOpenDecisions}
         />
@@ -2288,15 +2501,23 @@ function ChatView({
 function DecisionReportCard({
   assessment,
   isAssessing,
+  isRequestingMoreOutfits,
+  activeOutfitIndex,
   candidateImageDataUrl,
   selectedDecisionStatus,
+  onActiveOutfitIndexChange,
+  onRequestMoreOutfits,
   onDecision,
   onOpenDecisions,
 }: {
   assessment: PurchaseDecisionReport | null;
   isAssessing: boolean;
+  isRequestingMoreOutfits: boolean;
+  activeOutfitIndex: number;
   candidateImageDataUrl?: string;
   selectedDecisionStatus?: DecisionStatus;
+  onActiveOutfitIndexChange: (index: number) => void;
+  onRequestMoreOutfits: () => Promise<void>;
   onDecision: (status: DecisionStatus) => Promise<void>;
   onOpenDecisions: () => void;
 }) {
@@ -2340,38 +2561,20 @@ function DecisionReportCard({
   ];
   const decisionLabel = assessment.decisionLabel;
   const reportSummary = assessment.summary;
-  const reportConfidence = assessment.confidence;
   const highReuseBoards = assessment.outfitCombinations.filter(
     (idea) => idea.visualIntent === "outfit" || idea.title.includes("高复用"),
   );
-  const dynamicOutfits = highReuseBoards.length ? highReuseBoards.slice(0, 2) : assessment.outfitCombinations.slice(0, 1);
+  const dynamicOutfits = highReuseBoards.length ? highReuseBoards : assessment.outfitCombinations.slice(0, 1);
   const candidate = assessment.candidate;
   const candidateTitle = candidate.productName ?? "待买商品";
   const candidateSubtitle = candidate.summary ?? "AI 已根据截图和描述生成候选商品信息";
-  const candidatePrice = candidate.estimatedPrice ? `¥${candidate.estimatedPrice}` : "价格待确认";
+  const candidatePrice = formatCandidatePrice(candidate);
   const candidateTags = [
     candidate.color,
     candidate.category,
     ...candidate.styleTags.slice(0, 2),
     ...candidate.possibleScenarios.slice(0, 2),
   ].filter((tag): tag is string => Boolean(tag));
-  const reportDetailSections = [
-    {
-      title: "支持购买的证据",
-      items: assessment.reasonsToBuy.slice(0, 3),
-      tone: "bg-emerald-50 text-emerald-700",
-    },
-    {
-      title: "建议先观察的点",
-      items: assessment.reasonsToSave.slice(0, 3),
-      tone: "bg-amber-50 text-amber-700",
-    },
-    {
-      title: "主要风险",
-      items: assessment.risks.slice(0, 3),
-      tone: "bg-rose-50 text-rose-700",
-    },
-  ].filter((section) => section.items.length);
 
   return (
     <article className={cn("mt-5 rounded-[16px] border border-[#ead9d0] bg-white p-4 shadow-sm", isAssessing && "opacity-75")}>
@@ -2403,24 +2606,26 @@ function DecisionReportCard({
                     {decisionLabel}
                   </span>
                 </div>
-                <p className="mt-4 text-3xl font-semibold text-[#3d281f]">{candidatePrice}</p>
-                <div className="mt-3 flex flex-wrap gap-2">
+                {candidatePrice ? (
+                  <p className="mt-4 text-3xl font-semibold text-[#3d281f]">{candidatePrice}</p>
+                ) : null}
+                <div className={cn("flex flex-wrap gap-2", candidatePrice ? "mt-3" : "mt-4")}>
                   {candidateTags.slice(0, 7).map((tag) => (
                     <span key={tag} className="rounded-full bg-[#f8efea] px-3 py-1 text-xs text-[#8b6258]">
                       {tag}
                     </span>
                   ))}
                 </div>
-                <div className="mt-5 rounded-[12px] bg-gradient-to-br from-[#fbf5f1] to-[#f2e2db] p-5">
-                  <div className="flex items-center justify-between gap-4">
-                    <span className="text-lg font-semibold text-[#3d281f]">综合结论</span>
-                    <span className="text-sm text-[#8b6258]">
-                      置信度 {reportConfidence}%{assessment && !assessment.usedModel ? " · 规则兜底版" : ""}
-                    </span>
-                  </div>
-                  <p className="mt-3 leading-7 text-[#7b5b51]">{reportSummary}</p>
-                </div>
               </div>
+            </div>
+            <div className="mt-5 rounded-[12px] bg-gradient-to-br from-[#fbf5f1] to-[#f2e2db] p-5">
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-lg font-semibold text-[#3d281f]">综合结论</span>
+                {!assessment.usedModel ? (
+                  <span className="rounded-full bg-white/70 px-3 py-1 text-xs text-[#8b6258]">规则兜底版</span>
+                ) : null}
+              </div>
+              <p className="mt-3 leading-7 text-[#7b5b51]">{reportSummary}</p>
             </div>
           </section>
 
@@ -2444,28 +2649,6 @@ function DecisionReportCard({
             </div>
           </section>
 
-          <section className="rounded-[14px] border border-[#ead9d0] p-4">
-            <h3 className="font-semibold text-[#3d281f]">判断依据</h3>
-            <div className="mt-4 grid gap-3 lg:grid-cols-3">
-              {reportDetailSections.map((section) => (
-                <div key={section.title} className="rounded-[12px] bg-[#fffaf7] p-4">
-                  <span className={cn("rounded-full px-3 py-1 text-xs font-medium", section.tone)}>
-                    {section.title}
-                  </span>
-                  <ul className="mt-3 space-y-2 text-sm leading-6 text-[#7b5b51]">
-                    {section.items.map((item) => (
-                      <li key={item}>· {item}</li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
-            </div>
-            {assessment.bodyFitNotes.length ? (
-              <div className="mt-3 rounded-[12px] bg-[#fbf3ef] px-4 py-3 text-sm leading-6 text-[#7b5b51]">
-                {assessment.bodyFitNotes[0]}
-              </div>
-            ) : null}
-          </section>
         </div>
 
         <aside className="space-y-4 self-start xl:sticky xl:top-4">
@@ -2476,24 +2659,17 @@ function DecisionReportCard({
                 <p className="mt-1 text-xs text-[#a08278]">基于真实衣橱图片，非 AI 重绘</p>
               </div>
             </div>
-            <div className="mt-4 space-y-4">
-              {dynamicOutfits.length
-                ? dynamicOutfits.map((idea) => (
-                    <OutfitEvidenceBoard
-                      key={`${idea.visualIntent ?? "board"}-${idea.title}`}
-                      idea={idea}
-                      candidateName={candidateTitle}
-                      candidateCategory={candidate.category ?? "待买商品"}
-                      candidateImageUrl={candidateImageDataUrl ?? candidate.screenshotUrl}
-                      candidateTags={candidateTags.slice(0, 4)}
-                    />
-                  ))
-                : (
-                    <div className="rounded-[12px] border border-dashed border-[#ead9d0] bg-[#fffaf7] px-4 py-8 text-center text-sm leading-6 text-[#8b6258]">
-                      衣橱证据还不够稳定，建议先确认更多衣服标签后再生成搭配板。
-                    </div>
-                  )}
-            </div>
+            <StackedOutfitCards
+              outfits={dynamicOutfits}
+              activeIndex={activeOutfitIndex}
+              isRequestingMore={isRequestingMoreOutfits}
+              candidateName={candidateTitle}
+              candidateCategory={candidate.category ?? "待买商品"}
+              candidateImageUrl={candidateImageDataUrl ?? candidate.screenshotUrl}
+              candidateTags={candidateTags.slice(0, 4)}
+              onActiveIndexChange={onActiveOutfitIndexChange}
+              onRequestMoreOutfits={onRequestMoreOutfits}
+            />
           </section>
         </aside>
       </div>
@@ -2542,6 +2718,108 @@ function DecisionReportCard({
         </button>
       </div>
     </article>
+  );
+}
+
+function StackedOutfitCards({
+  outfits,
+  activeIndex,
+  isRequestingMore,
+  candidateName,
+  candidateCategory,
+  candidateImageUrl,
+  candidateTags,
+  onActiveIndexChange,
+  onRequestMoreOutfits,
+}: {
+  outfits: PurchaseDecisionReport["outfitCombinations"];
+  activeIndex: number;
+  isRequestingMore: boolean;
+  candidateName: string;
+  candidateCategory: string;
+  candidateImageUrl?: string;
+  candidateTags: string[];
+  onActiveIndexChange: (index: number) => void;
+  onRequestMoreOutfits: () => Promise<void>;
+}) {
+  const safeIndex = outfits.length ? Math.min(activeIndex, outfits.length - 1) : 0;
+  const currentOutfit = outfits[safeIndex];
+  const hasMultipleOutfits = outfits.length > 1;
+
+  function goToNext() {
+    if (!outfits.length) return;
+    onActiveIndexChange((safeIndex + 1) % outfits.length);
+  }
+
+  function goToPrevious() {
+    if (!outfits.length) return;
+    onActiveIndexChange((safeIndex - 1 + outfits.length) % outfits.length);
+  }
+
+  if (!currentOutfit) {
+    return (
+      <div className="mt-4 rounded-[12px] border border-dashed border-[#ead9d0] bg-[#fffaf7] px-4 py-8 text-center text-sm leading-6 text-[#8b6258]">
+        衣橱证据还不够稳定，建议先确认更多衣服标签后再生成搭配板。
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-4">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <span className="rounded-full bg-[#fbf3ef] px-3 py-1 text-xs text-[#8b6258]">
+          第 {safeIndex + 1} / {outfits.length} 套
+        </span>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={goToPrevious}
+            disabled={!hasMultipleOutfits}
+            className="inline-flex items-center gap-1 rounded-full border border-[#ead9d0] bg-white px-3 py-1.5 text-xs text-[#8b6258] transition hover:bg-[#fffaf7] disabled:cursor-not-allowed disabled:opacity-45"
+          >
+            <ChevronRight className="size-3.5 rotate-180" />
+            上一套
+          </button>
+          <button
+            type="button"
+            onClick={goToNext}
+            disabled={!hasMultipleOutfits}
+            className="inline-flex items-center gap-1 rounded-full border border-[#ead9d0] bg-white px-3 py-1.5 text-xs text-[#8b6258] transition hover:bg-[#fffaf7] disabled:cursor-not-allowed disabled:opacity-45"
+          >
+            下一套
+            <ChevronRight className="size-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={() => void onRequestMoreOutfits()}
+            disabled={isRequestingMore}
+            className="inline-flex items-center gap-1 rounded-full bg-[#b2605e] px-3 py-1.5 text-xs font-medium text-white shadow-sm transition hover:bg-[#9e4f4d] disabled:cursor-wait disabled:opacity-70"
+          >
+            <Sparkles className={cn("size-3.5", isRequestingMore && "animate-pulse")} />
+            {isRequestingMore ? "寻找中" : "更多灵感"}
+          </button>
+        </div>
+      </div>
+
+      <div className="relative pb-5">
+        {outfits.length > 2 ? (
+          <div className="absolute inset-x-5 bottom-0 top-8 rounded-[14px] border border-[#ead9d0] bg-[#f7ebe5]" />
+        ) : null}
+        {outfits.length > 1 ? (
+          <div className="absolute inset-x-3 bottom-2 top-4 rounded-[14px] border border-[#ead9d0] bg-[#fbf3ef]" />
+        ) : null}
+        <div className="relative">
+          <OutfitEvidenceBoard
+            key={`${currentOutfit.title}-${safeIndex}`}
+            idea={currentOutfit}
+            candidateName={candidateName}
+            candidateCategory={candidateCategory}
+            candidateImageUrl={candidateImageUrl}
+            candidateTags={candidateTags}
+          />
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -3797,6 +4075,7 @@ function Composer({
   onSubmit: () => void;
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isDragOver, setIsDragOver] = useState(false);
 
   async function handleImageChange(fileList: FileList | null) {
     const file = Array.from(fileList ?? []).find((currentFile) =>
@@ -3805,9 +4084,37 @@ function Composer({
     if (!file) return;
 
     await onImageSelect(file);
+    setIsDragOver(false);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
+  }
+
+  function handleDragEnter(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    if (isAssessing) return;
+    if ([...event.dataTransfer.items].some((item) => item.kind === "file")) {
+      setIsDragOver(true);
+    }
+  }
+
+  function handleDragOver(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    if (!isAssessing) {
+      event.dataTransfer.dropEffect = "copy";
+      setIsDragOver(true);
+    }
+  }
+
+  function handleDragLeave(event: DragEvent<HTMLDivElement>) {
+    if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
+    setIsDragOver(false);
+  }
+
+  function handleDrop(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    if (isAssessing) return;
+    void handleImageChange(event.dataTransfer.files);
   }
 
   return (
@@ -3818,7 +4125,23 @@ function Composer({
         onSubmit();
       }}
     >
-      <div className="rounded-[16px] border border-[#ead9d0] bg-[#fffaf7] p-4">
+      <div
+        onDragEnter={handleDragEnter}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+        className={cn(
+          "relative rounded-[16px] border bg-[#fffaf7] p-4 transition",
+          isDragOver
+            ? "border-[#cf6f70] bg-[#fff4f1] shadow-[0_0_0_4px_rgba(207,111,112,0.12)]"
+            : "border-[#ead9d0]",
+        )}
+      >
+        {isDragOver && (
+          <div className="pointer-events-none absolute inset-2 z-10 flex items-center justify-center rounded-[14px] border border-dashed border-[#cf6f70] bg-white/80 text-sm font-medium text-[#b2605e] backdrop-blur-sm">
+            松开即可上传这张衣服截图
+          </div>
+        )}
         {imageDataUrl && (
           <div className="mb-3 flex items-center gap-3 rounded-[12px] border border-[#ead9d0] bg-white p-2">
             <div
@@ -3844,7 +4167,8 @@ function Composer({
           value={value}
           onChange={(event) => onChange(event.target.value)}
           className="h-14 w-full resize-none bg-transparent text-[#3d281f] outline-none placeholder:text-[#b99a91]"
-          placeholder="描述你的问题，例如：这件适合我通勤穿吗？价格 399 值得买吗？"
+          placeholder={composerPlaceholder}
+          disabled={isAssessing}
         />
         <div className="mt-3 flex items-center gap-3">
           <input
@@ -3863,7 +4187,7 @@ function Composer({
             <ImagePlus className="size-4" />
             {imageDataUrl ? "更换截图" : "上传截图"}
           </button>
-          <span className="text-xs text-[#b99a91]">内容由 AI 生成，仅供参考，不构成购买建议</span>
+          <span className="text-xs text-[#b99a91]">支持拖拽图片到这里上传 · 内容由 AI 生成，仅供参考</span>
           <button
             disabled={isAssessing}
             className="ml-auto inline-flex h-12 items-center gap-3 rounded-[10px] bg-gradient-to-r from-[#cf6f70] to-[#e6a094] px-7 font-medium text-white shadow-lg shadow-rose-200/70 disabled:cursor-not-allowed disabled:opacity-60"

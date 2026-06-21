@@ -16,6 +16,7 @@ export const purchaseAnalysisSchema = z.object({
   styleTags: z.array(z.string()).optional(),
   possibleScenarios: z.array(z.string()).optional(),
   estimatedPrice: z.preprocess((value) => {
+    if (value === null || value === undefined || value === "") return undefined;
     if (typeof value === "string") {
       const parsed = Number(value.replace(/[^\d.]/g, ""));
       return Number.isFinite(parsed) ? parsed : undefined;
