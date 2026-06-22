@@ -40,6 +40,7 @@ import type {
   ChatSession,
   ClothingItem,
   DecisionItem,
+  DecisionOutfitCombination,
   DecisionStatus,
   UserProfile,
 } from "@/lib/types";
@@ -139,6 +140,9 @@ type ChatMessageRow = {
 type DecisionItemRow = {
   id: string;
   status: DecisionStatus;
+  report_id: string | null;
+  session_id: string | null;
+  size_label: string | null;
   snapshot_summary: string | null;
   snapshot_outfit_tips: string[] | null;
   snapshot_risks: string[] | null;
@@ -148,6 +152,7 @@ type DecisionItemRow = {
   candidate:
     | {
         id: string;
+        product_name: string | null;
         summary: string | null;
         category: string | null;
         color: string | null;
@@ -155,6 +160,40 @@ type DecisionItemRow = {
         screenshot_path: string | null;
       }
     | null;
+  report:
+    | {
+        id: string;
+        summary: string | null;
+        outfit_combinations: DecisionOutfitCombination[] | null;
+      }
+    | null;
+};
+
+type DecisionReportMessageRow = {
+  session_id: string;
+  report_id: string | null;
+  role: "assistant";
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+};
+
+type DecisionClosetImageRow = {
+  id: string;
+  image_path: string | null;
+  processed_image_path: string | null;
+  display_image_path: string | null;
+  summary: string | null;
+  category: string | null;
+  color: string | null;
+  style_tags: string[] | null;
+  scenario_tags: string[] | null;
+};
+
+type DecisionClosetImageInfo = {
+  imageUrl?: string;
+  name?: string;
+  category?: string;
+  tags: string[];
 };
 
 type DecisionChatState = {
@@ -290,6 +329,79 @@ async function createStorageSignedUrl(
   return data?.signedUrl;
 }
 
+function createDecisionProductName(
+  productName?: string | null,
+  summary?: string | null,
+  color?: string | null,
+  category?: string | null,
+) {
+  const cleanProductName = productName?.trim();
+  if (cleanProductName) return cleanProductName;
+
+  const cleanColor = color && !/未知|待确认|unknown/i.test(color) ? color.trim() : "";
+  const cleanCategory = category && !/未知|待确认|unknown/i.test(category) ? category.trim() : "";
+  const combined = `${cleanColor}${cleanCategory}`.trim();
+  if (combined) return combined;
+
+  const cleanSummary = summary?.replace(/\s+/g, " ").trim();
+  if (cleanSummary && cleanSummary.length <= 18 && !/[，。；,.]/.test(cleanSummary)) {
+    return cleanSummary;
+  }
+
+  return "咨询商品";
+}
+
+function getReportProductNameFromMetadata(metadata?: Record<string, unknown> | null) {
+  const report = metadata?.report as PurchaseDecisionReport | undefined;
+  return report?.candidate?.productName?.trim() || undefined;
+}
+
+function collectDecisionOutfitClosetIds(rows: DecisionItemRow[]) {
+  return Array.from(
+    new Set(
+      rows.flatMap((item) =>
+        (item.report?.outfit_combinations ?? []).flatMap((outfit) => [
+          ...(outfit.visualItems?.map((visualItem) => visualItem.id) ?? []),
+        ]),
+      ),
+    ),
+  ).filter((id) => /^[0-9a-f-]{32,36}$/i.test(id));
+}
+
+function hydrateDecisionOutfitImages(
+  outfits: DecisionOutfitCombination[],
+  closetImagesById: Map<string, DecisionClosetImageInfo>,
+) {
+  return outfits.map((outfit) => ({
+    ...outfit,
+    visualItems: (outfit.visualItems ?? []).map((visualItem) => {
+      const closetImage = closetImagesById.get(visualItem.id);
+      if (!closetImage) return visualItem;
+
+      return {
+        ...visualItem,
+        name: visualItem.name || closetImage.name || "衣橱单品",
+        category: visualItem.category || closetImage.category || "衣服",
+        imageUrl: closetImage.imageUrl ?? visualItem.imageUrl,
+        tags: visualItem.tags?.length ? visualItem.tags : closetImage.tags,
+      };
+    }),
+  }));
+}
+
+function isKnownDecisionPrice(value?: number | string | null) {
+  if (value === null || value === undefined || value === "") return false;
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue) && numericValue > 0;
+}
+
+function parseDecisionPriceInput(value: string) {
+  const cleaned = value.replace(/[^\d.]/g, "").trim();
+  if (!cleaned) return null;
+  const numericValue = Number(cleaned);
+  return Number.isFinite(numericValue) && numericValue > 0 ? numericValue : null;
+}
+
 function hydrateReportForDisplay(
   report: PurchaseDecisionReport | undefined,
   closetItems: ClothingItem[],
@@ -353,7 +465,12 @@ function getClosetEvidenceRole(category: string, candidateCategory?: string) {
 
   if (itemIsTop) return candidateIsOuter || candidateCanLayerAsOuter ? "可搭内搭" : "可搭上衣";
   if (/外套|西装|风衣|大衣|夹克|防晒衣|冲锋衣|马甲/i.test(category)) return "可搭外套";
-  if (/裤|裙|下装/i.test(category)) return "可搭裤装";
+  if (/半身裙|短裙|长裙|A字裙|铅笔裙|百褶裙|伞裙|包臀裙|裙装/i.test(category)) {
+    return "可搭裙装";
+  }
+  if (/裤|长裤|短裤|牛仔裤|直筒|阔腿|西装裤|休闲裤|工装裤|户外裤|运动裤|卫裤|瑜伽裤|鲨鱼裤|打底裤|皮裤|裙裤|下装/i.test(category)) {
+    return "可搭裤装";
+  }
   if (/连衣裙|套装/i.test(category)) return "可搭套装";
   return "可搭单品";
 }
@@ -723,7 +840,7 @@ export default function Home() {
       const { data, error } = await supabase
         .from("decision_items")
         .select(
-          "id,status,snapshot_summary,snapshot_outfit_tips,snapshot_risks,reminder_at,created_at,updated_at,candidate:purchase_candidates(id,summary,category,color,estimated_price,screenshot_path)",
+          "id,status,report_id,session_id,size_label,snapshot_summary,snapshot_outfit_tips,snapshot_risks,reminder_at,created_at,updated_at,candidate:purchase_candidates(id,product_name,summary,category,color,estimated_price,screenshot_path),report:assessment_reports(id,summary,outfit_combinations)",
         )
         .eq("user_id", userId)
         .order("updated_at", { ascending: false })
@@ -735,30 +852,114 @@ export default function Home() {
         return;
       }
 
+      const rows = (data ?? []) as unknown as DecisionItemRow[];
+      const sessionIds = Array.from(
+        new Set(rows.map((item) => item.session_id).filter((id): id is string => Boolean(id))),
+      );
+      const reportNamesByReportId = new Map<string, string>();
+      const reportNamesBySessionId = new Map<string, string>();
+      const closetImagesById = new Map<string, DecisionClosetImageInfo>();
+
+      if (sessionIds.length) {
+        const { data: messageData, error: messageError } = await supabase
+          .from("chat_messages")
+          .select("session_id,report_id,role,metadata,created_at")
+          .in("session_id", sessionIds)
+          .eq("role", "assistant")
+          .order("created_at", { ascending: false });
+
+        if (messageError) {
+          console.error(messageError);
+        } else {
+          ((messageData ?? []) as unknown as DecisionReportMessageRow[]).forEach((message) => {
+            const productName = getReportProductNameFromMetadata(message.metadata);
+            if (!productName) return;
+            if (message.report_id && !reportNamesByReportId.has(message.report_id)) {
+              reportNamesByReportId.set(message.report_id, productName);
+            }
+            if (!reportNamesBySessionId.has(message.session_id)) {
+              reportNamesBySessionId.set(message.session_id, productName);
+            }
+          });
+        }
+      }
+
+      const outfitClosetIds = collectDecisionOutfitClosetIds(rows);
+      if (outfitClosetIds.length) {
+        const { data: closetImageData, error: closetImageError } = await supabase
+          .from("closet_items")
+          .select(
+            "id,image_path,processed_image_path,display_image_path,summary,category,color,style_tags,scenario_tags",
+          )
+          .eq("user_id", userId)
+          .in("id", outfitClosetIds);
+
+        if (closetImageError) {
+          console.error(closetImageError);
+        } else {
+          await Promise.all(
+            ((closetImageData ?? []) as unknown as DecisionClosetImageRow[]).map(async (closetItem) => {
+              const imagePath =
+                closetItem.display_image_path ??
+                closetItem.processed_image_path ??
+                closetItem.image_path;
+              const imageUrl = await createStorageSignedUrl(supabase, "closet-images", imagePath);
+
+              closetImagesById.set(closetItem.id, {
+                imageUrl,
+                name: closetItem.summary ?? undefined,
+                category: closetItem.category ?? undefined,
+                tags: [
+                  ...(closetItem.style_tags ?? []),
+                  ...(closetItem.scenario_tags ?? []),
+                  closetItem.color ?? "",
+                ].filter(Boolean).slice(0, 4),
+              });
+            }),
+          );
+        }
+      }
+
       const mappedItems = await Promise.all(
-        ((data ?? []) as unknown as DecisionItemRow[]).map(async (item) => {
+        rows.map(async (item) => {
           const candidate = item.candidate;
           const imageUrl = await createStorageSignedUrl(
             supabase,
             "purchase-screenshots",
             candidate?.screenshot_path,
           );
-          const price = Number(candidate?.estimated_price ?? 0);
-          const productName =
-            candidate?.summary || candidate?.category || item.snapshot_summary || "咨询商品";
+          const priceKnown = isKnownDecisionPrice(candidate?.estimated_price);
+          const price = priceKnown ? Number(candidate?.estimated_price) : 0;
+          const reportProductName =
+            (item.report_id ? reportNamesByReportId.get(item.report_id) : undefined) ??
+            (item.session_id ? reportNamesBySessionId.get(item.session_id) : undefined);
+          const productName = createDecisionProductName(
+            reportProductName ?? candidate?.product_name,
+            candidate?.summary,
+            candidate?.color,
+            candidate?.category,
+          );
+          const outfitCombinations = Array.isArray(item.report?.outfit_combinations)
+            ? hydrateDecisionOutfitImages(item.report.outfit_combinations, closetImagesById)
+            : [];
 
           return {
             id: item.id,
+            candidateId: candidate?.id ?? undefined,
+            reportId: item.report_id ?? item.report?.id ?? undefined,
+            sessionId: item.session_id ?? undefined,
             productName,
-            merchant: "AI 决策记录",
-            price: Number.isFinite(price) ? price : 0,
+            merchant: "",
+            price,
+            priceKnown,
             status: item.status,
             color: candidate?.color ?? "待确认",
-            size: "待确认",
+            size: item.size_label ?? "待确认",
             summary: item.snapshot_summary ?? "已保存一次购买决策，建议后续结合真实穿着场景复盘。",
             outfitTips: item.snapshot_outfit_tips?.length
               ? item.snapshot_outfit_tips
               : ["回看当时的搭配证据", "结合已有衣橱判断复用率"],
+            outfitCombinations,
             risks: item.snapshot_risks?.length
               ? item.snapshot_risks
               : ["信息不足时建议先收藏观察"],
@@ -1571,6 +1772,12 @@ export default function Home() {
       userClosetItems,
       signedImageUrl,
     );
+    const restoredCandidateId =
+      latestAssistantMessage?.candidate_id ?? latestUserMessage?.candidate_id ?? undefined;
+    const restoredReportId = latestAssistantMessage?.report_id ?? latestUserMessage?.report_id ?? undefined;
+    const savedDecisionStatus = restoredCandidateId
+      ? decisionItems.find((item) => item.candidateId === restoredCandidateId)?.status
+      : undefined;
 
     setActiveChatId(sessionId);
     setChatState({
@@ -1579,9 +1786,9 @@ export default function Home() {
       purchaseImageDataUrl: signedImageUrl,
       purchaseImageName: latestUserMessage?.metadata?.imageName as string | undefined,
       assessment: hydratedReport ?? null,
-      candidateId:
-        latestAssistantMessage?.candidate_id ?? latestUserMessage?.candidate_id ?? undefined,
-      reportId: latestAssistantMessage?.report_id ?? latestUserMessage?.report_id ?? undefined,
+      selectedDecisionStatus: hydratedReport ? (savedDecisionStatus ?? "saved_for_later") : undefined,
+      candidateId: restoredCandidateId,
+      reportId: restoredReportId,
       error: "",
       notice: "",
     });
@@ -1592,10 +1799,17 @@ export default function Home() {
     if (!user) return;
 
     setChatSessions((sessions) => sessions.filter((session) => session.id !== sessionId));
+    setDecisionItems((items) => items.filter((item) => item.sessionId !== sessionId));
     if (activeChatId === sessionId) {
       setActiveChatId(undefined);
       setChatState(createEmptyChatState());
     }
+
+    const { error: decisionDeleteError } = await supabase
+      .from("decision_items")
+      .delete()
+      .eq("session_id", sessionId)
+      .eq("user_id", user.id);
 
     const { error } = await supabase
       .from("chat_sessions")
@@ -1606,13 +1820,14 @@ export default function Home() {
       .eq("id", sessionId)
       .eq("user_id", user.id);
 
-    if (error) {
+    if (decisionDeleteError || error) {
       setChatState((current) => ({
         ...current,
-        error: `删除对话失败：${error.message}`,
+        error: `删除对话失败：${decisionDeleteError?.message ?? error?.message}`,
         notice: "",
       }));
       await loadChatSessions(user.id);
+      await loadDecisionItems(user.id);
     }
   }
 
@@ -1702,6 +1917,139 @@ export default function Home() {
     }
   }
 
+  async function deleteDecisionItemsWithChats(ids: string[]) {
+    if (!user || !ids.length) return;
+
+    const targetItems = decisionItems.filter((item) => ids.includes(item.id));
+    const sessionIds = Array.from(
+      new Set(targetItems.map((item) => item.sessionId).filter((id): id is string => Boolean(id))),
+    );
+    const targetIdSet = new Set(ids);
+    const sessionIdSet = new Set(sessionIds);
+
+    setDecisionItems((items) =>
+      items.filter((item) => !targetIdSet.has(item.id) && !(item.sessionId && sessionIdSet.has(item.sessionId))),
+    );
+    if (sessionIds.length) {
+      setChatSessions((sessions) => sessions.filter((session) => !sessionIdSet.has(session.id)));
+    }
+    if (activeChatId && sessionIdSet.has(activeChatId)) {
+      setActiveChatId(undefined);
+      setChatState(createEmptyChatState());
+    }
+
+    const errors: string[] = [];
+
+    const { error: selectedDeleteError } = await supabase
+      .from("decision_items")
+      .delete()
+      .in("id", ids)
+      .eq("user_id", user.id);
+    if (selectedDeleteError) errors.push(selectedDeleteError.message);
+
+    if (sessionIds.length) {
+      const { error: sessionDecisionDeleteError } = await supabase
+        .from("decision_items")
+        .delete()
+        .in("session_id", sessionIds)
+        .eq("user_id", user.id);
+      if (sessionDecisionDeleteError) errors.push(sessionDecisionDeleteError.message);
+
+      const { error: sessionArchiveError } = await supabase
+        .from("chat_sessions")
+        .update({
+          status: "archived",
+          updated_at: new Date().toISOString(),
+        })
+        .in("id", sessionIds)
+        .eq("user_id", user.id);
+      if (sessionArchiveError) errors.push(sessionArchiveError.message);
+    }
+
+    if (errors.length) {
+      setChatState((current) => ({
+        ...current,
+        error: `删除清单失败：${errors[0]}`,
+        notice: "",
+      }));
+      await loadDecisionItems(user.id);
+      await loadChatSessions(user.id);
+    }
+  }
+
+  async function updateDecisionDetails(
+    id: string,
+    patch: Partial<{ price: number | null; color: string; size: string }>,
+  ) {
+    const currentItem = decisionItems.find((item) => item.id === id);
+    if (!currentItem) return;
+
+    const nextColor = patch.color !== undefined ? patch.color.trim() || "待确认" : undefined;
+    const nextSize = patch.size !== undefined ? patch.size.trim() || "待确认" : undefined;
+    const nextPrice = patch.price !== undefined ? patch.price : undefined;
+
+    setDecisionItems((items) =>
+      items.map((item) =>
+        item.id === id
+          ? {
+              ...item,
+              ...(nextPrice !== undefined
+                ? { price: nextPrice ?? 0, priceKnown: nextPrice !== null }
+                : {}),
+              ...(nextColor !== undefined ? { color: nextColor, palette: getPaletteByColor(nextColor) } : {}),
+              ...(nextSize !== undefined ? { size: nextSize } : {}),
+            }
+          : item,
+      ),
+    );
+
+    if (!user) return;
+
+    const now = new Date().toISOString();
+    const errors: unknown[] = [];
+
+    const candidateUpdates: Record<string, unknown> = {};
+    if (nextPrice !== undefined) candidateUpdates.estimated_price = nextPrice;
+    if (nextColor !== undefined) candidateUpdates.color = nextColor;
+
+    if (Object.keys(candidateUpdates).length && currentItem.candidateId) {
+      const { error } = await supabase
+        .from("purchase_candidates")
+        .update({ ...candidateUpdates, updated_at: now })
+        .eq("id", currentItem.candidateId)
+        .eq("user_id", user.id);
+      if (error) errors.push(error);
+    }
+
+    if (nextSize !== undefined) {
+      const { error } = await supabase
+        .from("decision_items")
+        .update({ size_label: nextSize, updated_at: now })
+        .eq("id", id)
+        .eq("user_id", user.id);
+      if (error) errors.push(error);
+    }
+
+    if (errors.length) {
+      console.error(errors);
+      await loadDecisionItems(user.id);
+    }
+  }
+
+  async function openDecisionReport(item: DecisionItem) {
+    if (item.sessionId) {
+      await openChatSession(item.sessionId);
+      return;
+    }
+
+    setView("chat");
+    setChatState((current) => ({
+      ...current,
+      notice: "",
+      error: "这条决策记录暂时没有绑定原始对话，无法打开完整分析。",
+    }));
+  }
+
   if (authLoading) {
     return <LoadingScreen />;
   }
@@ -1774,6 +2122,9 @@ export default function Home() {
               allItems={decisionItems}
               onFilterChange={setFilter}
               onStatusChange={updateDecisionStatus}
+              onDetailsChange={(id, patch) => void updateDecisionDetails(id, patch)}
+              onOpenReport={(item) => void openDecisionReport(item)}
+              onDeleteItems={(ids) => deleteDecisionItemsWithChats(ids)}
             />
           )}
           {activeView === "settings" && (
@@ -2221,7 +2572,7 @@ function ChatView({
       updateChatState({
         message: "",
         assessment: assessmentData.report,
-        selectedDecisionStatus: undefined,
+        selectedDecisionStatus: "saved_for_later",
         candidateId: assessmentData.candidateId,
         reportId: assessmentData.reportId,
         error: "",
@@ -2696,9 +3047,7 @@ function DecisionReportCard({
                 "inline-flex h-14 items-center justify-center gap-3 rounded-[10px] border text-lg font-medium transition disabled:cursor-wait disabled:opacity-70",
                 isSelected
                   ? `${statusConfig[status].tone} border-current shadow-sm`
-                  : status === "decided_to_buy"
-                    ? "border-transparent bg-gradient-to-r from-[#cf6f70] to-[#e6a094] text-white shadow-lg shadow-rose-200/70 hover:scale-[1.01]"
-                    : "border-[#e5b9b0] bg-white text-[#b2605e] hover:bg-[#fbf3ef]",
+                  : "border-[#e5b9b0] bg-white text-[#b2605e] hover:bg-[#fbf3ef]",
               )}
             >
               <LabelIcon className="size-5" />
@@ -3669,13 +4018,26 @@ function DecisionListView({
   allItems,
   onFilterChange,
   onStatusChange,
+  onDetailsChange,
+  onOpenReport,
+  onDeleteItems,
 }: {
   filter: DecisionStatus | "all";
   items: DecisionItem[];
   allItems: DecisionItem[];
   onFilterChange: (filter: DecisionStatus | "all") => void;
   onStatusChange: (id: string, status: DecisionStatus) => void;
+  onDetailsChange: (
+    id: string,
+    patch: Partial<{ price: number | null; color: string; size: string }>,
+  ) => void;
+  onOpenReport: (item: DecisionItem) => void;
+  onDeleteItems: (ids: string[]) => Promise<void>;
 }) {
+  const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
+  const [isManageMode, setIsManageMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [isDeleting, setIsDeleting] = useState(false);
   const counts = {
     all: allItems.length,
     decided_to_buy: allItems.filter((item) => item.status === "decided_to_buy").length,
@@ -3683,16 +4045,57 @@ function DecisionListView({
     not_considering: allItems.filter((item) => item.status === "not_considering").length,
   };
 
+  async function handleDeleteSelected() {
+    if (!selectedIds.length || isDeleting) return;
+    setIsDeleting(true);
+    await onDeleteItems(selectedIds);
+    setSelectedIds([]);
+    setIsManageMode(false);
+    setIsDeleting(false);
+  }
+
+  function toggleSelected(id: string) {
+    setSelectedIds((current) =>
+      current.includes(id) ? current.filter((itemId) => itemId !== id) : [...current, id],
+    );
+  }
+
   return (
     <div className="w-full overflow-y-auto p-7">
       <HeaderInline
         title="决策清单"
         subtitle="管理你咨询过的商品及决策状态，理性复盘，做出更好的购物选择。"
         actions={
-          <button className="inline-flex h-11 items-center gap-2 rounded-[10px] border border-[#ead9d0] px-5 text-[#8b6258]">
-            最近咨询
-            <SlidersHorizontal className="size-4" />
-          </button>
+          isManageMode ? (
+            <>
+              <button
+                disabled={isDeleting}
+                onClick={() => {
+                  setSelectedIds([]);
+                  setIsManageMode(false);
+                }}
+                className="inline-flex h-11 items-center gap-2 rounded-[10px] border border-[#ead9d0] px-5 text-[#8b6258] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                取消
+              </button>
+              <button
+                disabled={!selectedIds.length || isDeleting}
+                onClick={() => void handleDeleteSelected()}
+                className="inline-flex h-11 items-center gap-2 rounded-[10px] bg-[#c75f60] px-5 font-medium text-white shadow-lg shadow-rose-200/60 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Trash2 className="size-4" />
+                {isDeleting ? "删除中" : `确认删除${selectedIds.length ? ` ${selectedIds.length}` : ""}`}
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={() => setIsManageMode(true)}
+              className="inline-flex h-11 items-center gap-2 rounded-[10px] border border-[#ead9d0] px-5 text-[#8b6258]"
+            >
+              管理清单
+              <SlidersHorizontal className="size-4" />
+            </button>
+          )
         }
       />
 
@@ -3721,7 +4124,17 @@ function DecisionListView({
       <div className="mt-5 space-y-4">
         {items.length ? (
           items.map((item) => (
-            <DecisionCard key={item.id} item={item} onStatusChange={onStatusChange} />
+            <DecisionCard
+              key={item.id}
+              item={item}
+              onStatusChange={onStatusChange}
+              onDetailsChange={onDetailsChange}
+              onOpenReport={onOpenReport}
+              onPreviewImage={setPreviewImageUrl}
+              isManageMode={isManageMode}
+              isSelected={selectedIds.includes(item.id)}
+              onToggleSelected={() => toggleSelected(item.id)}
+            />
           ))
         ) : (
           <div className="rounded-[16px] border border-dashed border-[#ead9d0] bg-[#fffaf7] p-10 text-center">
@@ -3739,6 +4152,10 @@ function DecisionListView({
       <p className="mt-8 text-center text-sm text-[#a08278]">
         理性消费，长期主义。每一次复盘，都是向更好的自己靠近一步。
       </p>
+
+      {previewImageUrl && (
+        <ImagePreviewDialog imageUrl={previewImageUrl} onClose={() => setPreviewImageUrl(null)} />
+      )}
     </div>
   );
 }
@@ -3746,55 +4163,109 @@ function DecisionListView({
 function DecisionCard({
   item,
   onStatusChange,
+  onDetailsChange,
+  onOpenReport,
+  onPreviewImage,
+  isManageMode,
+  isSelected,
+  onToggleSelected,
 }: {
   item: DecisionItem;
   onStatusChange: (id: string, status: DecisionStatus) => void;
+  onDetailsChange: (
+    id: string,
+    patch: Partial<{ price: number | null; color: string; size: string }>,
+  ) => void;
+  onOpenReport: (item: DecisionItem) => void;
+  onPreviewImage: (imageUrl: string) => void;
+  isManageMode: boolean;
+  isSelected: boolean;
+  onToggleSelected: () => void;
 }) {
   const StatusIcon = statusConfig[item.status].icon;
   return (
-    <article className="rounded-[16px] border border-[#ead9d0] bg-white p-4">
-      <div className="grid gap-5 xl:grid-cols-[180px_1fr_1fr_1fr]">
+    <article
+      className={cn(
+        "relative rounded-[16px] border bg-white p-4 shadow-[0_14px_40px_rgba(92,55,42,0.05)] transition",
+        isSelected ? "border-[#cf6f70] bg-[#fff7f4]" : "border-[#ead9d0]",
+        isManageMode ? "pr-16" : "",
+      )}
+    >
+      {isManageMode && (
+        <button
+          type="button"
+          onClick={onToggleSelected}
+          className={cn(
+            "absolute right-5 top-5 flex size-9 items-center justify-center rounded-full border transition",
+            isSelected
+              ? "border-[#cf6f70] bg-[#cf6f70] text-white shadow-md shadow-rose-200/60"
+              : "border-[#e5c6bd] bg-white text-[#c28b82] hover:bg-[#fbf0ec]",
+          )}
+          aria-label={isSelected ? "取消选择该清单项" : "选择该清单项"}
+        >
+          {isSelected && <Check className="size-5" />}
+        </button>
+      )}
+      <div className="grid gap-5 xl:grid-cols-[220px_minmax(260px,0.9fr)_minmax(380px,1.15fr)]">
         <div className="flex gap-4 xl:block">
           {item.imageUrl ? (
-            <div
-              className="h-40 w-36 rounded-[12px] bg-[#f8f3ef] bg-cover bg-center xl:w-full"
+            <button
+              type="button"
+              onClick={() => onPreviewImage(item.imageUrl as string)}
+              className="h-44 w-36 rounded-[12px] bg-[#f8f3ef] bg-cover bg-center text-left transition hover:scale-[1.01] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#cf6f70] xl:w-full"
               style={{ backgroundImage: `url(${item.imageUrl})` }}
+              aria-label="查看商品图片大图"
             />
           ) : (
-            <MockProductImage palette={item.palette} className="h-40 w-36 xl:w-full" />
+            <MockProductImage palette={item.palette} className="h-44 w-36 xl:w-full" />
           )}
-          <div className="xl:mt-4">
-            <h3 className="text-lg font-semibold text-[#3d281f]">{item.productName}</h3>
-            <p className="mt-1 text-sm text-[#8b6258]">{item.merchant}</p>
-            <p className="mt-3 text-2xl font-semibold text-[#3d281f]">¥{item.price}</p>
-            <p className="mt-2 text-sm text-[#8b6258]">颜色：{item.color}　尺码：{item.size}</p>
+          <div className="min-w-0 flex-1 xl:mt-4">
+            <h3 className="line-clamp-2 text-lg font-semibold leading-7 text-[#3d281f]">
+              {item.productName}
+            </h3>
+            <div className="mt-4 space-y-3">
+              <EditableDecisionField
+                label="价格"
+                prefix="¥"
+                value={item.priceKnown ? String(item.price) : ""}
+                placeholder="价格"
+                inputMode="decimal"
+                muted={!item.priceKnown}
+                size="price"
+                onCommit={(value) =>
+                  onDetailsChange(item.id, { price: parseDecisionPriceInput(value) })
+                }
+              />
+              <div className="grid grid-cols-2 gap-3">
+                <EditableDecisionField
+                  label="颜色"
+                  value={item.color === "待确认" ? "" : item.color}
+                  placeholder="待确认"
+                  onCommit={(value) => onDetailsChange(item.id, { color: value })}
+                />
+                <EditableDecisionField
+                  label="尺码"
+                  value={item.size === "待确认" ? "" : item.size}
+                  placeholder="待确认"
+                  onCommit={(value) => onDetailsChange(item.id, { size: value })}
+                />
+              </div>
+            </div>
           </div>
         </div>
         <div className="border-l border-[#f0e1da] pl-5">
           <p className="font-medium text-[#3d281f]">AI 建议总结</p>
           <p className="mt-3 leading-7 text-[#7b5b51]">{item.summary}</p>
-          <button className="mt-4 text-sm text-[#b2605e]">查看完整分析 &gt;</button>
+          <button
+            onClick={() => onOpenReport(item)}
+            className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-[#b2605e] transition hover:text-[#8f4748]"
+          >
+            查看完整分析
+            <ChevronRight className="size-4" />
+          </button>
         </div>
         <div className="border-l border-[#f0e1da] pl-5">
-          <p className="font-medium text-[#3d281f]">核心搭配建议</p>
-          <div className="mt-3 flex flex-wrap gap-2">
-            {item.outfitTips.slice(0, 4).map((tip) => (
-              <span
-                key={tip}
-                className="rounded-full bg-[#f8efea] px-3 py-1.5 text-sm leading-6 text-[#7b5b51]"
-              >
-                {tip}
-              </span>
-            ))}
-          </div>
-        </div>
-        <div className="border-l border-[#f0e1da] pl-5">
-          <p className="font-medium text-[#3d281f]">主要风险提醒</p>
-          <ul className="mt-3 space-y-2 text-sm leading-6 text-[#7b5b51]">
-            {item.risks.map((risk) => (
-              <li key={risk}>· {risk}</li>
-            ))}
-          </ul>
+          <DecisionOutfitPreview item={item} onPreviewImage={onPreviewImage} />
         </div>
       </div>
 
@@ -3816,7 +4287,12 @@ function DecisionCard({
             <button
               key={status}
               onClick={() => onStatusChange(item.id, status)}
-              className="rounded-[10px] border border-[#ead9d0] px-3 py-2 text-sm text-[#7b5b51] transition hover:bg-[#fbf3ef]"
+              className={cn(
+                "rounded-[10px] border px-3 py-2 text-sm transition",
+                status === item.status
+                  ? statusConfig[status].tone
+                  : "border-[#ead9d0] text-[#7b5b51] hover:bg-[#fbf3ef]",
+              )}
             >
               {statusConfig[status].label}
             </button>
@@ -3824,6 +4300,223 @@ function DecisionCard({
         </div>
       </div>
     </article>
+  );
+}
+
+function ImagePreviewDialog({
+  imageUrl,
+  onClose,
+}: {
+  imageUrl: string;
+  onClose: () => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[#241813]/70 px-6 py-8"
+      role="dialog"
+      aria-modal="true"
+      onClick={onClose}
+    >
+      <div
+        className="relative max-h-[88vh] w-full max-w-3xl rounded-[18px] bg-white p-3 shadow-2xl"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <button
+          type="button"
+          onClick={onClose}
+          className="absolute right-4 top-4 z-10 rounded-full bg-white/90 px-3 py-1.5 text-sm text-[#6e5148] shadow-sm transition hover:bg-[#fbf3ef]"
+        >
+          关闭
+        </button>
+        <div
+          className="h-[78vh] w-full rounded-[12px] bg-[#f8f3ef] bg-contain bg-center bg-no-repeat"
+          style={{ backgroundImage: `url(${imageUrl})` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function EditableDecisionField({
+  label,
+  value,
+  placeholder,
+  prefix,
+  muted,
+  inputMode,
+  size = "normal",
+  onCommit,
+}: {
+  label: string;
+  value: string;
+  placeholder: string;
+  prefix?: string;
+  muted?: boolean;
+  inputMode?: "none" | "text" | "tel" | "url" | "email" | "numeric" | "decimal" | "search";
+  size?: "normal" | "price";
+  onCommit: (value: string) => void;
+}) {
+  const [draft, setDraft] = useState(value);
+
+  function commit() {
+    if (draft.trim() !== value.trim()) {
+      onCommit(draft.trim());
+    }
+  }
+
+  return (
+    <label className="block">
+      <span className="text-xs text-[#a08278]">{label}</span>
+      <span className="group mt-1 flex min-h-9 items-center border-b border-dashed border-[#ead9d0] pb-1 transition focus-within:border-[#d77a79] hover:border-[#d77a79]">
+        {prefix && (
+          <span
+            className={cn(
+              "mr-1 font-semibold",
+              size === "price" ? "text-2xl" : "text-base",
+              muted && !draft ? "text-[#b9a59d]" : "text-[#3d281f]",
+            )}
+          >
+            {prefix}
+          </span>
+        )}
+        <input
+          value={draft}
+          placeholder={placeholder}
+          inputMode={inputMode}
+          onChange={(event) => setDraft(event.target.value)}
+          onBlur={commit}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") event.currentTarget.blur();
+          }}
+          className={cn(
+            "min-w-0 flex-1 bg-transparent outline-none placeholder:text-[#b9a59d]",
+            muted && !draft ? "text-[#b9a59d]" : "text-[#3d281f]",
+            size === "price" ? "text-2xl font-semibold" : "text-sm font-medium",
+          )}
+        />
+      </span>
+    </label>
+  );
+}
+
+function DecisionOutfitPreview({
+  item,
+  onPreviewImage,
+}: {
+  item: DecisionItem;
+  onPreviewImage: (imageUrl: string) => void;
+}) {
+  const outfits =
+    item.outfitCombinations
+      ?.map((outfit) => ({
+        ...outfit,
+        visualItems: (outfit.visualItems ?? []).filter(
+          (visualItem) =>
+            visualItem.name !== item.productName &&
+            !/待买|候选|本次|商品/.test(`${visualItem.role ?? ""}${visualItem.badge ?? ""}`),
+        ),
+      }))
+      .filter((outfit) => outfit.visualItems.length) ?? [];
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  if (!outfits.length) {
+    return (
+      <div>
+        <p className="font-medium text-[#3d281f]">搭配卡片</p>
+        <div className="mt-3 rounded-[14px] border border-dashed border-[#ead9d0] bg-[#fffaf7] p-5 text-sm leading-6 text-[#8b6258]">
+          这条记录暂时没有保存可视化搭配卡。可以点击完整分析回到原对话查看当时的建议。
+        </div>
+      </div>
+    );
+  }
+
+  const currentIndex = Math.min(activeIndex, outfits.length - 1);
+  const outfit = outfits[currentIndex];
+
+  return (
+    <div>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="font-medium text-[#3d281f]">核心搭配卡</p>
+          <p className="mt-1 text-xs text-[#a08278]">
+            第 {currentIndex + 1} / {outfits.length} 套 · {outfit.scenario || "日常搭配"}
+          </p>
+        </div>
+        {outfits.length > 1 && (
+          <div className="flex shrink-0 gap-2">
+            <button
+              onClick={() => setActiveIndex((index) => (index - 1 + outfits.length) % outfits.length)}
+              className="rounded-full border border-[#ead9d0] px-3 py-1.5 text-xs text-[#8b6258] transition hover:bg-[#fbf3ef]"
+            >
+              上一套
+            </button>
+            <button
+              onClick={() => setActiveIndex((index) => (index + 1) % outfits.length)}
+              className="rounded-full border border-[#ead9d0] px-3 py-1.5 text-xs text-[#8b6258] transition hover:bg-[#fbf3ef]"
+            >
+              下一套
+            </button>
+          </div>
+        )}
+      </div>
+
+      <div className="relative mt-3">
+        {outfits.length > 1 && (
+          <>
+            <div className="absolute inset-x-3 -bottom-2 h-8 rounded-[14px] border border-[#ead9d0] bg-[#f8eee8]" />
+            <div className="absolute inset-x-6 -bottom-4 h-8 rounded-[14px] border border-[#ead9d0] bg-[#f3e4dc]" />
+          </>
+        )}
+        <div className="relative rounded-[14px] border border-[#ead9d0] bg-[#fffaf7] p-3">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="font-medium text-[#3d281f]">{outfit.title}</p>
+              <p className="mt-1 text-xs text-[#a08278]">{outfit.scenario}</p>
+            </div>
+          </div>
+
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            {outfit.visualItems.slice(0, 4).map((visualItem) => (
+              <div key={visualItem.id} className="rounded-[12px] bg-white p-2">
+                <div className="flex gap-2">
+                  {visualItem.imageUrl ? (
+                    <button
+                      type="button"
+                      onClick={() => onPreviewImage(visualItem.imageUrl as string)}
+                      className="h-20 w-16 shrink-0 rounded-[10px] bg-[#f3ebe5] bg-cover bg-center transition hover:scale-[1.03] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#cf6f70]"
+                      style={{ backgroundImage: `url(${visualItem.imageUrl})` }}
+                      aria-label={`查看${visualItem.name}大图`}
+                    />
+                  ) : (
+                    <MockProductImage palette={getPaletteByColor(visualItem.name)} className="h-20 w-16 shrink-0" />
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <span className="inline-flex rounded-full bg-[#fbf0ec] px-2 py-0.5 text-[11px] text-[#8b6258]">
+                      {visualItem.role ?? visualItem.badge ?? "可搭单品"}
+                    </span>
+                    <p className="mt-1 truncate text-sm font-semibold text-[#3d281f]">
+                      {visualItem.name}
+                    </p>
+                    <p className="text-xs text-[#8b6258]">{visualItem.category}</p>
+                  </div>
+                </div>
+                {visualItem.reason && (
+                  <p className="mt-2 line-clamp-2 text-xs leading-5 text-[#7b5b51]">
+                    {visualItem.reason}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {outfit.summary && (
+            <p className="mt-3 rounded-[10px] bg-white px-3 py-2 text-xs leading-5 text-[#7b5b51]">
+              {outfit.summary}
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 

@@ -59,16 +59,39 @@ export type OutfitIdea = {
   summary: string;
 };
 
+export type DecisionOutfitItem = {
+  id: string;
+  name: string;
+  category: string;
+  imageUrl?: string;
+  role?: string;
+  badge?: string;
+  reason?: string;
+  tags?: string[];
+};
+
+export type DecisionOutfitCombination = {
+  title: string;
+  scenario: string;
+  summary: string;
+  visualItems?: DecisionOutfitItem[];
+};
+
 export type DecisionItem = {
   id: string;
+  candidateId?: string;
+  reportId?: string;
+  sessionId?: string;
   productName: string;
   merchant: string;
   price: number;
+  priceKnown?: boolean;
   status: DecisionStatus;
   color: string;
   size: string;
   summary: string;
   outfitTips: string[];
+  outfitCombinations?: DecisionOutfitCombination[];
   risks: string[];
   lastAskedAt: string;
   reminderAt?: string;

@@ -5,12 +5,14 @@ import { Annotation, END, START, StateGraph } from "@langchain/langgraph";
 import { closetItems as mockClosetItems } from "@/lib/mock-data";
 import type { ClothingItem } from "@/lib/types";
 import type {
+  CandidateWearRole,
   ClosetMatch,
   OutfitCombination,
   PurchaseAssessmentRequest,
   PurchaseCandidateAIProfile,
   PurchaseDecisionReport,
   PurchaseWorkflowState,
+  RetrievalSlot,
 } from "@/lib/ai/types";
 import { retrieveFashionKnowledge } from "@/lib/ai/knowledge";
 import { buildPurchaseEmbeddingText } from "@/lib/ai/purchase-analysis";
@@ -35,6 +37,31 @@ const PurchaseState = Annotation.Root({
 });
 
 type GraphState = typeof PurchaseState.State;
+type InternalCategoryGroup = "top" | "outer" | "bottom" | "onepiece" | "unknown";
+type RetrievalSlotDefinition = {
+  slot: RetrievalSlot;
+  role: string;
+  itemGroups: InternalCategoryGroup[];
+  maxItems: number;
+  priority: number;
+  optional?: boolean;
+};
+type RetrievalPlan = {
+  candidateGroup: InternalCategoryGroup;
+  wearRole: CandidateWearRole;
+  slots: RetrievalSlotDefinition[];
+  rejectedModelSlots: RetrievalSlot[];
+  source: "model" | "rule" | "mixed";
+  reason: string;
+};
+
+const SLOT_LABELS: Record<RetrievalSlot, string> = {
+  top: "可搭上衣",
+  inner_top: "可搭内搭",
+  outerwear: "可搭外套",
+  bottom: "可搭下装",
+  onepiece: "可搭连衣裙/套装",
+};
 
 export async function runPurchaseAssessment(request: PurchaseAssessmentRequest) {
   const graph = createPurchaseAssessmentGraph();
@@ -114,8 +141,9 @@ export async function runPurchaseAssessmentTrace(request: PurchaseAssessmentRequ
       candidate: state.candidate ? compactCandidate(state.candidate) : null,
       closetSourceCount: request.closetItems?.length ?? 0,
       hasCandidateEmbedding: Boolean(request.candidateEmbedding?.length),
+      retrievalPlan: state.candidate ? compactRetrievalPlan(buildRetrievalPlan(state.candidate)) : null,
       retrievalRule:
-        "只计算可搭配 outfit 候选分数，返回 Top K 作为候选证据；Top K 不等于最终搭配，决策模型需要二次筛选。",
+        "先按待买商品的穿搭角色生成召回槽位，每个槽位分别 Top K，再交给决策模型二次筛选是否真的能成套。",
     },
     () => retrieveCloset(state),
     (_update, nextState) => ({
@@ -275,14 +303,21 @@ async function retrieveCloset(state: GraphState): Promise<Partial<GraphState>> {
     (closetSource.some((item) => item.embedding?.length)
       ? await embedText(candidate.embeddingText ?? buildPurchaseEmbeddingText(candidate))
       : undefined);
+  const retrievalPlan = buildRetrievalPlan(candidate);
 
-  const matches = closetSource
-    .flatMap((item) => scoreClosetItem(item, candidate, candidateEmbedding))
-    .filter((match) => match.matchType === "outfit")
-    .filter((match) => match.score >= 28)
-    .sort((a, b) => b.score - a.score);
+  const matches = retrievalPlan.slots.flatMap((slot) => {
+    const slotMatches = closetSource
+      .map((item) => scoreClosetItem(item, candidate, slot, retrievalPlan, candidateEmbedding))
+      .filter((match): match is ClosetMatch => Boolean(match))
+      .filter((match) => match.score >= 34)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, slot.maxItems);
 
-  const outfitMatches = uniqueByItem(matches.filter((match) => match.matchType === "outfit")).slice(0, 8);
+    return slotMatches;
+  });
+  const outfitMatches = uniqueByItem(matches)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 8);
 
   return {
     closetMatches: outfitMatches.map(sanitizeMatch),
@@ -605,17 +640,51 @@ export function parseCandidateFromMessage(message: string): PurchaseCandidateAIP
     ...(trimmedMessage.includes("约会") ? ["约会"] : []),
     "日常",
   ];
+  const categoryGroup = toPublicCategoryGroup(classifyCategory(category));
+  const wearRole = inferWearRole(
+    {
+      productName: "待确认商品",
+      category,
+      color,
+      fit,
+      styleTags: [],
+      possibleScenarios,
+      sellingPoints: [],
+      summary: "",
+    },
+    classifyCategory(category),
+  );
+  const retrievalSlots = ruleSlotsForCandidate(
+    {
+      productName: "待确认商品",
+      category,
+      color,
+      fit,
+      styleTags: [],
+      possibleScenarios,
+      sellingPoints: [],
+      summary: "",
+      wearRole,
+    },
+    classifyCategory(category),
+    wearRole,
+  ).map((slot) => slot.slot);
   const productName =
     color !== "unknown" && category !== "待确认品类" ? `${color}${category}` : "待确认商品";
   const candidate = {
     productName,
     category,
+    categoryGroup,
     color,
     fit,
     styleTags: trimmedMessage ? ["简约", possibleScenarios.includes("通勤") ? "通勤" : "休闲"] : ["待确认"],
     possibleScenarios: Array.from(new Set(possibleScenarios)),
     estimatedPrice,
     sellingPoints: trimmedMessage ? ["基础款", "易搭配", "可覆盖多个场景"] : ["截图识别失败，等待补充信息"],
+    wearRole,
+    retrievalSlots,
+    retrievalSlotReason: "根据文字描述和保守品类规则生成召回槽位，图片识别结果不足时用于兜底判断。",
+    ambiguityFlags: category === "待确认品类" ? ["category_uncertain"] : [],
     summary:
       color !== "unknown" && category !== "待确认品类"
         ? `候选商品是${color}${category}，版型${fit === "unknown" ? "待确认" : fit === "oversized" ? "偏宽松" : fit === "slim" ? "偏修身" : "常规"}。`
@@ -632,10 +701,18 @@ export function parseCandidateFromMessage(message: string): PurchaseCandidateAIP
 function scoreClosetItem(
   item: ClothingItem,
   candidate: PurchaseCandidateAIProfile,
+  slot: RetrievalSlotDefinition,
+  retrievalPlan: RetrievalPlan,
   candidateEmbedding?: number[],
-): ClosetMatch[] {
+): ClosetMatch | null {
   const itemGroup = classifyCategory(item.category);
-  const candidateGroup = classifyCategory(candidate.category);
+  const candidateGroup = retrievalPlan.candidateGroup;
+  const slotCompatibility = slotMatchesItem(slot, item);
+
+  if (!slotCompatibility.compatible) {
+    return null;
+  }
+
   const styleOverlap = overlapCount(item.styleTags, candidate.styleTags);
   const scenarioOverlap = overlapCount(item.scenarioTags, candidate.possibleScenarios);
   const seasonOverlap = overlapCount(item.seasonTags ?? [], ["all-season", "spring", "summer", "autumn", "winter"]);
@@ -650,15 +727,16 @@ function scoreClosetItem(
     item.wearFrequency === "often" ? 10 : item.wearFrequency === "sometimes" ? 6 : item.wearFrequency === "rarely" ? 1 : 3;
   const userCorrectedScore = item.userCorrected === false ? -4 : 3;
   const complementScore = categoryComplementScore(candidateGroup, itemGroup);
-  const compatibility = outfitCompatibility(candidate, item);
-
-  if (!compatibility.compatible) {
-    return [];
-  }
+  const requiredSlotScore = slot.optional ? 0 : 8;
+  const roleScore = slot.priority;
+  const uncertaintyPenalty = retrievalPlan.wearRole === "unknown" || candidate.category === "待确认品类" ? 8 : 0;
+  const role = getSlotRoleForItem(slot, item);
 
   const outfitScore =
-    34 +
+    26 +
     complementScore +
+    roleScore +
+    requiredSlotScore +
     colorPoints +
     styleOverlap * 8 +
     scenarioOverlap * 7 +
@@ -666,16 +744,17 @@ function scoreClosetItem(
     frequencyScore +
     userCorrectedScore +
     semanticPoints -
-    (sameGroup && sameColor ? 10 : 0);
+    (sameGroup && sameColor ? 8 : 0) -
+    uncertaintyPenalty;
 
-  return [
-    {
-      item,
-      matchType: "outfit",
-      score: clampScore(outfitScore),
-      reason: buildMatchReason("outfit", item, candidate, semantic, compatibility.role),
-    },
-  ];
+  return {
+    item,
+    matchType: "outfit",
+    score: clampScore(outfitScore),
+    reason: buildMatchReason("outfit", item, candidate, semantic, role),
+    slot: slot.slot,
+    role,
+  };
 }
 
 function createFallbackReport(
@@ -855,7 +934,7 @@ function hydrateOutfitCombinations(
 }
 
 function getEvidenceRole(match: ClosetMatch, candidate: PurchaseCandidateAIProfile) {
-  return outfitCompatibility(candidate, match.item).role;
+  return match.role ?? outfitCompatibility(candidate, match.item).role;
 }
 
 function buildOutfitSummary(candidate: PurchaseCandidateAIProfile, matches: ClosetMatch[]) {
@@ -890,6 +969,7 @@ function buildDecisionPrompt(state: GraphState, fallbackReport: PurchaseDecision
     userMessage: state.request.message,
     userProfile: state.request.userProfile,
     candidate: compactCandidate(state.candidate ?? fallbackReport.candidate),
+    retrievalPlan: compactRetrievalPlan(buildRetrievalPlan(state.candidate ?? fallbackReport.candidate)),
     closetEvidence: state.closetMatches.slice(0, 6).map(compactClosetMatch),
     knowledge: state.knowledgeSnippets.slice(0, 5).map(compactKnowledgeSnippet),
     draftReport: compactDraftReport(fallbackReport),
@@ -902,12 +982,19 @@ function compactCandidate(candidate: PurchaseCandidateAIProfile) {
   return {
     productName: candidate.productName,
     category: candidate.category,
+    categoryGroup: candidate.categoryGroup,
+    itemCategoryId: candidate.itemCategoryId,
     color: candidate.color,
     fit: candidate.fit,
     styleTags: candidate.styleTags,
     possibleScenarios: candidate.possibleScenarios,
     estimatedPrice: candidate.estimatedPrice,
     sellingPoints: candidate.sellingPoints.slice(0, 4),
+    wearRole: candidate.wearRole,
+    retrievalSlots: candidate.retrievalSlots,
+    retrievalSlotReason: candidate.retrievalSlotReason,
+    avoidSlots: candidate.avoidSlots,
+    ambiguityFlags: candidate.ambiguityFlags,
     summary: candidate.summary,
   };
 }
@@ -916,6 +1003,8 @@ function compactClosetMatch(match: ClosetMatch) {
   return {
     matchType: match.matchType,
     score: match.score,
+    slot: match.slot,
+    role: match.role,
     reason: match.reason,
     item: {
       id: match.item.id,
@@ -927,6 +1016,22 @@ function compactClosetMatch(match: ClosetMatch) {
       scenarioTags: match.item.scenarioTags.slice(0, 3),
       wearFrequency: match.item.wearFrequency,
     },
+  };
+}
+
+function compactRetrievalPlan(plan: RetrievalPlan) {
+  return {
+    candidateGroup: plan.candidateGroup,
+    wearRole: plan.wearRole,
+    source: plan.source,
+    reason: plan.reason,
+    slots: plan.slots.map((slot) => ({
+      slot: slot.slot,
+      role: slot.role,
+      maxItems: slot.maxItems,
+      optional: Boolean(slot.optional),
+    })),
+    rejectedModelSlots: plan.rejectedModelSlots,
   };
 }
 
@@ -995,6 +1100,204 @@ function summarizeMatchesByType(matches: ClosetMatch[]) {
   });
 }
 
+function buildRetrievalPlan(candidate: PurchaseCandidateAIProfile): RetrievalPlan {
+  const candidateGroup = normalizeCandidateGroup(candidate);
+  const wearRole = candidate.wearRole ?? inferWearRole(candidate, candidateGroup);
+  const ruleSlots = ruleSlotsForCandidate(candidate, candidateGroup, wearRole);
+  const allowedSlotNames = new Set(ruleSlots.map((slot) => slot.slot));
+  const avoidSlots = new Set(candidate.avoidSlots ?? []);
+  const modelSlots = uniqueSlots(candidate.retrievalSlots ?? []);
+  const acceptedModelSlotNames = modelSlots.filter(
+    (slot) => allowedSlotNames.has(slot) && !avoidSlots.has(slot),
+  );
+  const rejectedModelSlots = modelSlots.filter(
+    (slot) => !allowedSlotNames.has(slot) || avoidSlots.has(slot),
+  );
+  const selectedSlotNames = acceptedModelSlotNames.length
+    ? acceptedModelSlotNames
+    : ruleSlots.filter((slot) => !avoidSlots.has(slot.slot)).map((slot) => slot.slot);
+  const selectedSlots = selectedSlotNames
+    .map((slotName) => ruleSlots.find((slot) => slot.slot === slotName))
+    .filter((slot): slot is RetrievalSlotDefinition => Boolean(slot));
+  const seededByRuleFallback = candidate.retrievalSlotReason?.includes("保守品类规则");
+  const source = seededByRuleFallback
+    ? "rule"
+    : acceptedModelSlotNames.length && rejectedModelSlots.length
+      ? "mixed"
+      : acceptedModelSlotNames.length
+        ? "model"
+        : "rule";
+
+  return {
+    candidateGroup,
+    wearRole,
+    slots: selectedSlots.length ? selectedSlots : ruleSlots,
+    rejectedModelSlots,
+    source,
+    reason: candidate.retrievalSlotReason ?? describeRetrievalPlan(candidate, wearRole, selectedSlots),
+  };
+}
+
+function ruleSlotsForCandidate(
+  candidate: PurchaseCandidateAIProfile,
+  candidateGroup: InternalCategoryGroup,
+  wearRole: CandidateWearRole,
+) {
+  if (wearRole === "standalone_top") {
+    return [
+      slotDefinition("bottom", 4, 24),
+      slotDefinition("outerwear", 2, 12, true),
+    ];
+  }
+
+  if (wearRole === "layerable_top") {
+    return [
+      slotDefinition("inner_top", 3, 22),
+      slotDefinition("bottom", 4, 22),
+      slotDefinition("outerwear", 2, 8, true),
+    ];
+  }
+
+  if (wearRole === "inner_layer") {
+    return [
+      slotDefinition("outerwear", 4, 24),
+      slotDefinition("bottom", 3, 18),
+    ];
+  }
+
+  if (wearRole === "outer_layer" || wearRole === "functional_outer") {
+    return [
+      slotDefinition("inner_top", 4, 24),
+      slotDefinition("bottom", 4, 22),
+      slotDefinition("onepiece", 2, 14, true),
+    ];
+  }
+
+  if (wearRole === "bottom") {
+    return [
+      slotDefinition("top", 4, 24),
+      slotDefinition("outerwear", 2, 12, true),
+    ];
+  }
+
+  if (wearRole === "onepiece") {
+    const canLayerInside = /吊带裙|吊带连衣裙|背心裙|无袖/.test(candidate.category);
+    return [
+      slotDefinition("outerwear", 4, 24),
+      ...(canLayerInside ? [slotDefinition("inner_top", 2, 14, true)] : []),
+    ];
+  }
+
+  if (wearRole === "set") {
+    return [slotDefinition("outerwear", 2, 10, true)];
+  }
+
+  if (candidateGroup === "top") return ruleSlotsForCandidate(candidate, candidateGroup, "standalone_top");
+  if (candidateGroup === "outer") return ruleSlotsForCandidate(candidate, candidateGroup, "outer_layer");
+  if (candidateGroup === "bottom") return ruleSlotsForCandidate(candidate, candidateGroup, "bottom");
+  if (candidateGroup === "onepiece") return ruleSlotsForCandidate(candidate, candidateGroup, "onepiece");
+  return [];
+}
+
+function slotDefinition(
+  slot: RetrievalSlot,
+  maxItems: number,
+  priority: number,
+  optional = false,
+): RetrievalSlotDefinition {
+  const itemGroups: Record<RetrievalSlot, InternalCategoryGroup[]> = {
+    top: ["top"],
+    inner_top: ["top"],
+    outerwear: ["outer"],
+    bottom: ["bottom"],
+    onepiece: ["onepiece"],
+  };
+
+  return {
+    slot,
+    role: SLOT_LABELS[slot],
+    itemGroups: itemGroups[slot],
+    maxItems,
+    priority,
+    optional,
+  };
+}
+
+function slotMatchesItem(slot: RetrievalSlotDefinition, item: ClothingItem) {
+  const itemGroup = classifyCategory(item.category);
+  if (!slot.itemGroups.includes(itemGroup)) {
+    return { compatible: false };
+  }
+
+  if (slot.slot === "inner_top") {
+    const isTooOuterLike = /外套|大衣|风衣|夹克|冲锋衣|防晒衣|雨衣|雨壳|软壳|硬壳|抓绒|羽绒|棉服/.test(item.category);
+    return { compatible: !isTooOuterLike };
+  }
+
+  return { compatible: true };
+}
+
+function getSlotRoleForItem(slot: RetrievalSlotDefinition, item: ClothingItem) {
+  if (slot.slot === "bottom") {
+    if (isSkirtCategory(item.category)) return "可搭裙装";
+    if (isPantsCategory(item.category)) return "可搭裤装";
+  }
+
+  return slot.role;
+}
+
+function isSkirtCategory(category: string) {
+  return /半身裙|短裙|长裙|A字裙|铅笔裙|百褶裙|伞裙|包臀裙|裙装/.test(category);
+}
+
+function isPantsCategory(category: string) {
+  return /裤|长裤|短裤|牛仔裤|直筒|阔腿|西装裤|休闲裤|工装裤|户外裤|运动裤|卫裤|瑜伽裤|鲨鱼裤|打底裤|皮裤|裙裤/.test(category);
+}
+
+function normalizeCandidateGroup(candidate: PurchaseCandidateAIProfile): InternalCategoryGroup {
+  if (candidate.categoryGroup === "outerwear") return "outer";
+  if (candidate.categoryGroup === "top" || candidate.categoryGroup === "bottom" || candidate.categoryGroup === "onepiece") {
+    return candidate.categoryGroup;
+  }
+  return classifyCategory(candidate.category);
+}
+
+function toPublicCategoryGroup(group: InternalCategoryGroup) {
+  if (group === "outer") return "outerwear";
+  return group;
+}
+
+function inferWearRole(
+  candidate: PurchaseCandidateAIProfile,
+  candidateGroup: InternalCategoryGroup,
+): CandidateWearRole {
+  const category = candidate.category;
+  if (candidateGroup === "outer") {
+    return /冲锋衣|防晒衣|雨衣|雨壳|软壳|硬壳|抓绒|风壳/.test(category)
+      ? "functional_outer"
+      : "outer_layer";
+  }
+  if (candidateGroup === "bottom") return "bottom";
+  if (candidateGroup === "onepiece") return /套装/.test(category) ? "set" : "onepiece";
+  if (/打底|吊带|运动内衣/.test(category)) return "inner_layer";
+  if (/衬衫|开衫|防晒衫|马甲/.test(category)) return "layerable_top";
+  if (candidateGroup === "top") return "standalone_top";
+  return "unknown";
+}
+
+function uniqueSlots(slots: RetrievalSlot[]) {
+  return Array.from(new Set(slots));
+}
+
+function describeRetrievalPlan(
+  candidate: PurchaseCandidateAIProfile,
+  wearRole: CandidateWearRole,
+  slots: RetrievalSlotDefinition[],
+) {
+  const slotLabels = slots.map((slot) => slot.role.replace(/^可搭/, "")).join("、") || "暂无明确槽位";
+  return `待买商品「${candidate.productName}」被判断为 ${wearRole}，优先召回${slotLabels}来验证真实衣橱搭配。`;
+}
+
 function buildMatchReason(
   type: ClosetMatch["matchType"],
   item: ClothingItem,
@@ -1038,48 +1341,18 @@ function categoryComplementScore(candidateGroup: string, itemGroup: string) {
 }
 
 function outfitCompatibility(candidate: PurchaseCandidateAIProfile, item: ClothingItem) {
-  const candidateGroup = classifyCategory(candidate.category);
-  const itemGroup = classifyCategory(item.category);
-  const candidateCategory = candidate.category;
-  const itemCategory = item.category;
+  const retrievalPlan = buildRetrievalPlan(candidate);
+  const matchedSlot = retrievalPlan.slots.find((slot) => slotMatchesItem(slot, item).compatible);
 
-  if (candidateGroup === "unknown" || itemGroup === "unknown") {
+  if (!matchedSlot) {
     return { compatible: false, role: "可搭单品" };
   }
 
-  if (candidateGroup === "top") {
-    if (itemGroup === "bottom") return { compatible: true, role: "可搭裤装" };
-    if (itemGroup === "outer") return { compatible: true, role: "可搭外套" };
-    if (itemGroup === "onepiece") return { compatible: false, role: "可搭裙装" };
-
-    const candidateCanLayerAsOuter = /衬衫|开衫|马甲|防晒衫|针织开衫/.test(candidateCategory);
-    const itemCanBeInner = /背心|吊带|打底|T恤|短袖|长袖/.test(itemCategory);
-    return {
-      compatible: candidateCanLayerAsOuter && itemCanBeInner,
-      role: candidateCanLayerAsOuter ? "可搭内搭" : "可搭上衣",
-    };
-  }
-
-  if (candidateGroup === "outer") {
-    if (itemGroup === "top") return { compatible: true, role: "可搭内搭" };
-    if (itemGroup === "bottom") return { compatible: true, role: "可搭裤装" };
-    if (itemGroup === "onepiece") return { compatible: true, role: "可搭裙装" };
-    return { compatible: false, role: "可搭外套" };
-  }
-
-  if (candidateGroup === "bottom") {
-    if (itemGroup === "top") return { compatible: true, role: "可搭上衣" };
-    if (itemGroup === "outer") return { compatible: true, role: "可搭外套" };
-    return { compatible: false, role: "可搭单品" };
-  }
-
-  if (candidateGroup === "onepiece") {
-    if (itemGroup === "outer") return { compatible: true, role: "可搭外套" };
-    const canLayerInside = /吊带裙|背心裙|无袖/.test(candidateCategory) && /T恤|衬衫|打底/.test(itemCategory);
-    return { compatible: canLayerInside, role: canLayerInside ? "可搭内搭" : "可搭单品" };
-  }
-
-  return { compatible: false, role: "可搭单品" };
+  return {
+    compatible: true,
+    role: matchedSlot.role,
+    slot: matchedSlot.slot,
+  };
 }
 
 function colorHarmonyScore(itemColor: string, candidateColor: string) {

@@ -20,9 +20,26 @@ export type PurchaseAssessmentRequest = {
   previousOutfitCombinations?: OutfitCombination[];
 };
 
+export type CandidateCategoryGroup = "top" | "outerwear" | "bottom" | "onepiece" | "unknown";
+
+export type CandidateWearRole =
+  | "standalone_top"
+  | "layerable_top"
+  | "inner_layer"
+  | "outer_layer"
+  | "functional_outer"
+  | "bottom"
+  | "onepiece"
+  | "set"
+  | "unknown";
+
+export type RetrievalSlot = "top" | "inner_top" | "outerwear" | "bottom" | "onepiece";
+
 export type PurchaseCandidateAIProfile = {
   productName: string;
   category: string;
+  categoryGroup?: CandidateCategoryGroup;
+  itemCategoryId?: string;
   color: string;
   secondaryColors?: string[];
   fit: "slim" | "regular" | "oversized" | "unknown";
@@ -34,6 +51,11 @@ export type PurchaseCandidateAIProfile = {
   summary: string;
   embeddingText?: string;
   aiConfidence?: number;
+  wearRole?: CandidateWearRole;
+  retrievalSlots?: RetrievalSlot[];
+  retrievalSlotReason?: string;
+  avoidSlots?: RetrievalSlot[];
+  ambiguityFlags?: string[];
   screenshotPath?: string;
   screenshotUrl?: string;
 };
@@ -43,6 +65,8 @@ export type ClosetMatch = {
   matchType: "outfit" | "duplicate" | "alternative";
   score: number;
   reason: string;
+  slot?: RetrievalSlot;
+  role?: string;
 };
 
 export type FashionKnowledgeSnippet = {
