@@ -1,0 +1,27 @@
+schema: spec-driven
+
+context: |
+  Product: 买对衣, an AI purchase-decision assistant grounded in a user's real wardrobe.
+  Stack: Next.js 16.2.7 App Router, React 19.2.4, TypeScript, Tailwind CSS 4, and Supabase.
+  The authenticated product UI is primarily implemented in src/app/app/page.tsx.
+  User-facing copy and product documentation are written in Simplified Chinese.
+  Prefer small brownfield changes that preserve existing AI, database, upload, and authentication flows.
+
+rules:
+  proposal:
+    - State the user-visible outcome and explicit non-goals.
+    - Keep the first trial change deliberately small.
+  specs:
+    - Use Chinese prose while preserving OpenSpec requirement and scenario headings.
+    - Make every requirement verifiable with concrete WHEN and THEN scenarios.
+  tasks:
+    - Include targeted automated checks, lint, build, and UI verification when applicable.
+
+operations:
+  apply:
+    guidance:
+      - Read the relevant node_modules/next/dist/docs guides before editing Next.js code.
+      - Preserve unrelated user changes already present in the worktree.
+  archive:
+    guidance:
+      - Summarize the verification evidence for the completed change.
