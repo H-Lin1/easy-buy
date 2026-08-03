@@ -25,6 +25,7 @@ import {
   Trash2,
   Upload,
   UserRound,
+  X,
   XCircle,
   type LucideIcon,
 } from "lucide-react";
@@ -33,6 +34,7 @@ import type { DragEvent, ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { PurchaseDecisionReport } from "@/lib/ai/types";
+import { filterClosetItems } from "@/lib/closet/filter-items";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import type {
   AppView,
@@ -3404,9 +3406,15 @@ function ClosetView({
   onDeleteItem: (item: ClothingItem) => Promise<void>;
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [searchQuery, setSearchQuery] = useState("");
   const oftenCount = items.filter((item) => item.wearFrequency === "often").length;
   const sometimesCount = items.filter((item) => item.wearFrequency === "sometimes").length;
   const idleCount = items.filter((item) => item.wearFrequency === "rarely" || item.status === "idle").length;
+  const filteredItems = useMemo(
+    () => filterClosetItems(items, searchQuery),
+    [items, searchQuery],
+  );
+  const activeSearchQuery = searchQuery.trim();
   const deferredIdSet = new Set(deferredConfirmationIds);
   const pendingConfirmationItems = items.filter(
     (item) => needsClosetConfirmation(item) && !deferredIdSet.has(item.id),
@@ -3463,9 +3471,27 @@ function ClosetView({
               <span className="text-[#a08278]">全部</span>
             </button>
           ))}
-          <div className="ml-auto flex h-10 min-w-60 items-center gap-2 rounded-[10px] border border-[#ead9d0] px-3 text-[#a08278]">
-            <Search className="size-4" />
-            <span className="text-sm">搜索衣服名称或标签</span>
+          <div className="ml-auto flex h-10 w-full items-center gap-2 rounded-[10px] border border-[#ead9d0] px-3 text-[#a08278] transition focus-within:border-[#cf6f70] focus-within:ring-2 focus-within:ring-[#cf6f70]/15 sm:w-auto sm:min-w-60">
+            <Search className="size-4 shrink-0" aria-hidden="true" />
+            <input
+              type="search"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="搜索衣服名称或标签"
+              aria-label="搜索衣橱"
+              className="min-w-0 flex-1 appearance-none bg-transparent text-sm text-[#7b5b51] outline-none placeholder:text-[#a08278] [&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                aria-label="清除衣橱搜索"
+                title="清除搜索"
+                className="inline-flex size-6 shrink-0 items-center justify-center rounded-full text-[#a08278] transition hover:bg-[#fbf0ec] hover:text-[#b2605e]"
+              >
+                <X className="size-4" aria-hidden="true" />
+              </button>
+            )}
           </div>
         </div>
 
@@ -3491,19 +3517,46 @@ function ClosetView({
         )}
 
         {items.length ? (
-          <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-            {items.map((item) => (
-              <ClosetCard
-                key={item.id}
-                item={item}
-                isBusy={isLoading || busyItemIds.includes(item.id) || queuedAnalysisItemIds.includes(item.id)}
-                isAnalysisQueued={queuedAnalysisItemIds.includes(item.id)}
-                onRetryDisplayImage={onRetryDisplayImage}
-                onRetryAnalysis={onRetryAnalysis}
-                onDeleteItem={onDeleteItem}
-              />
-            ))}
-          </div>
+          filteredItems.length ? (
+            <>
+              {activeSearchQuery && (
+                <p className="mt-4 text-sm text-[#8b6258]">
+                  找到 {filteredItems.length} 件，共 {items.length} 件
+                </p>
+              )}
+              <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+                {filteredItems.map((item) => (
+                  <ClosetCard
+                    key={item.id}
+                    item={item}
+                    isBusy={isLoading || busyItemIds.includes(item.id) || queuedAnalysisItemIds.includes(item.id)}
+                    isAnalysisQueued={queuedAnalysisItemIds.includes(item.id)}
+                    onRetryDisplayImage={onRetryDisplayImage}
+                    onRetryAnalysis={onRetryAnalysis}
+                    onDeleteItem={onDeleteItem}
+                  />
+                ))}
+              </div>
+            </>
+          ) : (
+            <div className="mt-5 rounded-[14px] border border-dashed border-[#e5b9b0] bg-[#fffaf7] p-10 text-center">
+              <div className="mx-auto flex size-14 items-center justify-center rounded-full bg-[#fbf0ec] text-[#b2605e]">
+                <Search className="size-6" aria-hidden="true" />
+              </div>
+              <h3 className="mt-4 text-xl font-semibold text-[#3d281f]">未找到匹配单品</h3>
+              <p className="mx-auto mt-2 max-w-md leading-7 text-[#8b6258]">
+                没有找到与“{activeSearchQuery}”匹配的衣服。
+              </p>
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                className="mt-5 inline-flex h-10 items-center gap-2 rounded-[10px] border border-[#ead9d0] px-4 text-sm text-[#b2605e] transition hover:bg-[#fbf0ec]"
+              >
+                <X className="size-4" aria-hidden="true" />
+                清除搜索
+              </button>
+            </div>
+          )
         ) : (
           <div className="mt-5 rounded-[14px] border border-dashed border-[#e5b9b0] bg-[#fffaf7] p-10 text-center">
             <div className="mx-auto flex size-16 items-center justify-center rounded-full bg-[#fbf0ec] text-[#b2605e]">
