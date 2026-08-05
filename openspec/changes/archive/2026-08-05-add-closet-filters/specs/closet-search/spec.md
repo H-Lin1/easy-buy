@@ -1,10 +1,4 @@
-# closet-search Specification
-
-## Purpose
-
-让用户在衣橱逐渐增大后，仍能通过已有衣服的名称、属性与标签即时定位单品，同时保持待确认工作流和全量衣橱统计不受搜索影响。
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: 衣橱关键词即时匹配
 
