@@ -34,7 +34,14 @@ import type { DragEvent, ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { PurchaseDecisionReport } from "@/lib/ai/types";
-import { filterClosetItems } from "@/lib/closet/filter-items";
+import {
+  createEmptyClosetFilters,
+  filterClosetItems,
+  getClosetFilterOptions,
+  hasActiveClosetFilters,
+  type ClosetFilterOption,
+  type ClosetFilters,
+} from "@/lib/closet/filter-items";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import type {
   AppView,
@@ -226,6 +233,16 @@ const wearFrequencyOptions: Array<{ value: ClothingItem["wearFrequency"]; label:
   { value: "rarely", label: "闲置" },
   { value: "unknown", label: "待确认" },
 ];
+
+type ClosetFilterKey = keyof ClosetFilters;
+
+const closetFilterLabels: Record<ClosetFilterKey, string> = {
+  categories: "品类",
+  styles: "风格",
+  colors: "颜色",
+  seasons: "季节",
+  statuses: "状态",
+};
 
 const decisionProgressSteps = [
   "识别待买商品",
@@ -3406,19 +3423,71 @@ function ClosetView({
   onDeleteItem: (item: ClothingItem) => Promise<void>;
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const filterBarRef = useRef<HTMLDivElement>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [filters, setFilters] = useState<ClosetFilters>(() => createEmptyClosetFilters());
+  const [openFilterKey, setOpenFilterKey] = useState<ClosetFilterKey | null>(null);
   const oftenCount = items.filter((item) => item.wearFrequency === "often").length;
   const sometimesCount = items.filter((item) => item.wearFrequency === "sometimes").length;
   const idleCount = items.filter((item) => item.wearFrequency === "rarely" || item.status === "idle").length;
+  const filterOptions = useMemo(() => getClosetFilterOptions(items), [items]);
   const filteredItems = useMemo(
-    () => filterClosetItems(items, searchQuery),
-    [items, searchQuery],
+    () => filterClosetItems(items, searchQuery, filters),
+    [items, searchQuery, filters],
   );
   const activeSearchQuery = searchQuery.trim();
+  const hasActiveCriteria = Boolean(activeSearchQuery) || hasActiveClosetFilters(filters);
   const deferredIdSet = new Set(deferredConfirmationIds);
   const pendingConfirmationItems = items.filter(
     (item) => needsClosetConfirmation(item) && !deferredIdSet.has(item.id),
   );
+
+  useEffect(() => {
+    if (!openFilterKey) return;
+
+    function closeOnOutsideClick(event: PointerEvent) {
+      if (!filterBarRef.current?.contains(event.target as Node)) {
+        setOpenFilterKey(null);
+      }
+    }
+
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key !== "Escape") return;
+
+      filterBarRef.current
+        ?.querySelector<HTMLButtonElement>(`[data-closet-filter-trigger="${openFilterKey}"]`)
+        ?.focus();
+      setOpenFilterKey(null);
+    }
+
+    document.addEventListener("pointerdown", closeOnOutsideClick);
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutsideClick);
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [openFilterKey]);
+
+  function toggleFilterValue(key: ClosetFilterKey, value: string) {
+    setFilters((current) => {
+      const activeValues: readonly string[] = current[key];
+      const nextValues = activeValues.includes(value)
+        ? activeValues.filter((activeValue) => activeValue !== value)
+        : [...activeValues, value];
+
+      return { ...current, [key]: nextValues } as ClosetFilters;
+    });
+  }
+
+  function clearFilter(key: ClosetFilterKey) {
+    setFilters((current) => ({ ...current, [key]: [] }) as ClosetFilters);
+  }
+
+  function resetAllCriteria() {
+    setSearchQuery("");
+    setFilters(createEmptyClosetFilters());
+    setOpenFilterKey(null);
+  }
 
   async function handleFiles(fileList: FileList | null) {
     const files = Array.from(fileList ?? []).filter((file) => file.type.startsWith("image/"));
@@ -3464,18 +3533,26 @@ function ClosetView({
       />
 
       <div className="mt-5 rounded-[16px] border border-[#ead9d0] bg-white p-4 shadow-[0_12px_32px_rgba(45,43,50,0.04)]">
-        <div className="flex flex-wrap items-center gap-4">
-          {["品类", "风格", "颜色", "季节", "状态"].map((label) => (
-            <button key={label} className="inline-flex h-10 min-w-32 items-center justify-between rounded-[10px] border border-[#ead9d0] px-4 text-sm text-[#7b5b51]">
-              {label}
-              <span className="text-[#a08278]">全部</span>
-            </button>
+        <div ref={filterBarRef} className="flex flex-wrap items-center gap-4">
+          {(Object.keys(closetFilterLabels) as ClosetFilterKey[]).map((key) => (
+            <ClosetFilterMenu
+              key={key}
+              label={closetFilterLabels[key]}
+              filterKey={key}
+              options={filterOptions[key]}
+              selectedValues={filters[key]}
+              isOpen={openFilterKey === key}
+              onOpenChange={(isOpen) => setOpenFilterKey(isOpen ? key : null)}
+              onToggleValue={(value) => toggleFilterValue(key, value)}
+              onClear={() => clearFilter(key)}
+            />
           ))}
           <div className="ml-auto flex h-10 w-full items-center gap-2 rounded-[10px] border border-[#ead9d0] px-3 text-[#a08278] transition focus-within:border-[#cf6f70] focus-within:ring-2 focus-within:ring-[#cf6f70]/15 sm:w-auto sm:min-w-60">
             <Search className="size-4 shrink-0" aria-hidden="true" />
             <input
               type="search"
               value={searchQuery}
+              onFocus={() => setOpenFilterKey(null)}
               onChange={(event) => setSearchQuery(event.target.value)}
               placeholder="搜索衣服名称或标签"
               aria-label="搜索衣橱"
@@ -3519,10 +3596,21 @@ function ClosetView({
         {items.length ? (
           filteredItems.length ? (
             <>
-              {activeSearchQuery && (
-                <p className="mt-4 text-sm text-[#8b6258]">
-                  找到 {filteredItems.length} 件，共 {items.length} 件
-                </p>
+              {hasActiveCriteria && (
+                <div
+                  className="mt-4 flex flex-wrap items-center gap-3 text-sm text-[#8b6258]"
+                  role="status"
+                  aria-live="polite"
+                >
+                  <p>找到 {filteredItems.length} 件，共 {items.length} 件</p>
+                  <button
+                    type="button"
+                    onClick={resetAllCriteria}
+                    className="text-[#b2605e] transition hover:text-[#8d3f3f]"
+                  >
+                    重置全部
+                  </button>
+                </div>
               )}
               <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                 {filteredItems.map((item) => (
@@ -3543,17 +3631,20 @@ function ClosetView({
               <div className="mx-auto flex size-14 items-center justify-center rounded-full bg-[#fbf0ec] text-[#b2605e]">
                 <Search className="size-6" aria-hidden="true" />
               </div>
+              <p className="mt-4 text-sm text-[#8b6258]" role="status" aria-live="polite">
+                找到 0 件，共 {items.length} 件
+              </p>
               <h3 className="mt-4 text-xl font-semibold text-[#3d281f]">未找到匹配单品</h3>
               <p className="mx-auto mt-2 max-w-md leading-7 text-[#8b6258]">
-                没有找到与“{activeSearchQuery}”匹配的衣服。
+                没有找到符合当前搜索或筛选条件的衣服。
               </p>
               <button
                 type="button"
-                onClick={() => setSearchQuery("")}
+                onClick={resetAllCriteria}
                 className="mt-5 inline-flex h-10 items-center gap-2 rounded-[10px] border border-[#ead9d0] px-4 text-sm text-[#b2605e] transition hover:bg-[#fbf0ec]"
               >
                 <X className="size-4" aria-hidden="true" />
-                清除搜索
+                清除全部条件
               </button>
             </div>
           )
@@ -3583,6 +3674,156 @@ function ClosetView({
           <span className="inline-flex items-center gap-2"><i className="size-2 rounded-full bg-stone-400" />闲置 {idleCount}</span>
         </div>
       </div>
+    </div>
+  );
+}
+
+function ClosetFilterMenu({
+  filterKey,
+  label,
+  options,
+  selectedValues,
+  isOpen,
+  onOpenChange,
+  onToggleValue,
+  onClear,
+}: {
+  filterKey: ClosetFilterKey;
+  label: string;
+  options: readonly ClosetFilterOption[];
+  selectedValues: readonly string[];
+  isOpen: boolean;
+  onOpenChange: (isOpen: boolean) => void;
+  onToggleValue: (value: string) => void;
+  onClear: () => void;
+}) {
+  const triggerButtonRef = useRef<HTMLButtonElement>(null);
+  const selectedOptions = options.filter((option) => selectedValues.includes(option.value));
+  const selectedCount = selectedValues.length;
+  const selectedSummary =
+    selectedCount === 0
+      ? "全部"
+      : selectedCount === 1 && selectedOptions.length === 1
+        ? selectedOptions[0].label
+        : `已选 ${selectedCount} 项`;
+  const menuId = `closet-filter-${filterKey}`;
+  const menuPositionClass =
+    filterKey === "styles" || filterKey === "seasons"
+      ? "right-0 left-auto max-[335px]:right-auto max-[335px]:left-0 sm:right-auto sm:left-0"
+      : "left-0";
+
+  return (
+    <div className="relative inline-flex h-10 w-32 max-w-full">
+      <button
+        ref={triggerButtonRef}
+        type="button"
+        data-closet-filter-trigger={filterKey}
+        aria-haspopup="dialog"
+        aria-expanded={isOpen}
+        aria-controls={menuId}
+        onClick={() => onOpenChange(!isOpen)}
+        className={cn(
+          "inline-flex min-w-0 flex-1 items-center gap-2 border px-3 text-sm transition focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#cf6f70]/35",
+          selectedCount
+            ? "rounded-l-[10px] border-r-0 border-[#e5b9b0] bg-[#fbf0ec] text-[#b2605e]"
+            : "justify-between rounded-[10px] border-[#ead9d0] text-[#7b5b51] hover:border-[#d8bbb0]",
+        )}
+      >
+        <span className="shrink-0">{label}</span>
+        <span
+          title={selectedSummary}
+          className={cn(
+            "min-w-0 flex-1 truncate text-right",
+            selectedCount ? "text-[#b2605e]" : "text-[#a08278]",
+          )}
+        >
+          {selectedSummary}
+        </span>
+        {!selectedCount && (
+          <ChevronRight
+            className={cn("size-3.5 shrink-0 transition-transform", isOpen && "rotate-90")}
+            aria-hidden="true"
+          />
+        )}
+      </button>
+
+      {selectedCount > 0 && (
+        <button
+          type="button"
+          aria-label={`清除${label}筛选`}
+          title={`清除${label}筛选`}
+          onClick={(event) => {
+            event.stopPropagation();
+            onClear();
+            onOpenChange(false);
+            triggerButtonRef.current?.focus();
+          }}
+          className="inline-flex w-9 shrink-0 items-center justify-center rounded-r-[10px] border border-l-0 border-[#e5b9b0] bg-[#fbf0ec] text-[#b2605e] transition hover:bg-[#f7e6e1] hover:text-[#8d3f3f] focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#cf6f70]/35"
+        >
+          <X className="size-3.5" aria-hidden="true" />
+        </button>
+      )}
+
+      {isOpen && (
+        <div
+          id={menuId}
+          role="dialog"
+          aria-label={`${label}筛选`}
+          className={cn(
+            "absolute top-[calc(100%+0.5rem)] z-30 w-72 max-w-[calc(100vw-3rem)] rounded-[12px] border border-[#ead9d0] bg-white p-2 shadow-xl shadow-stone-200/70",
+            menuPositionClass,
+          )}
+        >
+          <div className="flex items-center justify-end gap-3 border-b border-[#f0e1da] px-2 pb-2">
+            <button
+              type="button"
+              disabled={selectedCount === 0}
+              onClick={onClear}
+              className="text-xs text-[#b2605e] transition hover:text-[#8d3f3f] disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              全部
+            </button>
+          </div>
+
+          <div className="mt-1 max-h-64 overflow-y-auto py-1">
+            {options.length ? (
+              options.map((option) => {
+                const selected = selectedValues.includes(option.value);
+                return (
+                  <label
+                    key={option.value}
+                    className={cn(
+                      "flex cursor-pointer items-center gap-3 rounded-[9px] px-2 py-2 text-sm transition hover:bg-[#fbf5f1] focus-within:ring-2 focus-within:ring-[#cf6f70]/30",
+                      selected ? "bg-[#fbf0ec] text-[#b2605e]" : "text-[#6e5148]",
+                    )}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selected}
+                      onChange={() => onToggleValue(option.value)}
+                      className="sr-only"
+                    />
+                    <span
+                      className={cn(
+                        "inline-flex size-4 shrink-0 items-center justify-center rounded border",
+                        selected
+                          ? "border-[#c86c67] bg-[#c86c67] text-white"
+                          : "border-[#cfbdb6] bg-white text-transparent",
+                      )}
+                      aria-hidden="true"
+                    >
+                      <Check className="size-3" />
+                    </span>
+                    <span className="min-w-0 truncate">{option.label}</span>
+                  </label>
+                );
+              })
+            ) : (
+              <p className="px-2 py-3 text-sm text-[#8b6258]">暂无可筛选项</p>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

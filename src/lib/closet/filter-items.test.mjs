@@ -1,19 +1,41 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { filterClosetItems } from "./filter-items.ts";
+import {
+  createEmptyClosetFilters,
+  filterClosetItems,
+  getClosetFilterOptions,
+} from "./filter-items.ts";
 
-const items = [
-  {
-    id: "shirt-1",
+function createItem(overrides = {}) {
+  return {
+    id: "item",
     name: "Oxford Shirt",
     category: "shirt",
     color: "White",
+    fit: "regular",
     styleTags: ["minimal"],
     scenarioTags: ["commute"],
     seasonTags: ["spring"],
-  },
-  {
+    wearFrequency: "often",
+    status: "active",
+    palette: "from-stone-100 to-stone-200",
+    ...overrides,
+  };
+}
+
+const items = [
+  createItem({
+    id: "shirt-1",
+    name: "Oxford Shirt",
+    category: " Shirt ",
+    color: "White",
+    styleTags: ["minimal", "commute"],
+    scenarioTags: ["office"],
+    seasonTags: ["spring"],
+    wearFrequency: "often",
+  }),
+  createItem({
     id: "coat-1",
     name: "Wool Coat",
     category: "outerwear",
@@ -21,12 +43,43 @@ const items = [
     styleTags: ["classic"],
     scenarioTags: ["weekend"],
     seasonTags: ["winter"],
-  },
+    wearFrequency: "sometimes",
+  }),
+  createItem({
+    id: "dress-1",
+    name: "Black Dress",
+    category: "dress",
+    color: "Black",
+    styleTags: ["minimal", "evening"],
+    scenarioTags: ["date"],
+    seasonTags: ["all-season"],
+    wearFrequency: "rarely",
+    status: "idle",
+  }),
+  createItem({
+    id: "pending-1",
+    name: "Pending Item",
+    category: "待确认",
+    color: "unknown",
+    styleTags: ["待识别"],
+    scenarioTags: [],
+    seasonTags: [],
+    wearFrequency: "unknown",
+  }),
 ];
 
-test("returns the original list for empty or whitespace-only queries", () => {
+function ids(result) {
+  return result.map((item) => item.id);
+}
+
+function filters(overrides) {
+  return { ...createEmptyClosetFilters(), ...overrides };
+}
+
+test("returns the original list for empty, whitespace-only, or blank-only conditions", () => {
   assert.equal(filterClosetItems(items, ""), items);
   assert.equal(filterClosetItems(items, "   "), items);
+  assert.equal(filterClosetItems(items, "", filters({ categories: ["   "] })), items);
 });
 
 test("matches names, attributes, and every supported tag group", () => {
@@ -34,26 +87,134 @@ test("matches names, attributes, and every supported tag group", () => {
     ["Oxford", "shirt-1"],
     ["outer", "coat-1"],
     ["camel", "coat-1"],
-    ["minimal", "shirt-1"],
+    ["minimal", "shirt-1", "dress-1"],
     ["weekend", "coat-1"],
     ["winter", "coat-1"],
   ];
 
-  for (const [query, expectedId] of cases) {
-    assert.deepEqual(
-      filterClosetItems(items, query).map((item) => item.id),
-      [expectedId],
-    );
+  for (const [query, ...expectedIds] of cases) {
+    assert.deepEqual(ids(filterClosetItems(items, query)), expectedIds);
   }
 });
 
 test("trims queries and ignores English letter case", () => {
-  assert.deepEqual(
-    filterClosetItems(items, "  oXfOrD  ").map((item) => item.id),
-    ["shirt-1"],
-  );
+  assert.deepEqual(ids(filterClosetItems(items, "  oXfOrD  ")), ["shirt-1"]);
 });
 
 test("returns no items when nothing matches", () => {
   assert.deepEqual(filterClosetItems(items, "denim"), []);
+});
+
+test("uses OR within category, style, color, season, and status filters", () => {
+  assert.deepEqual(
+    ids(filterClosetItems(items, "", filters({ categories: [" SHIRT ", "outerwear"] }))),
+    ["shirt-1", "coat-1"],
+  );
+  assert.deepEqual(
+    ids(filterClosetItems(items, "", filters({ styles: ["classic", "evening"] }))),
+    ["coat-1", "dress-1"],
+  );
+  assert.deepEqual(
+    ids(filterClosetItems(items, "", filters({ colors: ["white", "black"] }))),
+    ["shirt-1", "dress-1"],
+  );
+  assert.deepEqual(
+    ids(filterClosetItems(items, "", filters({ seasons: ["winter", "summer"] }))),
+    ["coat-1", "dress-1"],
+  );
+  assert.deepEqual(
+    ids(filterClosetItems(items, "", filters({ statuses: ["sometimes", "unknown"] }))),
+    ["coat-1", "pending-1"],
+  );
+});
+
+test("uses AND across dimensions and with the keyword search", () => {
+  const selected = filters({
+    categories: ["shirt", "dress"],
+    styles: ["minimal"],
+    colors: ["white"],
+  });
+
+  assert.deepEqual(ids(filterClosetItems(items, "", selected)), ["shirt-1"]);
+  assert.deepEqual(ids(filterClosetItems(items, "Oxford", selected)), ["shirt-1"]);
+  assert.deepEqual(ids(filterClosetItems(items, "Dress", selected)), []);
+  assert.deepEqual(ids(filterClosetItems(items, "", selected)), ["shirt-1"]);
+});
+
+test("matches all-season items for specific seasons but not the reverse", () => {
+  assert.deepEqual(
+    ids(filterClosetItems(items, "", filters({ seasons: ["spring"] }))),
+    ["shirt-1", "dress-1"],
+  );
+  assert.deepEqual(
+    ids(filterClosetItems(items, "", filters({ seasons: ["all-season"] }))),
+    ["dress-1"],
+  );
+});
+
+test("handles missing season and wear-frequency values without using lifecycle status", () => {
+  const legacyItems = [
+    createItem({
+      id: "legacy-1",
+      seasonTags: undefined,
+      wearFrequency: undefined,
+      status: "idle",
+    }),
+  ];
+
+  assert.deepEqual(
+    ids(filterClosetItems(legacyItems, "", filters({ seasons: ["winter"] }))),
+    [],
+  );
+  assert.deepEqual(
+    ids(filterClosetItems(legacyItems, "", filters({ statuses: ["unknown"] }))),
+    ["legacy-1"],
+  );
+  assert.deepEqual(
+    ids(filterClosetItems(legacyItems, "", filters({ statuses: ["rarely"] }))),
+    [],
+  );
+});
+
+test("derives stable, de-duplicated dynamic options from the full wardrobe", () => {
+  const options = getClosetFilterOptions([
+    createItem({
+      id: "first",
+      category: " Shirt ",
+      color: " White ",
+      styleTags: [" Minimal ", "Commute"],
+    }),
+    createItem({
+      id: "second",
+      category: "shirt",
+      color: "white",
+      styleTags: ["minimal", "Classic"],
+    }),
+    createItem({ id: "third", category: "", color: " ", styleTags: [] }),
+  ]);
+
+  assert.deepEqual(options.categories, [{ value: "shirt", label: "Shirt" }]);
+  assert.deepEqual(options.colors, [{ value: "white", label: "White" }]);
+  assert.deepEqual(options.styles, [
+    { value: "minimal", label: "Minimal" },
+    { value: "commute", label: "Commute" },
+    { value: "classic", label: "Classic" },
+  ]);
+  assert.deepEqual(
+    options.seasons.map((option) => option.value),
+    ["spring", "summer", "autumn", "winter", "all-season"],
+  );
+  assert.deepEqual(
+    options.statuses.map((option) => option.value),
+    ["often", "sometimes", "rarely", "unknown"],
+  );
+});
+
+test("does not mutate filters and preserves source item order", () => {
+  const selected = filters({ categories: ["shirt", "dress"] });
+  const sourceIds = ids(items);
+
+  assert.deepEqual(ids(filterClosetItems(items, "", selected)), ["shirt-1", "dress-1"]);
+  assert.deepEqual(selected.categories, ["shirt", "dress"]);
+  assert.deepEqual(ids(items), sourceIds);
 });
