@@ -6,7 +6,7 @@ import {
   buildClosetEmbeddingText,
   removeClosetConfirmationFlags,
 } from "@/lib/closet/embedding-text";
-import { embedText, toPgVector } from "@/lib/ai/providers";
+import { embedText, sanitizeAiErrorMessage, toPgVector } from "@/lib/ai/providers";
 import { appEnv } from "@/lib/env";
 
 export const runtime = "nodejs";
@@ -80,7 +80,16 @@ export async function POST(request: NextRequest) {
   }
 
   const embeddingText = buildClosetEmbeddingText(draft);
-  const embedding = await embedText(embeddingText);
+  let embedding: number[];
+  try {
+    embedding = await embedText(embeddingText);
+  } catch (error) {
+    console.error("[closet-confirmation] embedding failed", {
+      closetItemId,
+      message: sanitizeAiErrorMessage(error),
+    });
+    return NextResponse.json({ message: "Closet item confirmation failed." }, { status: 500 });
+  }
   const nextFlags = removeClosetConfirmationFlags(currentItem.image_quality_flags ?? []);
 
   const { data, error } = await supabase
@@ -105,7 +114,11 @@ export async function POST(request: NextRequest) {
     .single();
 
   if (error) {
-    return NextResponse.json({ message: error.message }, { status: 500 });
+    console.error("[closet-confirmation] failed", {
+      closetItemId,
+      message: sanitizeAiErrorMessage(error),
+    });
+    return NextResponse.json({ message: "Closet item confirmation failed." }, { status: 500 });
   }
 
   return NextResponse.json({

@@ -3,7 +3,7 @@ import "server-only";
 import { createClient } from "@supabase/supabase-js";
 
 import type { FashionKnowledgeSnippet, PurchaseCandidateAIProfile } from "@/lib/ai/types";
-import { toPgVector } from "@/lib/ai/providers";
+import { sanitizeAiErrorMessage, toPgVector } from "@/lib/ai/providers";
 import { appEnv } from "@/lib/env";
 
 import knowledgeDeck from "../../../knowledge/fashion-knowledge.cards.v1.json";
@@ -106,7 +106,7 @@ export async function retrieveFashionKnowledge(query: string, options: Retrieval
 
   const databaseKnowledge = await loadDatabaseKnowledge(options.embedding).catch((error) => {
     console.warn("[fashion-knowledge] database retrieval skipped", {
-      message: error instanceof Error ? error.message : "Unknown retrieval error.",
+      message: sanitizeAiErrorMessage(error),
     });
     return [];
   });
@@ -159,7 +159,7 @@ async function loadDatabaseKnowledge(queryEmbedding?: number[]) {
 
     if (error) {
       console.warn("[fashion-knowledge] vector retrieval skipped", {
-        message: error.message,
+        message: sanitizeAiErrorMessage(error),
       });
     }
   }

@@ -3,16 +3,26 @@ import path from "node:path";
 import process from "node:process";
 import OpenAI from "openai";
 
+import {
+  requireSupportedAiScriptProvider,
+  sanitizeAiScriptError,
+} from "./ai-script-utils.mjs";
+
 const env = {
   ...parseEnvFile(path.join(process.cwd(), ".env.local")),
   ...process.env,
 };
 
-if (!env.AUTODL_API_KEY) throw new Error("AUTODL_API_KEY is missing.");
+if (!env.AI_DECISION_API_KEY) throw new Error("AI_DECISION_API_KEY is missing.");
+const provider = requireSupportedAiScriptProvider(
+  "decision",
+  env.AI_DECISION_PROVIDER ?? "autodl",
+  ["autodl"],
+);
 
 const client = new OpenAI({
-  apiKey: env.AUTODL_API_KEY,
-  baseURL: env.AUTODL_OPENAI_BASE_URL,
+  apiKey: env.AI_DECISION_API_KEY,
+  baseURL: env.AI_DECISION_BASE_URL ?? "https://www.autodl.art/api/v1",
   timeout: Number(env.AI_DECISION_TIMEOUT_MS ?? 60000),
   maxRetries: 0,
 });
@@ -39,6 +49,7 @@ try {
     JSON.stringify(
       {
         elapsedMs: Date.now() - startedAt,
+        provider,
         model: env.AI_DECISION_MODEL ?? "qwen3.6-plus",
         content: response.choices[0]?.message?.content,
       },
@@ -52,7 +63,7 @@ try {
       {
         elapsedMs: Date.now() - startedAt,
         model: env.AI_DECISION_MODEL ?? "qwen3.6-plus",
-        error: error instanceof Error ? error.message : String(error),
+        error: sanitizeAiScriptError(error, [env.AI_DECISION_API_KEY]),
       },
       null,
       2,

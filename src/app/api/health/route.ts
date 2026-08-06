@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { appEnv } from "@/lib/env";
+import { appEnv, getAiProviderHealth } from "@/lib/env";
 import { canConnectToDb } from "@/lib/server/db";
 
 export const runtime = "nodejs";
@@ -20,11 +20,6 @@ export async function GET() {
     databaseConfigured: Boolean(appEnv.databaseUrl),
     databaseReachable,
     supabaseConfigured: Boolean(appEnv.supabaseUrl && appEnv.supabaseAnonKey),
-    models: {
-      vision: appEnv.visionModel,
-      decision: appEnv.decisionModel,
-      embedding: appEnv.embeddingModel,
-      rerank: appEnv.enableRerank ? appEnv.rerankModel : "disabled",
-    },
+    ai: getAiProviderHealth(appEnv.ai),
   });
 }

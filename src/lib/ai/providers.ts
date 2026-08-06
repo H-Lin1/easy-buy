@@ -2,47 +2,55 @@ import "server-only";
 
 import OpenAI from "openai";
 
+import {
+  getAiApiKeys,
+  getAiCapabilityConfigurationMessage,
+  getAiCapabilityConfigurationIssue,
+  getEmbeddingDimensions,
+  isAiCapabilityConfigured,
+  isAiProviderSupported,
+  sanitizeAiError,
+  type AiCapability,
+  type AiCapabilityConfig,
+} from "@/lib/ai/capability-config";
+import {
+  createDeterministicEmbedding,
+  formatPgVector,
+  normalizeEmbeddingToDimensions,
+} from "@/lib/ai/embedding-utils";
+import { createImageEditRequestForConfig } from "@/lib/ai/image-provider";
 import { appEnv } from "@/lib/env";
 
-export function hasAutoDlConfig() {
-  return Boolean(appEnv.autoDlApiKey);
+export function hasVisionConfig() {
+  return isAiCapabilityConfigured(appEnv.ai.vision);
 }
 
-export function hasSiliconFlowConfig() {
-  return Boolean(appEnv.siliconFlowApiKey);
+export function hasDecisionConfig() {
+  return isAiCapabilityConfigured(appEnv.ai.decision);
 }
 
-function createAutoDlClient(timeout = appEnv.aiProviderTimeoutMs) {
-  if (!appEnv.autoDlApiKey) {
-    throw new Error("AUTODL_API_KEY is not configured.");
-  }
-
-  return new OpenAI({
-    apiKey: appEnv.autoDlApiKey,
-    baseURL: appEnv.autoDlBaseUrl,
-    maxRetries: 0,
-    timeout,
-  });
+export function hasEmbeddingConfig() {
+  return isAiCapabilityConfigured(appEnv.ai.embedding);
 }
 
-function createSiliconFlowClient() {
-  if (!appEnv.siliconFlowApiKey) {
-    throw new Error("SILICONFLOW_API_KEY is not configured.");
-  }
+export function hasImageEditConfig() {
+  return isAiCapabilityConfigured(appEnv.ai.imageEdit);
+}
 
-  return new OpenAI({
-    apiKey: appEnv.siliconFlowApiKey,
-    baseURL: appEnv.siliconFlowBaseUrl,
-    maxRetries: 0,
-    timeout: appEnv.aiProviderTimeoutMs,
-  });
+export function getAiCapabilityConfig(capability: AiCapability) {
+  return appEnv.ai[capability];
+}
+
+export function getAiCapabilityConfigError(capability: AiCapability) {
+  return getAiCapabilityConfigurationMessage(getAiCapabilityConfig(capability));
 }
 
 export async function generateDecisionJson(prompt: string) {
-  const client = createAutoDlClient(appEnv.aiDecisionTimeoutMs);
+  const config = getAiCapabilityConfig("decision");
+  const client = createOpenAiCompatibleClient(config);
 
   const completion = await client.chat.completions.create({
-    model: appEnv.decisionModel,
+    model: requireModel(config),
     messages: [
       {
         role: "system",
@@ -52,7 +60,7 @@ export async function generateDecisionJson(prompt: string) {
       { role: "user", content: prompt },
     ],
     temperature: 0.1,
-    max_tokens: appEnv.aiDecisionMaxTokens,
+    max_tokens: config.maxTokens,
     response_format: { type: "json_object" as const },
   });
 
@@ -60,7 +68,8 @@ export async function generateDecisionJson(prompt: string) {
 }
 
 export async function generateVisionJson(prompt: string, imageDataUrls: string[]) {
-  const client = createAutoDlClient(appEnv.aiVisionTimeoutMs);
+  const config = getAiCapabilityConfig("vision");
+  const client = createOpenAiCompatibleClient(config);
   const content = [
     {
       type: "text" as const,
@@ -75,7 +84,7 @@ export async function generateVisionJson(prompt: string, imageDataUrls: string[]
   ];
 
   const completion = await client.chat.completions.create({
-    model: appEnv.visionModel,
+    model: requireModel(config),
     messages: [
       {
         role: "system",
@@ -94,50 +103,93 @@ export async function generateVisionJson(prompt: string, imageDataUrls: string[]
 }
 
 export async function embedText(text: string) {
-  if (!hasSiliconFlowConfig()) {
-    return createDeterministicEmbedding(text, appEnv.embeddingDimensions);
+  const config = getAiCapabilityConfig("embedding");
+  const dimensions = getEmbeddingDimensions(config);
+  const configurationIssue = getAiCapabilityConfigurationIssue(config);
+
+  if (configurationIssue === "unsupported_provider") {
+    throw new Error(getAiCapabilityConfigurationMessage(config));
+  }
+
+  if (configurationIssue) {
+    return createDeterministicEmbedding(text, dimensions);
   }
 
   try {
-    const client = createSiliconFlowClient();
+    const client = createOpenAiCompatibleClient(config);
     const result = await client.embeddings.create({
-      model: appEnv.embeddingModel,
+      model: requireModel(config),
       input: text,
     });
 
     const embedding = result.data[0]?.embedding;
     if (!embedding?.length) {
-      return createDeterministicEmbedding(text, appEnv.embeddingDimensions);
+      return createDeterministicEmbedding(text, dimensions);
     }
 
-    return normalizeEmbedding(embedding, appEnv.embeddingDimensions);
+    return normalizeEmbedding(embedding, dimensions);
   } catch (error) {
     console.warn("[ai-provider] embedding fallback used", {
-      message: error instanceof Error ? error.message : "Embedding request failed.",
+      capability: config.capability,
+      provider: config.provider,
+      message: sanitizeAiErrorMessage(error),
     });
-    return createDeterministicEmbedding(text, appEnv.embeddingDimensions);
+    return createDeterministicEmbedding(text, dimensions);
   }
 }
 
-function createDeterministicEmbedding(text: string, dimensions: number) {
-  const values = new Array<number>(dimensions).fill(0);
-
-  for (let index = 0; index < text.length; index += 1) {
-    const bucket = index % dimensions;
-    values[bucket] += (text.charCodeAt(index) % 97) / 97;
-  }
-
-  const norm = Math.sqrt(values.reduce((sum, value) => sum + value * value, 0)) || 1;
-  return values.map((value) => value / norm);
+export function createImageEditRequest(imageDataUrl: string, prompt: string, negativePrompt: string) {
+  return createImageEditRequestForConfig(
+    getAiCapabilityConfig("imageEdit"),
+    imageDataUrl,
+    prompt,
+    negativePrompt,
+  );
 }
 
-export function normalizeEmbedding(embedding: number[], dimensions = appEnv.embeddingDimensions) {
-  if (embedding.length === dimensions) return embedding;
-  if (embedding.length > dimensions) return embedding.slice(0, dimensions);
+export function sanitizeAiErrorMessage(error: unknown) {
+  return sanitizeAiError(error, getAiApiKeys(appEnv.ai));
+}
 
-  return [...embedding, ...new Array<number>(dimensions - embedding.length).fill(0)];
+function createOpenAiCompatibleClient(config: AiCapabilityConfig) {
+  if (!isAiCapabilityConfigured(config)) {
+    throw new Error(getAiCapabilityConfigurationMessage(config));
+  }
+
+  if (!isAiProviderSupported(config.capability, config.provider)) {
+    throw new Error(`AI ${config.capability} provider \"${config.provider}\" is not supported.`);
+  }
+
+  return new OpenAI({
+    apiKey: requireApiKey(config),
+    baseURL: requireBaseUrl(config),
+    maxRetries: 0,
+    timeout: config.timeoutMs,
+  });
+}
+
+function requireApiKey(config: AiCapabilityConfig) {
+  if (!config.apiKey) throw new Error(getAiCapabilityConfigurationMessage(config));
+  return config.apiKey;
+}
+
+function requireBaseUrl(config: AiCapabilityConfig) {
+  if (!config.baseUrl) throw new Error(getAiCapabilityConfigurationMessage(config));
+  return config.baseUrl;
+}
+
+function requireModel(config: AiCapabilityConfig) {
+  if (!config.model) throw new Error(getAiCapabilityConfigurationMessage(config));
+  return config.model;
+}
+
+export function normalizeEmbedding(
+  embedding: number[],
+  dimensions = getEmbeddingDimensions(appEnv.ai.embedding),
+) {
+  return normalizeEmbeddingToDimensions(embedding, dimensions);
 }
 
 export function toPgVector(embedding: number[]) {
-  return `[${embedding.map((value) => Number(value.toFixed(8))).join(",")}]`;
+  return formatPgVector(embedding);
 }

@@ -7,6 +7,18 @@ import {
   buildClosetDisplayNegativePrompt,
   buildClosetDisplayPrompt,
 } from "@/lib/ai/image-edit-prompt";
+import {
+  decodeImageEditBase64,
+  extractImageEditOutput,
+  createImageEditRequestInit,
+  type ImageEditOutput,
+} from "@/lib/ai/image-provider";
+import {
+  createImageEditRequest,
+  getAiCapabilityConfig,
+  getAiCapabilityConfigError,
+  hasImageEditConfig,
+} from "@/lib/ai/providers";
 import { appEnv } from "@/lib/env";
 
 export const runtime = "nodejs";
@@ -16,13 +28,6 @@ const requestSchema = z.object({
   imagePath: z.string().min(1),
   imageDataUrl: z.string().startsWith("data:image/"),
 });
-
-type SiliconFlowImageResult = {
-  images?: Array<{ url?: string }>;
-  data?: Array<{ url?: string }>;
-  error?: { message?: string };
-  message?: string;
-};
 
 type ClosetQualityRow = {
   image_quality_flags: string[] | null;
@@ -42,8 +47,19 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: "Supabase is not configured." }, { status: 500 });
   }
 
-  if (!appEnv.siliconFlowApiKey) {
-    return NextResponse.json({ message: "SILICONFLOW_API_KEY is not configured." }, { status: 500 });
+  if (!hasImageEditConfig()) {
+    return NextResponse.json(
+      { message: getAiCapabilityConfigError("imageEdit") },
+      { status: 500 },
+    );
+  }
+
+  const imageEditModel = getAiCapabilityConfig("imageEdit").model;
+  if (!imageEditModel) {
+    return NextResponse.json(
+      { message: getAiCapabilityConfigError("imageEdit") },
+      { status: 500 },
+    );
   }
 
   const body = await request.json().catch(() => null);
@@ -88,15 +104,18 @@ export async function POST(request: NextRequest) {
     .from("closet_items")
     .update({
       display_image_status: "processing",
-      display_image_model: appEnv.imageEditModel,
+      display_image_model: imageEditModel,
       display_image_prompt_version: CLOSET_DISPLAY_PROMPT_VERSION,
       updated_at: new Date().toISOString(),
     })
     .eq("id", closetItemId);
 
   try {
-    const generatedUrl = await callSiliconFlowImageEdit(imageDataUrl);
-    const { fileBody, extension, contentType } = await downloadGeneratedImage(generatedUrl);
+    const generatedImage = await callConfiguredImageEdit(imageDataUrl);
+    const { fileBody, extension, contentType } =
+      generatedImage.kind === "url"
+        ? await downloadGeneratedImage(generatedImage.value)
+        : decodeImageEditBase64(generatedImage.value);
     const displayImagePath = `${userId}/display/${crypto.randomUUID()}${extension}`;
 
     const { error: uploadError } = await supabase.storage
@@ -114,7 +133,7 @@ export async function POST(request: NextRequest) {
       .update({
         display_image_path: displayImagePath,
         display_image_status: "ready",
-        display_image_model: appEnv.imageEditModel,
+        display_image_model: imageEditModel,
         display_image_prompt_version: CLOSET_DISPLAY_PROMPT_VERSION,
         image_quality_flags: await mergeCurrentQualityFlags(supabase, closetItemId, {
           add: ["display_image_ready"],
@@ -132,10 +151,9 @@ export async function POST(request: NextRequest) {
       item: data,
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Display image generation failed.";
     console.error("[closet-display-image] failed", {
       closetItemId,
-      message,
+      failure: describeDisplayImageFailure(error),
     });
 
     await supabase
@@ -152,61 +170,71 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(
       {
-        message,
+        message: "Display image generation failed.",
       },
       { status: 500 },
     );
   }
 }
 
-async function callSiliconFlowImageEdit(imageDataUrl: string) {
-  const endpoint = `${appEnv.siliconFlowBaseUrl.replace(/\/$/, "")}/images/generations`;
+async function callConfiguredImageEdit(imageDataUrl: string): Promise<ImageEditOutput> {
+  const imageEditRequest = createImageEditRequest(
+    imageDataUrl,
+    buildClosetDisplayPrompt(),
+    buildClosetDisplayNegativePrompt(),
+  );
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), appEnv.siliconFlowImageTimeoutMs);
+  const timeout = setTimeout(() => controller.abort(), imageEditRequest.timeoutMs);
 
   try {
-    const response = await fetch(endpoint, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${appEnv.siliconFlowApiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: appEnv.imageEditModel,
-        prompt: buildClosetDisplayPrompt(),
-        negative_prompt: buildClosetDisplayNegativePrompt(),
-        image: imageDataUrl,
-      }),
+    const response = await fetch(imageEditRequest.endpoint, {
+      ...createImageEditRequestInit(imageEditRequest),
       signal: controller.signal,
     });
 
-    const text = await response.text();
-    let result: SiliconFlowImageResult;
-
-    try {
-      result = JSON.parse(text) as SiliconFlowImageResult;
-    } catch {
-      throw new Error(`SiliconFlow response is not JSON: ${text.slice(0, 300)}`);
-    }
-
     if (!response.ok) {
-      const traceId = response.headers.get("x-siliconcloud-trace-id");
-      throw new Error(
-        `SiliconFlow image API failed ${response.status}${
-          traceId ? `, trace ${traceId}` : ""
-        }: ${result.message ?? result.error?.message ?? text.slice(0, 300)}`,
-      );
+      throw new ImageEditProviderError("provider_request_failed", response.status);
     }
 
-    const imageUrl = result.images?.[0]?.url ?? result.data?.[0]?.url;
-    if (!imageUrl) {
-      throw new Error("SiliconFlow image API did not return an image URL.");
+    let result: unknown;
+    try {
+      result = await response.json();
+    } catch {
+      throw new ImageEditProviderError("invalid_provider_response");
     }
 
-    return imageUrl;
+    const imageOutput = extractImageEditOutput(result);
+    if (!imageOutput) {
+      throw new ImageEditProviderError("missing_image_output");
+    }
+
+    return imageOutput;
   } finally {
     clearTimeout(timeout);
   }
+}
+
+class ImageEditProviderError extends Error {
+  constructor(
+    readonly failure:
+      | "provider_request_failed"
+      | "invalid_provider_response"
+      | "missing_image_output",
+    readonly status?: number,
+  ) {
+    super(failure);
+    this.name = "ImageEditProviderError";
+  }
+}
+
+function describeDisplayImageFailure(error: unknown) {
+  if (error instanceof ImageEditProviderError) {
+    return error.status ? `${error.failure}:${error.status}` : error.failure;
+  }
+  if (error instanceof DOMException && error.name === "AbortError") {
+    return "provider_timeout";
+  }
+  return "image_generation_or_storage_failed";
 }
 
 async function downloadGeneratedImage(url: string) {

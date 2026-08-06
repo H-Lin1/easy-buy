@@ -5,6 +5,11 @@ import { fileURLToPath } from "node:url";
 import OpenAI from "openai";
 import pg from "pg";
 
+import {
+  requireSupportedAiScriptProvider,
+  sanitizeAiScriptError,
+} from "./ai-script-utils.mjs";
+
 const { Pool } = pg;
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -22,7 +27,12 @@ if (!databaseUrl) {
 const cardsPath = path.join(projectRoot, "knowledge", "fashion-knowledge.cards.v1.json");
 const deck = JSON.parse(fs.readFileSync(cardsPath, "utf8"));
 const cards = deck.cards;
-const embeddingDimensions = Number(env.AI_EMBEDDING_DIMENSIONS ?? 1024);
+const embeddingProvider = requireSupportedAiScriptProvider(
+  "embedding",
+  env.AI_EMBEDDING_PROVIDER ?? "siliconflow",
+  ["siliconflow"],
+);
+const embeddingDimensions = getEmbeddingDimensions(env);
 
 const pool = new Pool({
   connectionString: databaseUrl,
@@ -173,15 +183,17 @@ try {
 }
 
 async function createEmbeddings(texts) {
-  if (!env.SILICONFLOW_API_KEY) {
+  const apiKey = env.AI_EMBEDDING_API_KEY;
+
+  if (!apiKey) {
     return texts.map((text) => createDeterministicEmbedding(text, embeddingDimensions));
   }
 
   const client = new OpenAI({
-    apiKey: env.SILICONFLOW_API_KEY,
-    baseURL: env.SILICONFLOW_BASE_URL ?? "https://api.siliconflow.cn/v1",
+    apiKey,
+    baseURL: env.AI_EMBEDDING_BASE_URL ?? "https://api.siliconflow.cn/v1",
     maxRetries: 0,
-    timeout: Number(env.AI_PROVIDER_TIMEOUT_MS ?? 30000),
+    timeout: Number(env.AI_EMBEDDING_TIMEOUT_MS ?? 12000),
   });
 
   try {
@@ -204,11 +216,24 @@ async function createEmbeddings(texts) {
     if (result.length === texts.length) return result;
   } catch (error) {
     console.warn("[knowledge-import] embedding fallback used", {
-      message: error instanceof Error ? error.message : "Embedding request failed.",
+      provider: embeddingProvider,
+      message: sanitizeAiScriptError(error, [apiKey]),
     });
   }
 
   return texts.map((text) => createDeterministicEmbedding(text, embeddingDimensions));
+}
+
+function getEmbeddingDimensions(source) {
+  const configured = source.AI_EMBEDDING_DIMENSIONS;
+  if (!configured) return 1024;
+
+  const dimensions = Number(configured);
+  if (dimensions !== 1024) {
+    throw new Error("AI_EMBEDDING_DIMENSIONS must be 1024 to match the database vector schema.");
+  }
+
+  return dimensions;
 }
 
 function parseEnvFile(filePath) {

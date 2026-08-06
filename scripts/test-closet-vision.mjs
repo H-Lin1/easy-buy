@@ -4,6 +4,11 @@ import process from "node:process";
 
 import OpenAI from "openai";
 
+import {
+  requireSupportedAiScriptProvider,
+  sanitizeAiScriptError,
+} from "./ai-script-utils.mjs";
+
 const projectRoot = process.cwd();
 const defaultInputDir = path.join(projectRoot, "resources", "closet");
 const defaultOutputDir = path.join(projectRoot, "resources", "closet-ai-test");
@@ -174,13 +179,18 @@ async function main() {
   loadEnvFile(path.join(projectRoot, ".env.local"));
 
   const args = parseArgs(process.argv.slice(2));
-  const apiKey = process.env.AUTODL_API_KEY;
-  const baseURL = process.env.AUTODL_OPENAI_BASE_URL ?? "https://www.autodl.art/api/v1";
+  const provider = requireSupportedAiScriptProvider(
+    "vision",
+    process.env.AI_VISION_PROVIDER ?? "autodl",
+    ["autodl"],
+  );
+  const apiKey = process.env.AI_VISION_API_KEY;
+  const baseURL = process.env.AI_VISION_BASE_URL ?? "https://www.autodl.art/api/v1";
   const model = args.model ?? process.env.AI_VISION_MODEL ?? "qwen3-vl-plus";
-  const timeout = Number(process.env.AI_PROVIDER_TIMEOUT_MS ?? 30000);
+  const timeout = Number(process.env.AI_VISION_TIMEOUT_MS ?? 30000);
 
   if (!apiKey) {
-    throw new Error("AUTODL_API_KEY is missing. Put it in .env.local before running this script.");
+    throw new Error("AI_VISION_API_KEY is missing. Put it in .env.local before running this script.");
   }
 
   if (!fs.existsSync(args.dir)) {
@@ -208,7 +218,7 @@ async function main() {
   });
 
   const results = [];
-  console.log(`Testing ${imageFiles.length} closet image(s) with model ${model}.`);
+  console.log(`Testing ${imageFiles.length} closet image(s) with ${provider}/${model}.`);
   console.log(`Input: ${args.dir}`);
   console.log(`Output: ${args.out}`);
 
@@ -232,7 +242,7 @@ async function main() {
         `  -> ${parsed.itemName ?? parsed.category ?? "unknown"} | confidence=${parsed.aiConfidence ?? "n/a"} | review=${parsed.needsUserReview ?? "n/a"}`,
       );
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = sanitizeAiScriptError(error, [apiKey]);
       results.push({
         ok: false,
         fileName,
@@ -250,6 +260,6 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error(error instanceof Error ? error.message : error);
+  console.error(sanitizeAiScriptError(error, [process.env.AI_VISION_API_KEY]));
   process.exitCode = 1;
 });
