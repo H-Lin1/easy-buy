@@ -55,7 +55,7 @@ MVP 不做复杂身材分析，BMI 只用于基础版型和舒适度风险提示
 衣服图片处理采用“原图可信 + 展示增强”的三层方案：
 
 1. **原始照片**：保存用户上传的原图，作为真实衣橱证据。原图保留衣服的真实颜色、旧化、褶皱和拍摄状态，后续用户可回看和重新识别。
-2. **高质量展示图**：调用 SiliconFlow `Qwen/Qwen-Image-Edit-2509`，把衣服从复杂背景中整理为白底/浅底商品图，移除衣架、杂物和环境背景，轻度修复拍摄造成的歪斜、堆叠和明显褶皱，用于衣橱卡片、搭配板和决策报告展示。
+2. **高质量展示图**：调用由能力级配置选定的图片编辑服务（SiliconFlow `Qwen/Qwen-Image-Edit-2509` 或 Tripo/Lumina 兼容模型），把衣服从复杂背景中整理为白底/浅底商品图，移除衣架、杂物和环境背景，轻度修复拍摄造成的歪斜、堆叠和明显褶皱，用于衣橱卡片、搭配板和决策报告展示。
 3. **AI 标签与结构化信息**：由视觉模型同时读取原图和展示图，识别品类、颜色、版型、风格、季节、正式度、场景等信息。原图是主要事实来源，展示图只作为补充参考；后续 RAG 和购买判断主要依赖用户确认后的结构化标签。
 
 MVP 允许使用生成式图片编辑作为**展示增强图**，但不把它作为唯一真实依据。生成图可能轻微改变领口、袖型、纽扣、口袋、长度、面料纹理或真实颜色，因此必须保留原图，并让视觉识别和用户确认以原图为主。
@@ -170,7 +170,7 @@ AI 输出后提供三个状态按钮：
 - 向量检索：Supabase pgvector
 - AI 编排：LangGraph.js
 - 视觉理解与购买决策：AutoDL Art OpenAI-compatible Qwen 模型
-- 图片编辑展示：SiliconFlow `Qwen/Qwen-Image-Edit-2509`
+- 图片编辑展示：可配置的 SiliconFlow `Qwen/Qwen-Image-Edit-2509` 或 Tripo/Lumina 兼容模型
 - Embedding 与 Rerank：SiliconFlow BGE 模型
 - 本地缓存：IndexedDB，可选，仅缓存展示图和最近报告
 
@@ -753,7 +753,7 @@ START
 |---|---|---|---|---|
 | 视觉理解 | AutoDL Art，OpenAI-compatible API | `qwen3-vl-plus` | 衣服图片识别、商品截图识别 | 是 |
 | 购买决策 | AutoDL Art，OpenAI-compatible API | `qwen3.6-plus` | 长期主义购买判断、结构化报告生成 | 是 |
-| 图片编辑 | SiliconFlow | `Qwen/Qwen-Image-Edit-2509` | 衣服原图整理为高质量白底展示图 | 是 |
+| 图片编辑 | SiliconFlow 或 Tripo/Lumina | 由 `AI_IMAGE_EDIT_MODEL` 配置 | 衣服原图整理为高质量白底展示图 | 是 |
 | Embedding | SiliconFlow | `BAAI/bge-m3` | 衣橱、商品、穿搭知识库向量化 | 是 |
 | Rerank | SiliconFlow | `BAAI/bge-reranker-v2-m3` | 对候选衣橱和知识片段重排序 | 可接入，非阻塞 |
 
@@ -765,21 +765,45 @@ START
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
+DATABASE_URL=
 
-AUTODL_API_KEY=
-AUTODL_OPENAI_BASE_URL=https://www.autodl.art/api/v1
+# Image understanding
+AI_VISION_PROVIDER=autodl
+AI_VISION_API_KEY=
+AI_VISION_BASE_URL=https://www.autodl.art/api/v1
 AI_VISION_MODEL=qwen3-vl-plus
-AI_DECISION_MODEL=qwen3.6-plus
+AI_VISION_TIMEOUT_MS=30000
 
-SILICONFLOW_API_KEY=
-SILICONFLOW_BASE_URL=https://api.siliconflow.cn/v1
-AI_IMAGE_EDIT_MODEL=Qwen/Qwen-Image-Edit-2509
-SILICONFLOW_IMAGE_TIMEOUT_MS=180000
+# Purchase decision
+AI_DECISION_PROVIDER=autodl
+AI_DECISION_API_KEY=
+AI_DECISION_BASE_URL=https://www.autodl.art/api/v1
+AI_DECISION_MODEL=qwen3.6-plus
+AI_DECISION_TIMEOUT_MS=180000
+AI_DECISION_MAX_TOKENS=4096
+
+# Embedding retrieval (the database schema requires 1024 dimensions)
+AI_EMBEDDING_PROVIDER=siliconflow
+AI_EMBEDDING_API_KEY=
+AI_EMBEDDING_BASE_URL=https://api.siliconflow.cn/v1
 AI_EMBEDDING_MODEL=BAAI/bge-m3
+AI_EMBEDDING_TIMEOUT_MS=12000
 AI_EMBEDDING_DIMENSIONS=1024
-AI_RERANK_MODEL=BAAI/bge-reranker-v2-m3
-ENABLE_RERANK=false
+
+# Closet display-image generation (SiliconFlow example; replace provider, base URL, and model together for Tripo/Lumina)
+AI_IMAGE_EDIT_PROVIDER=siliconflow
+AI_IMAGE_EDIT_API_KEY=
+AI_IMAGE_EDIT_BASE_URL=https://api.siliconflow.cn/v1
+AI_IMAGE_EDIT_MODEL=Qwen/Qwen-Image-Edit-2509
+AI_IMAGE_EDIT_TIMEOUT_MS=180000
+
+# Tripo/Lumina alternative
+# AI_IMAGE_EDIT_PROVIDER=tripo
+# AI_IMAGE_EDIT_BASE_URL=https://lumina.tripo3d.com/v1
+# AI_IMAGE_EDIT_MODEL=gpt-image-2
 ```
+
+当前运行时只读取以上四组能力级变量。旧版本的 `AUTODL_*` 和 `SILICONFLOW_*` 共享变量仅作为迁移记录，不再生效；部署时应先在本地和 Vercel Preview/Production 填好四组新变量，再部署并验收，最后再删除旧变量。Rerank 尚未接入当前运行时，`AI_RERANK_MODEL` 与 `ENABLE_RERANK` 仍属于后续规划字段。
 
 ### 12.3 Storage bucket
 
@@ -812,7 +836,7 @@ purchase-screenshots/{userId}/{candidateId}.webp
 - 第一版默认首页是决策聊天页。
 - 第一版侧边栏包含聊天记录、衣橱、决策清单、设置。
 - 第一版所有设置状态的商品都会进入决策清单。
-- 第一版使用 Next.js、Supabase、LangGraph.js、AutoDL Qwen、SiliconFlow Qwen-Image-Edit 和 SiliconFlow BGE。
+- 第一版使用 Next.js、Supabase、LangGraph.js、AutoDL Qwen、可配置的 SiliconFlow 或 Tripo/Lumina 图片编辑服务，以及 SiliconFlow BGE。
 - 第一版不做完整自治 Agent，不做电商链接解析，不做虚拟试穿。
 - 第一版衣橱图片采用“原图 + Qwen-Image-Edit 高质量展示图 + 双图视觉识别 + 人工确认”。展示图用于衣橱卡片和搭配板，原图仍是真实依据。
 - 第一版不使用淘宝/电商找同款商品图作为主图；相似商品检索后续只可作为标签补全参考，并需用户确认。

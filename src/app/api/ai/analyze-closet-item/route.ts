@@ -6,7 +6,12 @@ import {
   buildClosetAnalysisPrompt,
   parseClosetAnalysisJson,
 } from "@/lib/ai/closet-analysis";
-import { generateVisionJson } from "@/lib/ai/providers";
+import {
+  generateVisionJson,
+  getAiCapabilityConfigError,
+  hasVisionConfig,
+  sanitizeAiErrorMessage,
+} from "@/lib/ai/providers";
 import { appEnv } from "@/lib/env";
 
 export const runtime = "nodejs";
@@ -38,8 +43,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: "Supabase is not configured." }, { status: 500 });
   }
 
-  if (!appEnv.autoDlApiKey) {
-    return NextResponse.json({ message: "AUTODL_API_KEY is not configured." }, { status: 500 });
+  if (!hasVisionConfig()) {
+    return NextResponse.json({ message: getAiCapabilityConfigError("vision") }, { status: 500 });
   }
 
   const body = await request.json().catch(() => null);
@@ -139,10 +144,9 @@ export async function POST(request: NextRequest) {
       analysis,
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Closet item analysis failed.";
     console.error("[closet-analysis] failed", {
       closetItemId,
-      message,
+      message: sanitizeAiErrorMessage(error),
     });
 
     const qualityFlags = await mergeCurrentQualityFlags(supabase, closetItemId, {
@@ -158,7 +162,7 @@ export async function POST(request: NextRequest) {
       })
       .eq("id", closetItemId);
 
-    return NextResponse.json({ message }, { status: 500 });
+    return NextResponse.json({ message: "Closet item analysis failed." }, { status: 500 });
   }
 }
 

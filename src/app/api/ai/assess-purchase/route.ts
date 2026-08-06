@@ -7,7 +7,12 @@ import {
   buildPurchaseEmbeddingText,
   parsePurchaseAnalysisJson,
 } from "@/lib/ai/purchase-analysis";
-import { embedText, generateVisionJson, toPgVector } from "@/lib/ai/providers";
+import {
+  embedText,
+  generateVisionJson,
+  sanitizeAiErrorMessage,
+  toPgVector,
+} from "@/lib/ai/providers";
 import type { UserStyleProfile } from "@/lib/ai/types";
 import {
   parseCandidateFromMessage,
@@ -185,7 +190,7 @@ export async function POST(request: NextRequest) {
 
       if (candidateInsertError) {
         console.warn("[purchase-assessment] candidate persistence skipped", {
-          message: candidateInsertError.message,
+          message: sanitizeAiErrorMessage(candidateInsertError),
         });
       } else {
         candidateId = candidateRow?.id;
@@ -253,10 +258,9 @@ export async function POST(request: NextRequest) {
         : {}),
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Purchase assessment failed.";
-    console.error("[purchase-assessment] failed", { message });
+    console.error("[purchase-assessment] failed", { message: sanitizeAiErrorMessage(error) });
 
-    return NextResponse.json({ message }, { status: 500 });
+    return NextResponse.json({ message: "Purchase assessment failed." }, { status: 500 });
   }
 }
 
@@ -310,7 +314,7 @@ async function persistAssessmentReport(
 
   if (error) {
     console.warn("[purchase-assessment] report persistence skipped", {
-      message: error.message,
+      message: sanitizeAiErrorMessage(error),
     });
     return undefined;
   }
@@ -388,7 +392,7 @@ async function analyzePurchaseCandidateSafely(
     };
   } catch (error) {
     console.warn("[purchase-assessment] vision analysis skipped", {
-      message: error instanceof Error ? error.message : "Vision analysis failed.",
+      message: sanitizeAiErrorMessage(error),
     });
 
     const fallbackCandidate = parseCandidateFromMessage(message || "待买商品");

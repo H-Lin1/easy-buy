@@ -16,7 +16,12 @@ import type {
 } from "@/lib/ai/types";
 import { retrieveFashionKnowledge } from "@/lib/ai/knowledge";
 import { buildPurchaseEmbeddingText } from "@/lib/ai/purchase-analysis";
-import { embedText, generateDecisionJson, hasAutoDlConfig } from "@/lib/ai/providers";
+import {
+  embedText,
+  generateDecisionJson,
+  hasDecisionConfig,
+  sanitizeAiErrorMessage,
+} from "@/lib/ai/providers";
 
 const PurchaseState = Annotation.Root({
   request: Annotation<PurchaseAssessmentRequest>(),
@@ -188,11 +193,11 @@ export async function runPurchaseAssessmentTrace(request: PurchaseAssessmentRequ
   let finalReport: PurchaseDecisionReport;
   let modelOutput: Record<string, unknown>;
 
-  if (!hasAutoDlConfig()) {
+  if (!hasDecisionConfig()) {
     finalReport = fallbackReport;
     modelOutput = {
       usedModel: false,
-      fallbackReason: "AutoDL 模型配置不存在，使用规则兜底报告。",
+      fallbackReason: "购买推理能力未配置，使用规则兜底报告。",
     };
   } else {
     try {
@@ -234,10 +239,13 @@ export async function runPurchaseAssessmentTrace(request: PurchaseAssessmentRequ
         parsedDecisionLabel: parsed.decisionLabel,
       };
     } catch (error) {
+      console.warn("[purchase-workflow] decision model failed, fallback used", {
+        message: sanitizeAiErrorMessage(error),
+      });
       finalReport = fallbackReport;
       modelOutput = {
         usedModel: false,
-        fallbackReason: error instanceof Error ? error.message : "Decision model failed.",
+        fallbackReason: "购买推理服务暂时不可用，使用规则兜底报告。",
       };
     }
   }
@@ -367,7 +375,7 @@ async function assessPurchase(state: GraphState): Promise<Partial<GraphState>> {
     state.knowledgeSnippets,
   );
 
-  if (!hasAutoDlConfig()) {
+  if (!hasDecisionConfig()) {
     return { report: sanitizeOutfitFocusReport(fallbackReport) };
   }
 
@@ -411,11 +419,11 @@ async function assessPurchase(state: GraphState): Promise<Partial<GraphState>> {
     };
   } catch (error) {
     console.warn("[purchase-workflow] decision model failed, fallback used", {
-      message: error instanceof Error ? error.message : "Decision model failed.",
+      message: sanitizeAiErrorMessage(error),
     });
     return {
       report: sanitizeOutfitFocusReport(fallbackReport),
-      errors: [error instanceof Error ? error.message : "Decision model failed."],
+      errors: ["购买推理服务暂时不可用，使用规则兜底报告。"],
     };
   }
 }
@@ -448,16 +456,15 @@ async function generateNormalizedDecisionReport(prompt: string) {
       console.warn("[purchase-workflow] decision JSON attempt failed", {
         attempt,
         responseChars: raw.length,
-        message: error instanceof Error ? error.message : "Decision model failed.",
+        message: sanitizeAiErrorMessage(error),
       });
     }
   }
 
-  throw new Error(
-    `Decision model failed after retry: ${
-      lastError instanceof Error ? lastError.message : "unknown error"
-    }`,
-  );
+  console.warn("[purchase-workflow] decision model retries exhausted", {
+    message: sanitizeAiErrorMessage(lastError),
+  });
+  throw new Error("Decision model failed after retry.");
 }
 
 function normalizeModelReport(report: Partial<PurchaseDecisionReport>) {

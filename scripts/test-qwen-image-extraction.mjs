@@ -2,6 +2,11 @@ import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
 
+import {
+  requireSupportedAiScriptProvider,
+  sanitizeAiScriptError,
+} from "./ai-script-utils.mjs";
+
 const projectRoot = process.cwd();
 const defaultInputImage = path.join(
   projectRoot,
@@ -97,11 +102,14 @@ function imageToDataUrl(filePath) {
   return `data:${mimeType};base64,${base64}`;
 }
 
-function buildEndpoint(args) {
+function buildEndpoint(args, provider) {
   if (args.endpoint) return args.endpoint;
 
-  const baseURL = process.env.AUTODL_OPENAI_BASE_URL ?? "https://www.autodl.art/api/v1";
-  return `${baseURL.replace(/\/$/, "")}/images/generations`;
+  const baseURL =
+    process.env.AI_IMAGE_EDIT_BASE_URL ??
+    (provider === "tripo" ? "https://lumina.tripo3d.com/v1" : "https://api.siliconflow.cn/v1");
+  const path = provider === "tripo" ? "/images/edits" : "/images/generations";
+  return `${baseURL.replace(/\/$/, "")}${path}`;
 }
 
 function buildPrompt() {
@@ -125,10 +133,10 @@ photorealistic product photo, front view, white studio background, high fidelity
 `.trim();
 }
 
-function buildPayload(args, dataUrl) {
+function buildSiliconFlowPayload(args, dataUrl) {
   const prompt = buildPrompt();
   const payload = {
-    model: args.model ?? process.env.AUTODL_IMAGE_MODEL ?? "Qwen-Image",
+    model: args.model ?? process.env.AI_IMAGE_EDIT_MODEL ?? "Qwen/Qwen-Image-Edit-2509",
     prompt,
     n: args.n,
     size: args.size,
@@ -152,6 +160,42 @@ function buildPayload(args, dataUrl) {
   }
 
   return payload;
+}
+
+function buildImageRequest(args, provider) {
+  if (provider === "tripo") {
+    if (args.mode !== "image") {
+      throw new Error("Tripo image editing in this script only supports --mode image.");
+    }
+
+    const model = args.model ?? process.env.AI_IMAGE_EDIT_MODEL ?? "gpt-image-2";
+    const prompt = buildPrompt();
+    const formData = new FormData();
+    const image = new Blob([fs.readFileSync(args.image)], { type: getMimeType(args.image) });
+
+    formData.append("model", model);
+    formData.append("prompt", prompt);
+    formData.append("image[]", image, path.basename(args.image));
+
+    return {
+      protocol: "multipart",
+      model,
+      body: formData,
+      metadata: {
+        model,
+        prompt,
+        image: "[image binary omitted]",
+      },
+    };
+  }
+
+  const payload = buildSiliconFlowPayload(args, imageToDataUrl(args.image));
+  return {
+    protocol: "json",
+    model: payload.model,
+    body: payload,
+    metadata: stripLargePayloadFields(payload),
+  };
 }
 
 function stripLargePayloadFields(payload) {
@@ -222,7 +266,14 @@ function saveBase64Image(value, outputPathWithoutExtension) {
 
 async function saveGeneratedImages(result, outputDir) {
   const saved = [];
-  const data = Array.isArray(result.data) ? result.data : [];
+  const candidates = [
+    ...(Array.isArray(result.data) ? result.data : []),
+    ...(Array.isArray(result.images) ? result.images : []),
+  ].map((item) => (typeof item === "string" ? { url: item } : item));
+  const data = candidates.filter((item, index) => {
+    const identity = getImageIdentity(item);
+    return candidates.findIndex((candidate) => getImageIdentity(candidate) === identity) === index;
+  });
 
   for (let index = 0; index < data.length; index += 1) {
     const item = data[index];
@@ -242,24 +293,50 @@ async function saveGeneratedImages(result, outputDir) {
   return saved;
 }
 
-async function callImageModel(endpoint, apiKey, payload, timeoutMs) {
+function getImageIdentity(item) {
+  return item.url ?? item.b64_json ?? item.image ?? item.base64 ?? JSON.stringify(item);
+}
+
+function summarizeImageResponse(result, savedImages) {
+  const collections = [
+    ...(Array.isArray(result?.data) ? result.data : []),
+    ...(Array.isArray(result?.images) ? result.images : []),
+  ];
+  const outputKinds = collections.map((item) => {
+    if (item?.b64_json || item?.base64 || item?.image) return "base64";
+    if (item?.url) return "url";
+    return "unknown";
+  });
+
+  return {
+    responseFields: result && typeof result === "object" ? Object.keys(result).sort() : [],
+    outputKinds,
+    savedImageCount: savedImages.length,
+  };
+}
+
+async function callImageModel(endpoint, apiKey, imageRequest, timeoutMs) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
+    const headers = {
+      Authorization: `Bearer ${apiKey}`,
+    };
+    if (imageRequest.protocol === "json") {
+      headers["Content-Type"] = "application/json";
+    }
+
     const response = await fetch(endpoint, {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
+      headers,
+      body: imageRequest.protocol === "json" ? JSON.stringify(imageRequest.body) : imageRequest.body,
       signal: controller.signal,
     });
 
     const text = await response.text();
     if (!response.ok) {
-      throw new Error(`AutoDL image API failed ${response.status}: ${text.slice(0, 1000)}`);
+      throw new Error(`Image API failed ${response.status}`);
     }
 
     return parseJsonResponse(text);
@@ -272,12 +349,16 @@ async function main() {
   loadEnvFile(path.join(projectRoot, ".env.local"));
 
   const args = parseArgs(process.argv.slice(2));
-  const apiKey = process.env.AUTODL_API_KEY;
-  const endpoint = buildEndpoint(args);
-  const timeoutMs = Number(process.env.AI_PROVIDER_TIMEOUT_MS ?? 120000);
+  const provider = requireSupportedAiScriptProvider(
+    "image-edit",
+    process.env.AI_IMAGE_EDIT_PROVIDER ?? "siliconflow",
+    ["siliconflow", "tripo"],
+  );
+  const apiKey = process.env.AI_IMAGE_EDIT_API_KEY;
+  const timeoutMs = Number(process.env.AI_IMAGE_EDIT_TIMEOUT_MS ?? 180000);
 
   if (!apiKey) {
-    throw new Error("AUTODL_API_KEY is missing. Put it in .env.local before running this script.");
+    throw new Error("AI_IMAGE_EDIT_API_KEY is missing. Put it in .env.local before running this script.");
   }
 
   if (!fs.existsSync(args.image)) {
@@ -286,29 +367,31 @@ async function main() {
 
   fs.mkdirSync(args.out, { recursive: true });
 
-  const dataUrl = imageToDataUrl(args.image);
-  const payload = buildPayload(args, dataUrl);
+  const endpoint = buildEndpoint(args, provider);
+  const imageRequest = buildImageRequest(args, provider);
   const startedAt = new Date().toISOString();
   const started = performance.now();
 
-  console.log(`Calling ${payload.model} at ${endpoint}`);
+  console.log(`Calling ${imageRequest.model} at ${endpoint}`);
   console.log(`Input: ${args.image}`);
   console.log(`Output: ${args.out}`);
-  console.log(`Mode: ${args.mode}, size: ${args.size}`);
+  console.log(`Provider: ${provider}, protocol: ${imageRequest.protocol}`);
 
-  const result = await callImageModel(endpoint, apiKey, payload, timeoutMs);
+  const result = await callImageModel(endpoint, apiKey, imageRequest, timeoutMs);
   const savedImages = await saveGeneratedImages(result, args.out);
 
   const metadata = {
     startedAt,
     completedAt: new Date().toISOString(),
     elapsedSeconds: Number(((performance.now() - started) / 1000).toFixed(2)),
+    provider,
+    protocol: imageRequest.protocol,
     endpoint,
     inputImage: args.image,
     outputDir: args.out,
     savedImages,
-    request: stripLargePayloadFields(payload),
-    response: result,
+    request: imageRequest.metadata,
+    response: summarizeImageResponse(result, savedImages),
   };
 
   const metadataPath = path.join(args.out, "qwen-image-extraction.metadata.json");
@@ -322,6 +405,6 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error(error instanceof Error ? error.message : error);
+  console.error(sanitizeAiScriptError(error, [process.env.AI_IMAGE_EDIT_API_KEY]));
   process.exitCode = 1;
 });

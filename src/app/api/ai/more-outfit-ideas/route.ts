@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
 
 import { buildPurchaseEmbeddingText } from "@/lib/ai/purchase-analysis";
-import { embedText } from "@/lib/ai/providers";
+import { embedText, sanitizeAiErrorMessage } from "@/lib/ai/providers";
 import type {
   OutfitCombination,
   PurchaseCandidateAIProfile,
@@ -126,10 +126,9 @@ export async function POST(request: NextRequest) {
       closetItemCount: closetItems.length,
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "More outfit ideas failed.";
-    console.error("[more-outfit-ideas] failed", { message });
+    console.error("[more-outfit-ideas] failed", { message: sanitizeAiErrorMessage(error) });
 
-    return NextResponse.json({ message }, { status: 500 });
+    return NextResponse.json({ message: "More outfit ideas failed." }, { status: 500 });
   }
 }
 

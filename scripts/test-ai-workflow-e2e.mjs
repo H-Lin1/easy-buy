@@ -5,6 +5,11 @@ import { fileURLToPath } from "node:url";
 import OpenAI from "openai";
 import { createClient } from "@supabase/supabase-js";
 
+import {
+  requireSupportedAiScriptProvider,
+  sanitizeAiScriptError,
+} from "./ai-script-utils.mjs";
+
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const resourcesDir = path.join(projectRoot, "resources", "closet");
 const outputDir = path.join(projectRoot, "resources", "ai-workflow-test");
@@ -25,8 +30,10 @@ assertRequiredEnv([
   "NEXT_PUBLIC_SUPABASE_URL",
   "NEXT_PUBLIC_SUPABASE_ANON_KEY",
   "SUPABASE_SERVICE_ROLE_KEY",
-  "SILICONFLOW_API_KEY",
-  "AUTODL_API_KEY",
+  "AI_VISION_API_KEY",
+  "AI_DECISION_API_KEY",
+  "AI_EMBEDDING_API_KEY",
+  "AI_IMAGE_EDIT_API_KEY",
 ]);
 
 const testEmail = env.test_User ?? env.TEST_USER;
@@ -86,10 +93,15 @@ try {
   console.log(JSON.stringify(report.summary, null, 2));
   console.log(`Full report saved: ${outputPath}`);
 } catch (error) {
-  report.error = error instanceof Error ? error.message : String(error);
+  report.error = sanitizeAiScriptError(error, [
+    env.AI_VISION_API_KEY,
+    env.AI_DECISION_API_KEY,
+    env.AI_EMBEDDING_API_KEY,
+    env.AI_IMAGE_EDIT_API_KEY,
+  ]);
   if (report.userId && !report.keepData) {
     report.cleanupAfterFailure = await cleanupE2eClosetData(report.userId).catch((cleanupError) => ({
-      error: cleanupError instanceof Error ? cleanupError.message : String(cleanupError),
+      error: sanitizeAiScriptError(cleanupError),
     }));
   }
   const outputPath = path.join(outputDir, `ai-workflow-e2e-failed-${Date.now()}.json`);
@@ -143,6 +155,16 @@ async function checkHealth() {
 
   if (!data.ok || !data.databaseReachable || !data.supabaseConfigured) {
     throw new Error(`Health check failed: ${JSON.stringify(data)}`);
+  }
+
+  const capabilities = ["vision", "decision", "embedding", "imageEdit"];
+  const missingCapabilities = capabilities.filter(
+    (capability) => data.ai?.[capability]?.configured !== true,
+  );
+  if (missingCapabilities.length) {
+    throw new Error(
+      `Health check failed: AI capabilities not configured: ${missingCapabilities.join(", ")}`,
+    );
   }
 
   return data;
@@ -426,10 +448,15 @@ async function storagePathToDataUrl(bucket, storagePath) {
 }
 
 async function embedQuery(text) {
+  requireSupportedAiScriptProvider(
+    "embedding",
+    env.AI_EMBEDDING_PROVIDER ?? "siliconflow",
+    ["siliconflow"],
+  );
   const client = new OpenAI({
-    apiKey: env.SILICONFLOW_API_KEY,
-    baseURL: env.SILICONFLOW_BASE_URL ?? "https://api.siliconflow.cn/v1",
-    timeout: Number(env.AI_PROVIDER_TIMEOUT_MS ?? 30000),
+    apiKey: env.AI_EMBEDDING_API_KEY,
+    baseURL: env.AI_EMBEDDING_BASE_URL ?? "https://api.siliconflow.cn/v1",
+    timeout: Number(env.AI_EMBEDDING_TIMEOUT_MS ?? 12000),
     maxRetries: 0,
   });
 
@@ -440,7 +467,19 @@ async function embedQuery(text) {
 
   const embedding = response.data[0]?.embedding;
   if (!embedding?.length) throw new Error("Embedding API returned no vector.");
-  return normalizeEmbedding(embedding, Number(env.AI_EMBEDDING_DIMENSIONS ?? 1024));
+  return normalizeEmbedding(embedding, getEmbeddingDimensions(env));
+}
+
+function getEmbeddingDimensions(source) {
+  const configured = source.AI_EMBEDDING_DIMENSIONS;
+  if (!configured) return 1024;
+
+  const dimensions = Number(configured);
+  if (dimensions !== 1024) {
+    throw new Error("AI_EMBEDDING_DIMENSIONS must be 1024 to match the database vector schema.");
+  }
+
+  return dimensions;
 }
 
 function buildSummary(fullReport) {

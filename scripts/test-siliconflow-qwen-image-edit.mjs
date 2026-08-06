@@ -2,6 +2,11 @@ import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
 
+import {
+  requireSupportedAiScriptProvider,
+  sanitizeAiScriptError,
+} from "./ai-script-utils.mjs";
+
 const projectRoot = process.cwd();
 const defaultInputImage = path.join(
   projectRoot,
@@ -15,7 +20,7 @@ function parseArgs(argv) {
   const args = {
     image: defaultInputImage,
     out: defaultOutputDir,
-    model: process.env.AI_IMAGE_EDIT_MODEL ?? "Qwen/Qwen-Image-Edit-2509",
+    model: undefined,
     prompt: undefined,
     negativePrompt: undefined,
     seed: undefined,
@@ -132,7 +137,7 @@ new design, different garment, fantasy fashion, over-smoothed fabric, plastic te
 }
 
 function buildEndpoint() {
-  const baseURL = process.env.SILICONFLOW_BASE_URL ?? "https://api.siliconflow.cn/v1";
+  const baseURL = process.env.AI_IMAGE_EDIT_BASE_URL ?? "https://api.siliconflow.cn/v1";
   return `${baseURL.replace(/\/$/, "")}/images/generations`;
 }
 
@@ -255,12 +260,18 @@ async function main() {
   loadEnvFile(path.join(projectRoot, ".env.local"));
 
   const args = parseArgs(process.argv.slice(2));
-  const apiKey = process.env.SILICONFLOW_API_KEY;
+  args.model ??= process.env.AI_IMAGE_EDIT_MODEL ?? "Qwen/Qwen-Image-Edit-2509";
+  requireSupportedAiScriptProvider(
+    "image-edit",
+    process.env.AI_IMAGE_EDIT_PROVIDER ?? "siliconflow",
+    ["siliconflow"],
+  );
+  const apiKey = process.env.AI_IMAGE_EDIT_API_KEY;
   const endpoint = buildEndpoint();
-  const timeoutMs = Number(args.timeoutMs ?? process.env.SILICONFLOW_IMAGE_TIMEOUT_MS ?? 180000);
+  const timeoutMs = Number(args.timeoutMs ?? process.env.AI_IMAGE_EDIT_TIMEOUT_MS ?? 180000);
 
   if (!apiKey) {
-    throw new Error("SILICONFLOW_API_KEY is missing. Put it in .env.local before running this script.");
+    throw new Error("AI_IMAGE_EDIT_API_KEY is missing. Put it in .env.local before running this script.");
   }
 
   if (!fs.existsSync(args.image)) {
@@ -306,6 +317,6 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error(error instanceof Error ? error.message : error);
+  console.error(sanitizeAiScriptError(error, [process.env.AI_IMAGE_EDIT_API_KEY]));
   process.exitCode = 1;
 });
