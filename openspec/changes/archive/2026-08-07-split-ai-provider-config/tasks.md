@@ -18,11 +18,11 @@
 - [x] 3.1 Add focused automated coverage for capability config parsing, independent key selection, unsupported provider handling, legacy-variable non-use, fallback behavior and secret-free diagnostics.
 - [x] 3.2 Run the targeted configuration tests, existing closet filter tests, `npm run lint`, and `npm run build`.
 - [x] 3.3 Verify locally with independent test values that each ability receives only its own configuration and that no API Key appears in health or error output.
-- [ ] 3.4 Deploy a Preview after populating the selected Vercel capability variables; verify `/api/health` and authenticated vision, decision, embedding and selected image-provider flows before production rollout.
+- [x] 3.4 Deploy a Preview after populating the selected Vercel capability variables; verify `/api/health` and authenticated vision, decision, embedding and selected image-provider flows before production rollout.
 - [x] 3.5 Add mocked adapter coverage for SiliconFlow JSON and Tripo multipart request contracts, the absence of manually set multipart `Content-Type`, Base64 output normalization, unsupported-provider no-request and secret-free errors; rerun local checks and restart the local server to verify the Tripo health metadata without making a billable image request.
 
 ## 4. Deployment Migration
 
-- [ ] 4.1 Add the four new capability-level variable groups to Vercel Production and Preview before deploying the implementation, retaining the existing AutoDL/SiliconFlow values where selected and populating `AI_IMAGE_EDIT_*` with Tripo/Lumina values when switching image edit.
-- [ ] 4.2 Deploy the implementation to Production after Preview verification, then verify the production health endpoint and representative AI flows.
-- [ ] 4.3 Remove the legacy `AUTODL_*` and `SILICONFLOW_*` shared variables from Vercel only after production verification; retain a secure rollback record until the release is stable.
+- [x] 4.1 Add the four new capability-level variable groups to Vercel Production and Preview before deploying the implementation, retaining the existing AutoDL/SiliconFlow values where selected and populating `AI_IMAGE_EDIT_*` with Tripo/Lumina values when switching image edit.
+- [x] 4.2 Deploy the implementation to Production after Preview verification, then verify the production health endpoint and representative AI flows.
+- [x] 4.3 Remove the legacy `AUTODL_*` and `SILICONFLOW_*` shared variables from Vercel only after production verification; retain a secure rollback record until the release is stable.
