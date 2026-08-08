@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 
@@ -20,6 +20,8 @@ import {
   hasImageEditConfig,
 } from "@/lib/ai/providers";
 import { appEnv } from "@/lib/env";
+import { createRouteTiming } from "@/lib/performance/route-timing";
+import type { TimingTrace } from "@/lib/performance/timing";
 
 export const runtime = "nodejs";
 
@@ -37,38 +39,78 @@ const closetItemSelect =
   "id,image_path,processed_image_path,display_image_path,display_image_status,display_image_model,display_image_prompt_version,image_quality_flags,category,color,fit,style_tags,season,scenario_tags,wear_frequency,status,summary,embedding_text,ai_confidence,user_corrected";
 
 export async function POST(request: NextRequest) {
-  const authHeader = request.headers.get("authorization");
+  const timing = createRouteTiming(request, {
+    operation: "closet_display_image_route",
+    route: "generate_closet_display_image",
+  });
+
+  try {
+    return await handlePost(request, timing);
+  } catch (error) {
+    console.error("[closet-display-image] route failed", {
+      failure: describeDisplayImageFailure(error),
+    });
+
+    return timing.json(
+      { message: "Display image generation failed." },
+      { status: 500, metadata: { failureKind: "unexpected_route_failure" } },
+    );
+  }
+}
+
+async function handlePost(
+  request: NextRequest,
+  timing: ReturnType<typeof createRouteTiming>,
+) {
+  const { trace } = timing;
+  const authHeader = trace.measureSync(
+    "request_headers",
+    () => request.headers.get("authorization"),
+    (value) => (value?.startsWith("Bearer ") ? "success" : "failure"),
+  );
 
   if (!authHeader?.startsWith("Bearer ")) {
-    return NextResponse.json({ message: "Missing auth token." }, { status: 401 });
+    return timing.json(
+      { message: "Missing auth token." },
+      { status: 401, metadata: { failureKind: "missing_auth" } },
+    );
   }
 
   if (!appEnv.supabaseUrl || !appEnv.supabaseAnonKey) {
-    return NextResponse.json({ message: "Supabase is not configured." }, { status: 500 });
+    return timing.json(
+      { message: "Supabase is not configured." },
+      { status: 500, metadata: { failureKind: "supabase_not_configured" } },
+    );
   }
 
   if (!hasImageEditConfig()) {
-    return NextResponse.json(
+    return timing.json(
       { message: getAiCapabilityConfigError("imageEdit") },
-      { status: 500 },
+      { status: 500, metadata: { failureKind: "image_edit_not_configured" } },
     );
   }
 
-  const imageEditModel = getAiCapabilityConfig("imageEdit").model;
+  const imageEditConfig = getAiCapabilityConfig("imageEdit");
+  const imageEditModel = imageEditConfig.model;
   if (!imageEditModel) {
-    return NextResponse.json(
+    return timing.json(
       { message: getAiCapabilityConfigError("imageEdit") },
-      { status: 500 },
+      { status: 500, metadata: { failureKind: "image_edit_model_missing" } },
     );
   }
+  timing.addMetadata({ provider: imageEditConfig.provider, model: imageEditModel });
 
-  const body = await request.json().catch(() => null);
-  const parsed = requestSchema.safeParse(body);
+  const body = await trace.measure("request_body_json", () => request.json()).catch(() => null);
+  const parsed = trace.measureSync(
+    "request_validate",
+    () => requestSchema.safeParse(body),
+    (result) => (result.success ? "success" : "failure"),
+  );
 
   if (!parsed.success) {
-    return NextResponse.json(
+    return timing.json(
       { message: "Invalid display image request.", issues: parsed.error.issues },
-      { status: 400 },
+      { status: 400, metadata: { failureKind: "invalid_request" } },
     );
   }
 
@@ -81,73 +123,114 @@ export async function POST(request: NextRequest) {
   });
 
   const token = authHeader.replace("Bearer ", "");
-  const { data: userData, error: userError } = await supabase.auth.getUser(token);
+  const { data: userData, error: userError } = await trace.measure(
+    "auth_get_user",
+    () => supabase.auth.getUser(token),
+    (result) => (result.error || !result.data.user ? "failure" : "success"),
+  );
 
   if (userError || !userData.user) {
-    return NextResponse.json({ message: "Invalid auth token." }, { status: 401 });
+    return timing.json(
+      { message: "Invalid auth token." },
+      { status: 401, metadata: { failureKind: "invalid_auth" } },
+    );
   }
 
   const { closetItemId, imagePath, imageDataUrl } = parsed.data;
   const userId = userData.user.id;
+  timing.addMetadata({ inputChars: imageDataUrl.length });
 
-  const { data: closetItem, error: closetError } = await supabase
-    .from("closet_items")
-    .select("id,image_path")
-    .eq("id", closetItemId)
-    .single();
+  const { data: closetItem, error: closetError } = await trace.measure(
+    "db_item_lookup",
+    () =>
+      supabase
+        .from("closet_items")
+        .select("id,image_path")
+        .eq("id", closetItemId)
+        .single(),
+    (result) => (result.error || !result.data ? "failure" : "success"),
+  );
 
   if (closetError || !closetItem || closetItem.image_path !== imagePath) {
-    return NextResponse.json({ message: "Closet item not found." }, { status: 404 });
+    return timing.json(
+      { message: "Closet item not found." },
+      { status: 404, metadata: { failureKind: "item_not_found" } },
+    );
   }
 
-  await supabase
-    .from("closet_items")
-    .update({
-      display_image_status: "processing",
-      display_image_model: imageEditModel,
-      display_image_prompt_version: CLOSET_DISPLAY_PROMPT_VERSION,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", closetItemId);
-
   try {
-    const generatedImage = await callConfiguredImageEdit(imageDataUrl);
+    const { error: processingError } = await trace.measure(
+      "db_mark_processing",
+      () =>
+        supabase
+          .from("closet_items")
+          .update({
+            display_image_status: "processing",
+            display_image_model: imageEditModel,
+            display_image_prompt_version: CLOSET_DISPLAY_PROMPT_VERSION,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", closetItemId),
+      (result) => (result.error ? "failure" : "success"),
+    );
+    if (processingError) throw processingError;
+
+    const generatedImage = await callConfiguredImageEdit(imageDataUrl, trace);
+    timing.addMetadata({ outputKind: generatedImage.kind });
     const { fileBody, extension, contentType } =
       generatedImage.kind === "url"
-        ? await downloadGeneratedImage(generatedImage.value)
-        : decodeImageEditBase64(generatedImage.value);
+        ? await downloadGeneratedImage(generatedImage.value, trace)
+        : trace.measureSync("output_base64_decode", () =>
+            decodeImageEditBase64(generatedImage.value),
+          );
+    timing.addMetadata({ outputBytes: fileBody.length });
     const displayImagePath = `${userId}/display/${crypto.randomUUID()}${extension}`;
 
-    const { error: uploadError } = await supabase.storage
-      .from("closet-images")
-      .upload(displayImagePath, fileBody, {
-        cacheControl: "3600",
-        contentType,
-        upsert: false,
-      });
+    const { error: uploadError } = await trace.measure(
+      "storage_upload",
+      () =>
+        supabase.storage.from("closet-images").upload(displayImagePath, fileBody, {
+          cacheControl: "3600",
+          contentType,
+          upsert: false,
+        }),
+      (result) => (result.error ? "failure" : "success"),
+    );
 
     if (uploadError) throw uploadError;
 
-    const { data, error } = await supabase
-      .from("closet_items")
-      .update({
-        display_image_path: displayImagePath,
-        display_image_status: "ready",
-        display_image_model: imageEditModel,
-        display_image_prompt_version: CLOSET_DISPLAY_PROMPT_VERSION,
-        image_quality_flags: await mergeCurrentQualityFlags(supabase, closetItemId, {
-          add: ["display_image_ready"],
-          remove: ["display_image_queued", "display_image_processing", "display_image_failed"],
-        }),
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", closetItemId)
-      .select(closetItemSelect)
-      .single();
+    const qualityFlags = await mergeCurrentQualityFlags(
+      supabase,
+      closetItemId,
+      {
+        add: ["display_image_ready"],
+        remove: ["display_image_queued", "display_image_processing", "display_image_failed"],
+      },
+      trace,
+      "db_quality_flags_read",
+    );
+    const { data, error } = await trace.measure(
+      "db_mark_ready",
+      () =>
+        supabase
+          .from("closet_items")
+          .update({
+            display_image_path: displayImagePath,
+            display_image_status: "ready",
+            display_image_model: imageEditModel,
+            display_image_prompt_version: CLOSET_DISPLAY_PROMPT_VERSION,
+            image_quality_flags: qualityFlags,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", closetItemId)
+          .select(closetItemSelect)
+          .single(),
+      (result) => (result.error || !result.data ? "failure" : "success"),
+    );
 
     if (error) throw error;
 
-    return NextResponse.json({
+    return timing.json({
       item: data,
     });
   } catch (error) {
@@ -156,41 +239,74 @@ export async function POST(request: NextRequest) {
       failure: describeDisplayImageFailure(error),
     });
 
-    await supabase
-      .from("closet_items")
-      .update({
-        display_image_status: "failed",
-        image_quality_flags: await mergeCurrentQualityFlags(supabase, closetItemId, {
+    try {
+      const qualityFlags = await mergeCurrentQualityFlags(
+        supabase,
+        closetItemId,
+        {
           add: ["display_image_failed"],
           remove: ["display_image_queued", "display_image_processing", "display_image_ready"],
-        }),
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", closetItemId);
+        },
+        trace,
+        "db_failure_flags_read",
+      );
+      const { error: markFailedError } = await trace.measure(
+        "db_mark_failed",
+        () =>
+          supabase
+            .from("closet_items")
+            .update({
+              display_image_status: "failed",
+              image_quality_flags: qualityFlags,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", closetItemId),
+        (result) => (result.error ? "failure" : "success"),
+      );
+      if (markFailedError) throw markFailedError;
+    } catch (cleanupError) {
+      console.error("[closet-display-image] failure state update failed", {
+        closetItemId,
+        failure: describeDisplayImageFailure(cleanupError),
+      });
+    }
 
-    return NextResponse.json(
+    return timing.json(
       {
         message: "Display image generation failed.",
       },
-      { status: 500 },
+      {
+        status: 500,
+        metadata: { failureKind: describeDisplayImageFailure(error) },
+      },
     );
   }
 }
 
-async function callConfiguredImageEdit(imageDataUrl: string): Promise<ImageEditOutput> {
-  const imageEditRequest = createImageEditRequest(
-    imageDataUrl,
-    buildClosetDisplayPrompt(),
-    buildClosetDisplayNegativePrompt(),
+async function callConfiguredImageEdit(
+  imageDataUrl: string,
+  trace: TimingTrace,
+): Promise<ImageEditOutput> {
+  const imageEditRequest = trace.measureSync("provider_request_build", () =>
+    createImageEditRequest(
+      imageDataUrl,
+      buildClosetDisplayPrompt(),
+      buildClosetDisplayNegativePrompt(),
+    ),
   );
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), imageEditRequest.timeoutMs);
 
   try {
-    const response = await fetch(imageEditRequest.endpoint, {
-      ...createImageEditRequestInit(imageEditRequest),
-      signal: controller.signal,
-    });
+    const response = await trace.measure(
+      "provider_fetch_ttfb",
+      () =>
+        fetch(imageEditRequest.endpoint, {
+          ...createImageEditRequestInit(imageEditRequest),
+          signal: controller.signal,
+        }),
+      (result) => (result.ok ? "success" : "failure"),
+    );
 
     if (!response.ok) {
       throw new ImageEditProviderError("provider_request_failed", response.status);
@@ -198,17 +314,18 @@ async function callConfiguredImageEdit(imageDataUrl: string): Promise<ImageEditO
 
     let result: unknown;
     try {
-      result = await response.json();
+      result = await trace.measure("provider_response_json", () => response.json());
     } catch {
       throw new ImageEditProviderError("invalid_provider_response");
     }
 
-    const imageOutput = extractImageEditOutput(result);
-    if (!imageOutput) {
-      throw new ImageEditProviderError("missing_image_output");
-    }
-
-    return imageOutput;
+    return trace.measureSync("provider_output_extract", () => {
+      const imageOutput = extractImageEditOutput(result);
+      if (!imageOutput) {
+        throw new ImageEditProviderError("missing_image_output");
+      }
+      return imageOutput;
+    });
   } finally {
     clearTimeout(timeout);
   }
@@ -237,8 +354,12 @@ function describeDisplayImageFailure(error: unknown) {
   return "image_generation_or_storage_failed";
 }
 
-async function downloadGeneratedImage(url: string) {
-  const response = await fetch(url);
+async function downloadGeneratedImage(url: string, trace: TimingTrace) {
+  const response = await trace.measure(
+    "output_url_fetch",
+    () => fetch(url),
+    (result) => (result.ok ? "success" : "failure"),
+  );
 
   if (!response.ok) {
     throw new Error(`Failed to download generated image: ${response.status}`);
@@ -249,7 +370,9 @@ async function downloadGeneratedImage(url: string) {
   const extension = extensionFromContentType(contentType);
 
   return {
-    fileBody: Buffer.from(await response.arrayBuffer()),
+    fileBody: Buffer.from(
+      await trace.measure("output_url_body", () => response.arrayBuffer()),
+    ),
     extension,
     contentType,
   };
@@ -279,12 +402,20 @@ async function mergeCurrentQualityFlags(
   supabase: SupabaseClient,
   closetItemId: string,
   changes: { add?: string[]; remove?: string[] },
+  trace: TimingTrace,
+  spanName: string,
 ) {
-  const { data } = await supabase
-    .from("closet_items")
-    .select("image_quality_flags")
-    .eq("id", closetItemId)
-    .single<ClosetQualityRow>();
+  const { data, error } = await trace.measure(
+    spanName,
+    () =>
+      supabase
+        .from("closet_items")
+        .select("image_quality_flags")
+        .eq("id", closetItemId)
+        .single<ClosetQualityRow>(),
+    (result) => (result.error ? "failure" : "success"),
+  );
+  if (error) throw error;
 
   return mergeQualityFlags(data?.image_quality_flags ?? [], changes.add ?? [], changes.remove ?? []);
 }

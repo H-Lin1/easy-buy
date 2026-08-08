@@ -42,6 +42,13 @@ import {
   type ClosetFilterOption,
   type ClosetFilters,
 } from "@/lib/closet/filter-items";
+import {
+  createTimingTrace,
+  emitTimingSummary,
+  type TimingOutcome,
+  type TimingSpanHandle,
+  type TimingTrace,
+} from "@/lib/performance/timing";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import type {
   AppView,
@@ -125,6 +132,115 @@ type ClosetConfirmationDraft = {
   seasonTags: string[];
   wearFrequency: ClothingItem["wearFrequency"];
 };
+
+type ClosetUploadTraceContext = {
+  trace: TimingTrace;
+  fileBytes: number;
+  batchSize: number;
+  dataUrlChars?: number;
+  itemId?: string;
+  analysisRequestId?: string;
+  analysisServerTiming?: string;
+  displayRequestId?: string;
+  displayServerTiming?: string;
+  analysisSucceeded?: boolean;
+  displaySucceeded?: boolean;
+  displayImageUrl?: string;
+  displayImageLoadPromise: Promise<TimingOutcome>;
+  beginDisplayImageLoad: (url?: string) => void;
+  finishDisplayImageLoad: (outcome: TimingOutcome) => void;
+  finalized: boolean;
+};
+
+type ClosetImageLoadHandler = (
+  itemId: string,
+  imageUrl: string,
+  outcome: Extract<TimingOutcome, "success" | "failure">,
+) => void;
+
+function createClosetUploadTraceContext(file: File, batchSize: number): ClosetUploadTraceContext {
+  const trace = createTimingTrace({
+    operation: "closet_upload",
+    traceId: crypto.randomUUID(),
+  });
+  let resolveDisplayImageLoad!: (outcome: TimingOutcome) => void;
+  const displayImageLoadPromise = new Promise<TimingOutcome>((resolve) => {
+    resolveDisplayImageLoad = resolve;
+  });
+  let displayImageLoadSpan: TimingSpanHandle | undefined;
+  let displayImageLoadFinished = false;
+  let displayImageLoadTimeout: ReturnType<typeof setTimeout> | undefined;
+
+  const context: ClosetUploadTraceContext = {
+    trace,
+    fileBytes: file.size,
+    batchSize,
+    displayImageLoadPromise,
+    beginDisplayImageLoad(url) {
+      if (!url || displayImageLoadFinished || displayImageLoadSpan) return;
+      context.displayImageUrl = url;
+      displayImageLoadSpan = trace.startSpan("display_image_load");
+      displayImageLoadTimeout = setTimeout(() => {
+        context.finishDisplayImageLoad("timeout");
+      }, 30_000);
+    },
+    finishDisplayImageLoad(outcome) {
+      if (displayImageLoadFinished) return;
+      displayImageLoadFinished = true;
+      if (displayImageLoadTimeout) clearTimeout(displayImageLoadTimeout);
+      displayImageLoadSpan?.finish(outcome);
+      resolveDisplayImageLoad(outcome);
+    },
+    finalized: false,
+  };
+
+  return context;
+}
+
+async function finalizeClosetUploadTrace(context: ClosetUploadTraceContext) {
+  if (context.finalized) return;
+  context.finalized = true;
+
+  if (!context.displaySucceeded) {
+    context.finishDisplayImageLoad("failure");
+  }
+
+  const displayImageOutcome = await context.displayImageLoadPromise;
+  const outcome: TimingOutcome =
+    context.analysisSucceeded === false || context.displaySucceeded === false
+      ? "failure"
+      : displayImageOutcome;
+
+  emitTimingSummary(
+    context.trace.summarize(outcome, {
+      fileBytes: context.fileBytes,
+      batchSize: context.batchSize,
+      dataUrlChars: context.dataUrlChars,
+      analysisRequestId: context.analysisRequestId,
+      analysisServerTiming: context.analysisServerTiming,
+      displayRequestId: context.displayRequestId,
+      displayServerTiming: context.displayServerTiming,
+    }),
+  );
+}
+
+async function measureWithTrace<T>(
+  trace: TimingTrace | undefined,
+  name: string,
+  task: () => PromiseLike<T>,
+  classify?: (result: T) => TimingOutcome,
+) {
+  return trace ? trace.measure(name, task, classify) : await task();
+}
+
+function measureSyncWithTrace<T>(
+  trace: TimingTrace | undefined,
+  name: string,
+  task: () => T,
+  classify?: (result: T) => TimingOutcome,
+) {
+  return trace ? trace.measureSync(name, task, classify) : task();
+}
 
 type ChatSessionRow = {
   id: string;
@@ -294,19 +410,35 @@ function mapProfileFromDb(row: ProfileRow): UserProfile {
 async function mapClosetItemFromDb(
   supabase: SupabaseClient,
   row: ClosetItemRow,
+  timing?: { trace: TimingTrace; prefix: string },
 ): Promise<ClothingItem> {
-  const { data: originalImage } = await supabase.storage
-    .from("closet-images")
-    .createSignedUrl(row.image_path, 60 * 60);
+  const { data: originalImage } = await measureWithTrace(
+    timing?.trace,
+    `${timing?.prefix ?? "closet"}_original_signed_url`,
+    () => supabase.storage.from("closet-images").createSignedUrl(row.image_path, 60 * 60),
+    (result) => (result.error ? "failure" : "success"),
+  );
   const { data: processedImage } = row.processed_image_path
-    ? await supabase.storage
-        .from("closet-images")
-        .createSignedUrl(row.processed_image_path, 60 * 60)
+    ? await measureWithTrace(
+        timing?.trace,
+        `${timing?.prefix ?? "closet"}_processed_signed_url`,
+        () =>
+          supabase.storage
+            .from("closet-images")
+            .createSignedUrl(row.processed_image_path as string, 60 * 60),
+        (result) => (result.error ? "failure" : "success"),
+      )
     : { data: null };
   const { data: displayImage } = row.display_image_path
-    ? await supabase.storage
-        .from("closet-images")
-        .createSignedUrl(row.display_image_path, 60 * 60)
+    ? await measureWithTrace(
+        timing?.trace,
+        `${timing?.prefix ?? "closet"}_display_signed_url`,
+        () =>
+          supabase.storage
+            .from("closet-images")
+            .createSignedUrl(row.display_image_path as string, 60 * 60),
+        (result) => (result.error ? "failure" : "success"),
+      )
     : { data: null };
 
   return {
@@ -735,6 +867,17 @@ export default function Home() {
   const activeAnalysisIdsRef = useRef(new Set<string>());
   const queuedAnalysisIdsRef = useRef(new Set<string>());
   const busyItemCountsRef = useRef(new Map<string, number>());
+  const closetUploadTracesRef = useRef(new Map<string, ClosetUploadTraceContext>());
+  const activeClosetUploadTracesRef = useRef(new Set<ClosetUploadTraceContext>());
+
+  const flushClosetUploadTraces = useCallback(() => {
+    activeClosetUploadTracesRef.current.forEach((context) => {
+      context.finishDisplayImageLoad("timeout");
+      void finalizeClosetUploadTrace(context);
+    });
+    activeClosetUploadTracesRef.current.clear();
+    closetUploadTracesRef.current.clear();
+  }, []);
 
   const loadProfile = useCallback(
     async (userId: string) => {
@@ -1060,6 +1203,7 @@ export default function Home() {
         loadChatSessions(session.user.id);
         loadDecisionItems(session.user.id);
       } else {
+        flushClosetUploadTraces();
         setProfile(null);
         setUserClosetItems([]);
         setChatSessions([]);
@@ -1073,8 +1217,16 @@ export default function Home() {
       active = false;
       clearTimeout(authFallbackId);
       listener.subscription.unsubscribe();
+      flushClosetUploadTraces();
     };
-  }, [loadChatSessions, loadClosetItems, loadDecisionItems, loadProfile, supabase]);
+  }, [
+    flushClosetUploadTraces,
+    loadChatSessions,
+    loadClosetItems,
+    loadDecisionItems,
+    loadProfile,
+    supabase,
+  ]);
 
   const filteredDecisions = useMemo(() => {
     if (filter === "all") return decisionItems;
@@ -1120,6 +1272,7 @@ export default function Home() {
     activeAnalysisIdsRef.current.clear();
     queuedAnalysisIdsRef.current.clear();
     analysisQueueRef.current = [];
+    flushClosetUploadTraces();
     setView("chat");
   }
 
@@ -1136,6 +1289,16 @@ export default function Home() {
     }
 
     setBusyClosetItemIds([...counts.keys()]);
+  }
+
+  function recordClosetImageLoad(
+    itemId: string,
+    imageUrl: string,
+    outcome: Extract<TimingOutcome, "success" | "failure">,
+  ) {
+    const context = closetUploadTracesRef.current.get(itemId);
+    if (!context || context.displayImageUrl !== imageUrl) return;
+    context.finishDisplayImageLoad(outcome);
   }
 
   function setAnalysisQueued(itemId: string, queued: boolean) {
@@ -1198,69 +1361,111 @@ export default function Home() {
 
     setClosetLoading(true);
     setClosetMessage("");
+    const traceContexts: ClosetUploadTraceContext[] = [];
+    const createdItems: ClothingItem[] = [];
+    const displayJobs: Array<{
+      item: ClothingItem;
+      imageDataUrl: string;
+      context: ClosetUploadTraceContext;
+      queueSpan: TimingSpanHandle;
+    }> = [];
+    const analysisJobs: Array<{
+      item: ClothingItem;
+      imageDataUrl: string;
+      fileName: string;
+      context: ClosetUploadTraceContext;
+      queueSpan: TimingSpanHandle;
+    }> = [];
 
     try {
       setConfirmationHidden(false);
       setDeferredConfirmationIds([]);
-      const createdItems: ClothingItem[] = [];
-      const displayJobs: Array<{ item: ClothingItem; imageDataUrl: string }> = [];
-      const analysisJobs: Array<{ item: ClothingItem; imageDataUrl: string; fileName: string }> = [];
 
       for (const file of files) {
-        const imageDataUrl = await fileToDataUrl(file);
+        const context = createClosetUploadTraceContext(file, files.length);
+        traceContexts.push(context);
+        activeClosetUploadTracesRef.current.add(context);
+        const imageDataUrl = await context.trace.measure("file_read", () => fileToDataUrl(file));
+        context.dataUrlChars = imageDataUrl.length;
         const extension = file.name.split(".").pop()?.toLowerCase() || "jpg";
         const safeExtension = ["jpg", "jpeg", "png", "webp"].includes(extension)
           ? extension
           : "jpg";
         const imagePath = `${user.id}/${crypto.randomUUID()}.${safeExtension}`;
 
-        const { error: uploadError } = await supabase.storage
-          .from("closet-images")
-          .upload(imagePath, file, {
-            cacheControl: "3600",
-            contentType: file.type,
-            upsert: false,
-          });
+        const { error: uploadError } = await context.trace.measure(
+          "original_storage_upload",
+          () =>
+            supabase.storage.from("closet-images").upload(imagePath, file, {
+              cacheControl: "3600",
+              contentType: file.type,
+              upsert: false,
+            }),
+          (result) => (result.error ? "failure" : "success"),
+        );
 
         if (uploadError) throw uploadError;
 
-        const { data, error } = await supabase
-          .from("closet_items")
-          .insert({
-            user_id: user.id,
-            image_path: imagePath,
-            processed_image_path: null,
-            display_image_path: null,
-            display_image_status: "queued",
-            display_image_model: null,
-            display_image_prompt_version: null,
-            image_quality_flags: [
-              "original_saved",
-              "display_image_queued",
-              "closet_analysis_queued",
-              "needs_ai_label_confirmation",
-            ],
-            category: "待识别",
-            color: "待识别",
-            fit: "unknown",
-            style_tags: ["待识别"],
-            scenario_tags: [],
-            season: [],
-            wear_frequency: "unknown",
-            status: "active",
-            summary: file.name.replace(/\.[^.]+$/, "") || "新上传衣服",
-            embedding_text: null,
-            ai_confidence: null,
-            user_corrected: false,
-          })
-          .select(closetItemSelect)
-          .single();
+        const { data, error } = await context.trace.measure(
+          "item_insert",
+          () =>
+            supabase
+              .from("closet_items")
+              .insert({
+                user_id: user.id,
+                image_path: imagePath,
+                processed_image_path: null,
+                display_image_path: null,
+                display_image_status: "queued",
+                display_image_model: null,
+                display_image_prompt_version: null,
+                image_quality_flags: [
+                  "original_saved",
+                  "display_image_queued",
+                  "closet_analysis_queued",
+                  "needs_ai_label_confirmation",
+                ],
+                category: "待识别",
+                color: "待识别",
+                fit: "unknown",
+                style_tags: ["待识别"],
+                scenario_tags: [],
+                season: [],
+                wear_frequency: "unknown",
+                status: "active",
+                summary: file.name.replace(/\.[^.]+$/, "") || "新上传衣服",
+                embedding_text: null,
+                ai_confidence: null,
+                user_corrected: false,
+              })
+              .select(closetItemSelect)
+              .single(),
+          (result) => (result.error || !result.data ? "failure" : "success"),
+        );
 
         if (error) throw error;
-        const mappedItem = await mapClosetItemFromDb(supabase, data as ClosetItemRow);
+        const mappedItem = await mapClosetItemFromDb(supabase, data as ClosetItemRow, {
+          trace: context.trace,
+          prefix: "initial",
+        });
+        context.itemId = mappedItem.id;
+        if (!context.finalized) {
+          closetUploadTracesRef.current.set(mappedItem.id, context);
+        }
         createdItems.push(mappedItem);
-        displayJobs.push({ item: mappedItem, imageDataUrl });
-        analysisJobs.push({ item: mappedItem, imageDataUrl, fileName: file.name });
+        displayJobs.push({
+          item: mappedItem,
+          imageDataUrl,
+          context,
+          queueSpan: context.trace.startSpan("display_queue_wait"),
+        });
+        analysisJobs.push({
+          item: mappedItem,
+          imageDataUrl,
+          fileName: file.name,
+          context,
+          queueSpan: context.trace.startSpan("analysis_queue_wait"),
+        });
       }
 
       setUserClosetItems((items) => [...createdItems, ...items]);
@@ -1273,16 +1478,30 @@ export default function Home() {
       let analysisSuccessCount = 0;
       await Promise.all([
         runWithConcurrency(displayJobs, 2, async (job) => {
-          const result = await generateClosetDisplayImage(job.item, job.imageDataUrl);
+          job.queueSpan.finish();
+          const result = await generateClosetDisplayImage(job.item, job.imageDataUrl, job.context);
+          job.context.displaySucceeded = result.ok;
           if (result.ok) displaySuccessCount += 1;
         }),
         runWithConcurrency(analysisJobs, 2, async (job) => {
-          const result = await analyzeClosetItem(job.item, job.imageDataUrl, {
-            fileName: job.fileName,
-          });
+          job.queueSpan.finish();
+          const result = await analyzeClosetItem(
+            job.item,
+            job.imageDataUrl,
+            { fileName: job.fileName },
+            job.context,
+          );
+          job.context.analysisSucceeded = result.ok;
           if (result.ok) analysisSuccessCount += 1;
         }),
       ]);
+
+      traceContexts.forEach((context) => {
+        void finalizeClosetUploadTrace(context).finally(() => {
+          activeClosetUploadTracesRef.current.delete(context);
+          if (context.itemId) closetUploadTracesRef.current.delete(context.itemId);
+        });
+      });
 
       if (displaySuccessCount === createdItems.length) {
         setClosetMessage(
@@ -1294,6 +1513,17 @@ export default function Home() {
         );
       }
     } catch (error) {
+      displayJobs.forEach((job) => job.queueSpan.finish("failure"));
+      analysisJobs.forEach((job) => job.queueSpan.finish("failure"));
+      traceContexts.forEach((context) => {
+        context.analysisSucceeded = false;
+        context.displaySucceeded = false;
+        context.finishDisplayImageLoad("failure");
+        void finalizeClosetUploadTrace(context).finally(() => {
+          activeClosetUploadTracesRef.current.delete(context);
+          if (context.itemId) closetUploadTracesRef.current.delete(context.itemId);
+        });
+      });
       console.error(error);
       setClosetMessage(error instanceof Error ? error.message : "上传失败，请稍后再试。");
     } finally {
@@ -1301,7 +1531,14 @@ export default function Home() {
     }
   }
 
-  async function generateClosetDisplayImage(item: ClothingItem, imageDataUrl: string) {
+  async function generateClosetDisplayImage(
+    item: ClothingItem,
+    imageDataUrl: string,
+    traceContext?: ClosetUploadTraceContext,
+  ) {
+    const trace = traceContext?.trace;
+    const branchSpan = trace?.startSpan("display_branch_total");
+    let branchOutcome: TimingOutcome = "failure";
     markItemBusy(item.id, true);
     setUserClosetItems((items) =>
       items.map((currentItem) =>
@@ -1324,36 +1561,69 @@ export default function Home() {
         throw new Error("原图路径缺失，无法生成展示图。");
       }
 
-      const { data: sessionData } = await supabase.auth.getSession();
+      const { data: sessionData } = await measureWithTrace(
+        trace,
+        "display_auth_session",
+        () => supabase.auth.getSession(),
+        (result) => (result.data.session?.access_token ? "success" : "failure"),
+      );
       const token = sessionData.session?.access_token;
       if (!token) throw new Error("登录状态已过期，请重新登录。");
 
-      const response = await fetch("/api/ai/generate-closet-display-image", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
+      const requestId = crypto.randomUUID();
+      const requestBody = measureSyncWithTrace(trace, "display_request_serialize", () =>
+        JSON.stringify({
           closetItemId: item.id,
           imagePath: item.imagePath,
           imageDataUrl,
         }),
-      });
+      );
+      const response = await measureWithTrace(
+        trace,
+        "display_fetch_ttfb",
+        () =>
+          fetch("/api/ai/generate-closet-display-image", {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+              "X-Closet-Trace-Id": trace?.traceId ?? crypto.randomUUID(),
+              "X-Request-Id": requestId,
+            },
+            body: requestBody,
+          }),
+        (result) => (result.ok ? "success" : "failure"),
+      );
 
-      const result = (await response.json()) as {
-        item?: ClosetItemRow;
-        message?: string;
-      };
+      if (traceContext) {
+        traceContext.displayRequestId = response.headers.get("x-request-id") ?? requestId;
+        traceContext.displayServerTiming = response.headers.get("server-timing") ?? undefined;
+      }
+
+      const result = await measureWithTrace(trace, "display_response_json", () =>
+        response.json() as Promise<{ item?: ClosetItemRow; message?: string }>,
+      );
 
       if (!response.ok || !result.item) {
         throw new Error(result.message ?? "展示图生成失败。");
       }
 
-      const mappedItem = await mapClosetItemFromDb(supabase, result.item);
+      const mappedItem = await mapClosetItemFromDb(
+        supabase,
+        result.item,
+        trace ? { trace, prefix: "display_response" } : undefined,
+      );
+      if (traceContext) {
+        if (mappedItem.displayImageUrl) {
+          traceContext.beginDisplayImageLoad(mappedItem.displayImageUrl);
+        } else {
+          traceContext.finishDisplayImageLoad("failure");
+        }
+      }
       setUserClosetItems((items) =>
         items.map((currentItem) => (currentItem.id === mappedItem.id ? mappedItem : currentItem)),
       );
+      branchOutcome = "success";
       return { ok: true };
     } catch (error) {
       const message = error instanceof Error ? error.message : "展示图生成失败。";
@@ -1375,6 +1645,7 @@ export default function Home() {
       );
       return { ok: false, message };
     } finally {
+      branchSpan?.finish(branchOutcome);
       markItemBusy(item.id, false);
     }
   }
@@ -1383,7 +1654,11 @@ export default function Home() {
     item: ClothingItem,
     originalImageDataUrl: string,
     options: { displayImageDataUrl?: string; fileName?: string; userFeedback?: string } = {},
+    traceContext?: ClosetUploadTraceContext,
   ) {
+    const trace = traceContext?.trace;
+    const branchSpan = trace?.startSpan("analysis_branch_total");
+    let branchOutcome: TimingOutcome = "failure";
     markItemBusy(item.id, true);
     setUserClosetItems((items) =>
       items.map((currentItem) =>
@@ -1407,17 +1682,18 @@ export default function Home() {
         throw new Error("原图路径缺失，无法识别衣服标签。");
       }
 
-      const { data } = await supabase.auth.getSession();
+      const { data } = await measureWithTrace(
+        trace,
+        "analysis_auth_session",
+        () => supabase.auth.getSession(),
+        (result) => (result.data.session?.access_token ? "success" : "failure"),
+      );
       const token = data.session?.access_token;
       if (!token) throw new Error("登录状态已过期，请重新登录。");
 
-      const response = await fetch("/api/ai/analyze-closet-item", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
+      const requestId = crypto.randomUUID();
+      const requestBody = measureSyncWithTrace(trace, "analysis_request_serialize", () =>
+        JSON.stringify({
           closetItemId: item.id,
           imagePath: item.imagePath,
           originalImageDataUrl,
@@ -1425,21 +1701,46 @@ export default function Home() {
           fileName: options.fileName ?? item.name,
           userFeedback: options.userFeedback,
         }),
-      });
+      );
+      const response = await measureWithTrace(
+        trace,
+        "analysis_fetch_ttfb",
+        () =>
+          fetch("/api/ai/analyze-closet-item", {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+              "X-Closet-Trace-Id": trace?.traceId ?? crypto.randomUUID(),
+              "X-Request-Id": requestId,
+            },
+            body: requestBody,
+          }),
+        (result) => (result.ok ? "success" : "failure"),
+      );
 
-      const result = (await response.json()) as {
-        item?: ClosetItemRow;
-        message?: string;
-      };
+      if (traceContext) {
+        traceContext.analysisRequestId = response.headers.get("x-request-id") ?? requestId;
+        traceContext.analysisServerTiming = response.headers.get("server-timing") ?? undefined;
+      }
+
+      const result = await measureWithTrace(trace, "analysis_response_json", () =>
+        response.json() as Promise<{ item?: ClosetItemRow; message?: string }>,
+      );
 
       if (!response.ok || !result.item) {
         throw new Error(result.message ?? "衣服识别失败。");
       }
 
-      const mappedItem = await mapClosetItemFromDb(supabase, result.item);
+      const mappedItem = await mapClosetItemFromDb(
+        supabase,
+        result.item,
+        trace ? { trace, prefix: "analysis_response" } : undefined,
+      );
       setUserClosetItems((items) =>
         items.map((currentItem) => (currentItem.id === mappedItem.id ? mappedItem : currentItem)),
       );
+      branchOutcome = "success";
       return { ok: true };
     } catch (error) {
       const message = error instanceof Error ? error.message : "衣服识别失败。";
@@ -1463,6 +1764,7 @@ export default function Home() {
       );
       return { ok: false, message };
     } finally {
+      branchSpan?.finish(branchOutcome);
       markItemBusy(item.id, false);
     }
   }
@@ -2142,6 +2444,7 @@ export default function Home() {
               onRetryDisplayImage={retryClosetDisplayImage}
               onRetryAnalysis={retryClosetAnalysis}
               onDeleteItem={deleteClosetItem}
+              onImageLoad={recordClosetImageLoad}
             />
           )}
           {activeView === "decisions" && (
@@ -3405,6 +3708,7 @@ function ClosetView({
   onRetryDisplayImage,
   onRetryAnalysis,
   onDeleteItem,
+  onImageLoad,
 }: {
   items: ClothingItem[];
   isLoading: boolean;
@@ -3421,6 +3725,7 @@ function ClosetView({
   onRetryDisplayImage: (item: ClothingItem) => Promise<void>;
   onRetryAnalysis: (item: ClothingItem, userFeedback?: string) => Promise<void>;
   onDeleteItem: (item: ClothingItem) => Promise<void>;
+  onImageLoad: ClosetImageLoadHandler;
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const filterBarRef = useRef<HTMLDivElement>(null);
@@ -3590,6 +3895,7 @@ function ClosetView({
             onDeferConfirmation={onDeferConfirmation}
             onRetryAnalysis={onRetryAnalysis}
             onDeleteItem={onDeleteItem}
+            onImageLoad={onImageLoad}
           />
         )}
 
@@ -3622,6 +3928,7 @@ function ClosetView({
                     onRetryDisplayImage={onRetryDisplayImage}
                     onRetryAnalysis={onRetryAnalysis}
                     onDeleteItem={onDeleteItem}
+                    onImageLoad={onImageLoad}
                   />
                 ))}
               </div>
@@ -3828,6 +4135,30 @@ function ClosetFilterMenu({
   );
 }
 
+function ClosetItemImage({
+  itemId,
+  imageUrl,
+  className,
+  onImageLoad,
+}: {
+  itemId: string;
+  imageUrl: string;
+  className: string;
+  onImageLoad: ClosetImageLoadHandler;
+}) {
+  return (
+    // A native image load event is required to distinguish signed-URL creation from rendered media.
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={imageUrl}
+      alt=""
+      className={cn("block rounded-[10px] object-cover object-center", className)}
+      onLoad={() => onImageLoad(itemId, imageUrl, "success")}
+      onError={() => onImageLoad(itemId, imageUrl, "failure")}
+    />
+  );
+}
+
 function ClosetConfirmationPanel({
   items,
   isBusy,
@@ -3839,6 +4170,7 @@ function ClosetConfirmationPanel({
   onDeferConfirmation,
   onRetryAnalysis,
   onDeleteItem,
+  onImageLoad,
 }: {
   items: ClothingItem[];
   isBusy: boolean;
@@ -3850,6 +4182,7 @@ function ClosetConfirmationPanel({
   onDeferConfirmation: (itemId: string) => void;
   onRetryAnalysis: (item: ClothingItem, userFeedback?: string) => Promise<void>;
   onDeleteItem: (item: ClothingItem) => Promise<void>;
+  onImageLoad: ClosetImageLoadHandler;
 }) {
   const highConfidenceCount = items.filter(
     (item) => (item.aiConfidence ?? 0) >= 0.8 && !(item.imageQualityFlags ?? []).includes("closet_analysis_failed"),
@@ -3895,6 +4228,7 @@ function ClosetConfirmationPanel({
             onDeferConfirmation={onDeferConfirmation}
             onRetryAnalysis={onRetryAnalysis}
             onDeleteItem={onDeleteItem}
+            onImageLoad={onImageLoad}
           />
         ))}
       </div>
@@ -3910,6 +4244,7 @@ function ClosetConfirmationCard({
   onDeferConfirmation,
   onRetryAnalysis,
   onDeleteItem,
+  onImageLoad,
 }: {
   item: ClothingItem;
   isBusy: boolean;
@@ -3918,6 +4253,7 @@ function ClosetConfirmationCard({
   onDeferConfirmation: (itemId: string) => void;
   onRetryAnalysis: (item: ClothingItem, userFeedback?: string) => Promise<void>;
   onDeleteItem: (item: ClothingItem) => Promise<void>;
+  onImageLoad: ClosetImageLoadHandler;
 }) {
   const [draft, setDraft] = useState(() => createConfirmationDraft(item));
   const [showOriginal, setShowOriginal] = useState(false);
@@ -3949,9 +4285,11 @@ function ClosetConfirmationCard({
         <div>
           <div className="relative">
             {displayedImageUrl ? (
-              <div
-                className="h-56 w-full rounded-[10px] bg-cover bg-center"
-                style={{ backgroundImage: `url(${displayedImageUrl})` }}
+              <ClosetItemImage
+                itemId={item.id}
+                imageUrl={displayedImageUrl}
+                className="h-56 w-full"
+                onImageLoad={onImageLoad}
               />
             ) : (
               <MockProductImage palette={item.palette} className="h-56 w-full" />
@@ -4247,6 +4585,7 @@ function ClosetCard({
   onRetryDisplayImage,
   onRetryAnalysis,
   onDeleteItem,
+  onImageLoad,
 }: {
   item: ClothingItem;
   isBusy: boolean;
@@ -4254,6 +4593,7 @@ function ClosetCard({
   onRetryDisplayImage: (item: ClothingItem) => Promise<void>;
   onRetryAnalysis: (item: ClothingItem, userFeedback?: string) => Promise<void>;
   onDeleteItem: (item: ClothingItem) => Promise<void>;
+  onImageLoad: ClosetImageLoadHandler;
 }) {
   const [showOriginal, setShowOriginal] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -4295,9 +4635,11 @@ function ClosetCard({
     <article className="group rounded-[14px] border border-[#ead9d0] bg-[#fffdfb] p-3 transition hover:-translate-y-0.5 hover:border-[#76576f]/40 hover:shadow-[0_14px_30px_rgba(45,43,50,0.08)]">
       <div className="relative">
         {displayedImageUrl ? (
-          <div
-            className="h-48 w-full rounded-[10px] bg-cover bg-center"
-            style={{ backgroundImage: `url(${displayedImageUrl})` }}
+          <ClosetItemImage
+            itemId={item.id}
+            imageUrl={displayedImageUrl}
+            className="h-48 w-full"
+            onImageLoad={onImageLoad}
           />
         ) : (
           <MockProductImage palette={item.palette} className="h-48 w-full" />

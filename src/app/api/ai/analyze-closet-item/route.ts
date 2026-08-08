@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 
@@ -8,11 +8,14 @@ import {
 } from "@/lib/ai/closet-analysis";
 import {
   generateVisionJson,
+  getAiCapabilityConfig,
   getAiCapabilityConfigError,
   hasVisionConfig,
   sanitizeAiErrorMessage,
 } from "@/lib/ai/providers";
 import { appEnv } from "@/lib/env";
+import { createRouteTiming } from "@/lib/performance/route-timing";
+import type { TimingTrace } from "@/lib/performance/timing";
 
 export const runtime = "nodejs";
 
@@ -33,27 +36,71 @@ type ClosetQualityRow = {
 };
 
 export async function POST(request: NextRequest) {
-  const authHeader = request.headers.get("authorization");
+  const timing = createRouteTiming(request, {
+    operation: "closet_analysis_route",
+    route: "analyze_closet_item",
+  });
+
+  try {
+    return await handlePost(request, timing);
+  } catch (error) {
+    console.error("[closet-analysis] route failed", {
+      message: sanitizeAiErrorMessage(error),
+    });
+
+    return timing.json(
+      { message: "Closet item analysis failed." },
+      { status: 500, metadata: { failureKind: "unexpected_route_failure" } },
+    );
+  }
+}
+
+async function handlePost(
+  request: NextRequest,
+  timing: ReturnType<typeof createRouteTiming>,
+) {
+  const { trace } = timing;
+  const authHeader = trace.measureSync(
+    "request_headers",
+    () => request.headers.get("authorization"),
+    (value) => (value?.startsWith("Bearer ") ? "success" : "failure"),
+  );
 
   if (!authHeader?.startsWith("Bearer ")) {
-    return NextResponse.json({ message: "Missing auth token." }, { status: 401 });
+    return timing.json(
+      { message: "Missing auth token." },
+      { status: 401, metadata: { failureKind: "missing_auth" } },
+    );
   }
 
   if (!appEnv.supabaseUrl || !appEnv.supabaseAnonKey) {
-    return NextResponse.json({ message: "Supabase is not configured." }, { status: 500 });
+    return timing.json(
+      { message: "Supabase is not configured." },
+      { status: 500, metadata: { failureKind: "supabase_not_configured" } },
+    );
   }
 
   if (!hasVisionConfig()) {
-    return NextResponse.json({ message: getAiCapabilityConfigError("vision") }, { status: 500 });
+    return timing.json(
+      { message: getAiCapabilityConfigError("vision") },
+      { status: 500, metadata: { failureKind: "vision_not_configured" } },
+    );
   }
 
-  const body = await request.json().catch(() => null);
-  const parsed = requestSchema.safeParse(body);
+  const visionConfig = getAiCapabilityConfig("vision");
+  timing.addMetadata({ provider: visionConfig.provider, model: visionConfig.model ?? "unknown" });
+
+  const body = await trace.measure("request_body_json", () => request.json()).catch(() => null);
+  const parsed = trace.measureSync(
+    "request_validate",
+    () => requestSchema.safeParse(body),
+    (result) => (result.success ? "success" : "failure"),
+  );
 
   if (!parsed.success) {
-    return NextResponse.json(
+    return timing.json(
       { message: "Invalid closet analysis request.", issues: parsed.error.issues },
-      { status: 400 },
+      { status: 400, metadata: { failureKind: "invalid_request" } },
     );
   }
 
@@ -66,80 +113,118 @@ export async function POST(request: NextRequest) {
   });
 
   const token = authHeader.replace("Bearer ", "");
-  const { data: userData, error: userError } = await supabase.auth.getUser(token);
+  const { data: userData, error: userError } = await trace.measure(
+    "auth_get_user",
+    () => supabase.auth.getUser(token),
+    (result) => (result.error || !result.data.user ? "failure" : "success"),
+  );
 
   if (userError || !userData.user) {
-    return NextResponse.json({ message: "Invalid auth token." }, { status: 401 });
+    return timing.json(
+      { message: "Invalid auth token." },
+      { status: 401, metadata: { failureKind: "invalid_auth" } },
+    );
   }
 
   const { closetItemId, imagePath, originalImageDataUrl, displayImageDataUrl, fileName, userFeedback } =
     parsed.data;
 
-  const { data: closetItem, error: closetError } = await supabase
-    .from("closet_items")
-    .select("id,image_path,display_image_path")
-    .eq("id", closetItemId)
-    .single();
+  timing.addMetadata({
+    imageCount: displayImageDataUrl ? 2 : 1,
+    inputChars: originalImageDataUrl.length + (displayImageDataUrl?.length ?? 0),
+  });
+  const { data: closetItem, error: closetError } = await trace.measure(
+    "db_item_lookup",
+    () =>
+      supabase
+        .from("closet_items")
+        .select("id,image_path,display_image_path")
+        .eq("id", closetItemId)
+        .single(),
+    (result) => (result.error || !result.data ? "failure" : "success"),
+  );
 
   if (closetError || !closetItem || closetItem.image_path !== imagePath) {
-    return NextResponse.json({ message: "Closet item not found." }, { status: 404 });
+    return timing.json(
+      { message: "Closet item not found." },
+      { status: 404, metadata: { failureKind: "item_not_found" } },
+    );
   }
 
-  await updateQualityFlags(supabase, closetItemId, {
-    add: ["closet_analysis_processing"],
-    remove: ["closet_analysis_queued", "closet_analysis_failed"],
-  });
-
   try {
+    await updateQualityFlags(
+      supabase,
+      closetItemId,
+      {
+        add: ["closet_analysis_processing"],
+        remove: ["closet_analysis_queued", "closet_analysis_failed"],
+      },
+      trace,
+      "db_mark_processing",
+    );
+
     const imageDataUrls = [originalImageDataUrl, displayImageDataUrl].filter(
       (url): url is string => Boolean(url),
     );
-    const prompt = buildClosetAnalysisPrompt({
-      fileName,
-      hasDisplayImage: Boolean(displayImageDataUrl),
-      userFeedback,
-    });
-    const raw = await generateVisionJson(prompt, imageDataUrls);
-    const analysis = parseClosetAnalysisJson(raw);
-    const qualityFlags = await mergeCurrentQualityFlags(supabase, closetItemId, {
-      add: [
-        ...analysis.imageQualityFlags,
-        "ai_label_ready",
-        ...(analysis.needsUserReview ? ["needs_ai_label_confirmation"] : []),
-      ],
-      remove: [
-        "closet_analysis_queued",
-        "closet_analysis_processing",
-        "closet_analysis_failed",
-        "display_image_queued",
-      ],
-    });
+    const prompt = trace.measureSync("prompt_build", () =>
+      buildClosetAnalysisPrompt({
+        fileName,
+        hasDisplayImage: Boolean(displayImageDataUrl),
+        userFeedback,
+      }),
+    );
+    const raw = await trace.measure("vision_api_sdk", () => generateVisionJson(prompt, imageDataUrls));
+    const analysis = trace.measureSync("analysis_parse", () => parseClosetAnalysisJson(raw));
+    const qualityFlags = await mergeCurrentQualityFlags(
+      supabase,
+      closetItemId,
+      {
+        add: [
+          ...analysis.imageQualityFlags,
+          "ai_label_ready",
+          ...(analysis.needsUserReview ? ["needs_ai_label_confirmation"] : []),
+        ],
+        remove: [
+          "closet_analysis_queued",
+          "closet_analysis_processing",
+          "closet_analysis_failed",
+          "display_image_queued",
+        ],
+      },
+      trace,
+      "db_quality_flags_read",
+    );
 
-    const { data, error } = await supabase
-      .from("closet_items")
-      .update({
-        category: analysis.category,
-        color: analysis.color,
-        secondary_colors: analysis.secondaryColors,
-        fit: analysis.fit,
-        style_tags: analysis.styleTags,
-        season: analysis.season,
-        formality: analysis.formality,
-        scenario_tags: analysis.scenarioTags,
-        summary: analysis.itemName,
-        embedding_text: analysis.embeddingText,
-        ai_confidence: analysis.aiConfidence,
-        user_corrected: false,
-        image_quality_flags: qualityFlags,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", closetItemId)
-      .select(closetItemSelect)
-      .single();
+    const { data, error } = await trace.measure(
+      "db_mark_ready",
+      () =>
+        supabase
+          .from("closet_items")
+          .update({
+            category: analysis.category,
+            color: analysis.color,
+            secondary_colors: analysis.secondaryColors,
+            fit: analysis.fit,
+            style_tags: analysis.styleTags,
+            season: analysis.season,
+            formality: analysis.formality,
+            scenario_tags: analysis.scenarioTags,
+            summary: analysis.itemName,
+            embedding_text: analysis.embeddingText,
+            ai_confidence: analysis.aiConfidence,
+            user_corrected: false,
+            image_quality_flags: qualityFlags,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", closetItemId)
+          .select(closetItemSelect)
+          .single(),
+      (result) => (result.error || !result.data ? "failure" : "success"),
+    );
 
     if (error) throw error;
 
-    return NextResponse.json({
+    return timing.json({
       item: data,
       analysis,
     });
@@ -149,20 +234,42 @@ export async function POST(request: NextRequest) {
       message: sanitizeAiErrorMessage(error),
     });
 
-    const qualityFlags = await mergeCurrentQualityFlags(supabase, closetItemId, {
-      add: ["closet_analysis_failed", "needs_ai_label_confirmation"],
-      remove: ["closet_analysis_queued", "closet_analysis_processing"],
-    });
+    try {
+      const qualityFlags = await mergeCurrentQualityFlags(
+        supabase,
+        closetItemId,
+        {
+          add: ["closet_analysis_failed", "needs_ai_label_confirmation"],
+          remove: ["closet_analysis_queued", "closet_analysis_processing"],
+        },
+        trace,
+        "db_failure_flags_read",
+      );
 
-    await supabase
-      .from("closet_items")
-      .update({
-        image_quality_flags: qualityFlags,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", closetItemId);
+      const { error: markFailedError } = await trace.measure(
+        "db_mark_failed",
+        () =>
+          supabase
+            .from("closet_items")
+            .update({
+              image_quality_flags: qualityFlags,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", closetItemId),
+        (result) => (result.error ? "failure" : "success"),
+      );
+      if (markFailedError) throw markFailedError;
+    } catch (cleanupError) {
+      console.error("[closet-analysis] failure state update failed", {
+        closetItemId,
+        message: sanitizeAiErrorMessage(cleanupError),
+      });
+    }
 
-    return NextResponse.json({ message: "Closet item analysis failed." }, { status: 500 });
+    return timing.json(
+      { message: "Closet item analysis failed." },
+      { status: 500, metadata: { failureKind: "analysis_or_persistence_failed" } },
+    );
   }
 }
 
@@ -170,28 +277,50 @@ async function updateQualityFlags(
   supabase: SupabaseClient,
   closetItemId: string,
   changes: { add?: string[]; remove?: string[] },
+  trace: TimingTrace,
+  spanPrefix: string,
 ) {
-  const flags = await mergeCurrentQualityFlags(supabase, closetItemId, changes);
+  const flags = await mergeCurrentQualityFlags(
+    supabase,
+    closetItemId,
+    changes,
+    trace,
+    `${spanPrefix}_flags_read`,
+  );
 
-  await supabase
-    .from("closet_items")
-    .update({
-      image_quality_flags: flags,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", closetItemId);
+  const { error } = await trace.measure(
+    spanPrefix,
+    () =>
+      supabase
+        .from("closet_items")
+        .update({
+          image_quality_flags: flags,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", closetItemId),
+    (result) => (result.error ? "failure" : "success"),
+  );
+  if (error) throw error;
 }
 
 async function mergeCurrentQualityFlags(
   supabase: SupabaseClient,
   closetItemId: string,
   changes: { add?: string[]; remove?: string[] },
+  trace: TimingTrace,
+  spanName: string,
 ) {
-  const { data } = await supabase
-    .from("closet_items")
-    .select("image_quality_flags")
-    .eq("id", closetItemId)
-    .single<ClosetQualityRow>();
+  const { data, error } = await trace.measure(
+    spanName,
+    () =>
+      supabase
+        .from("closet_items")
+        .select("image_quality_flags")
+        .eq("id", closetItemId)
+        .single<ClosetQualityRow>(),
+    (result) => (result.error ? "failure" : "success"),
+  );
+  if (error) throw error;
 
   return mergeQualityFlags(data?.image_quality_flags ?? [], changes.add ?? [], changes.remove ?? []);
 }
