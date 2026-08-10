@@ -1,4 +1,5 @@
 import type { AiCapabilityConfig } from "./capability-config";
+import type { TimingTrace } from "../performance/timing";
 
 type ImageEditJsonBody = {
   model: string;
@@ -30,6 +31,66 @@ export type ImageEditRequest = ImageEditJsonRequest | ImageEditMultipartRequest;
 export type ImageEditOutput =
   | { kind: "url"; value: string }
   | { kind: "base64"; value: string };
+
+export type ImageEditResponseDiagnostics = {
+  providerHttpStatus: number;
+  providerRequestId?: string;
+  providerServerTiming?: string;
+  providerContentLength?: number;
+};
+
+const providerRequestIdHeaderNames = ["x-request-id", "request-id", "x-trace-id"] as const;
+const providerRequestIdPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
+const providerServerTimingNamePattern = /^[A-Za-z][A-Za-z0-9_.-]{0,63}$/;
+const providerServerTimingDurationPattern = /^dur\s*=\s*(\d+(?:\.\d+)?)$/i;
+const maxProviderServerTimingInputLength = 2048;
+const maxProviderServerTimingOutputLength = 1024;
+const maxProviderServerTimingMetrics = 16;
+
+export function extractImageEditResponseDiagnostics(
+  response: Pick<Response, "headers" | "status">,
+): ImageEditResponseDiagnostics {
+  const providerRequestId = providerRequestIdHeaderNames
+    .map((name) => sanitizeProviderRequestId(response.headers.get(name)))
+    .find((value) => value !== undefined);
+  const providerServerTiming = sanitizeProviderServerTiming(
+    response.headers.get("server-timing"),
+  );
+  const providerContentLength = parseProviderContentLength(
+    response.headers.get("content-length"),
+  );
+
+  return {
+    providerHttpStatus: response.status,
+    ...(providerRequestId ? { providerRequestId } : {}),
+    ...(providerServerTiming ? { providerServerTiming } : {}),
+    ...(providerContentLength !== undefined ? { providerContentLength } : {}),
+  };
+}
+
+export function getUtf8ByteLength(value: string) {
+  return Buffer.byteLength(value, "utf8");
+}
+
+export async function readImageEditResponseBody(
+  response: Pick<Response, "text">,
+  trace: Pick<TimingTrace, "measure">,
+) {
+  return trace.measure("provider_response_body_read", async () => {
+    const bodyText = await response.text();
+    return {
+      bodyText,
+      responseBytes: getUtf8ByteLength(bodyText),
+    };
+  });
+}
+
+export function parseImageEditResponseJson(
+  bodyText: string,
+  trace: Pick<TimingTrace, "measureSync">,
+): unknown {
+  return trace.measureSync("provider_response_json_parse", () => JSON.parse(bodyText));
+}
 
 export function createImageEditRequestForConfig(
   config: AiCapabilityConfig,
@@ -187,6 +248,89 @@ function appendNegativeConstraints(prompt: string, negativePrompt: string) {
   if (!normalizedNegativePrompt) return normalizedPrompt;
 
   return `${normalizedPrompt}\n\nAdditional negative constraints (must not appear):\n${normalizedNegativePrompt}`;
+}
+
+function sanitizeProviderRequestId(value: string | null) {
+  const normalized = value?.trim();
+  return normalized && providerRequestIdPattern.test(normalized) ? normalized : undefined;
+}
+
+function sanitizeProviderServerTiming(value: string | null) {
+  const normalized = value?.trim();
+  if (!normalized || normalized.length > maxProviderServerTimingInputLength) return undefined;
+
+  const entries = splitHeaderValue(normalized, ",");
+  if (!entries) return undefined;
+
+  const metrics: string[] = [];
+  let outputLength = 0;
+
+  for (const entry of entries) {
+    if (metrics.length >= maxProviderServerTimingMetrics) break;
+
+    const segments = splitHeaderValue(entry, ";");
+    if (!segments) continue;
+    const name = segments[0]?.trim();
+    if (!name || !providerServerTimingNamePattern.test(name)) continue;
+
+    const duration = segments
+      .slice(1)
+      .map((segment) => providerServerTimingDurationPattern.exec(segment.trim())?.[1])
+      .find((candidate) => candidate !== undefined);
+    if (!duration || duration.length > 32) continue;
+
+    const durationMs = Number(duration);
+    if (!Number.isFinite(durationMs) || durationMs < 0) continue;
+
+    const metric = `${name};dur=${durationMs}`;
+    const addedLength = metric.length + (metrics.length > 0 ? 2 : 0);
+    if (outputLength + addedLength > maxProviderServerTimingOutputLength) break;
+
+    metrics.push(metric);
+    outputLength += addedLength;
+  }
+
+  return metrics.length > 0 ? metrics.join(", ") : undefined;
+}
+
+function parseProviderContentLength(value: string | null) {
+  const normalized = value?.trim();
+  if (!normalized || !/^\d{1,20}$/.test(normalized)) return undefined;
+
+  const contentLength = Number(normalized);
+  return Number.isSafeInteger(contentLength) ? contentLength : undefined;
+}
+
+function splitHeaderValue(value: string, delimiter: "," | ";") {
+  const segments: string[] = [];
+  let start = 0;
+  let quoted = false;
+  let escaped = false;
+
+  for (let index = 0; index < value.length; index += 1) {
+    const character = value[index];
+
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (quoted && character === "\\") {
+      escaped = true;
+      continue;
+    }
+    if (character === '"') {
+      quoted = !quoted;
+      continue;
+    }
+    if (!quoted && character === delimiter) {
+      segments.push(value.slice(start, index));
+      start = index + 1;
+    }
+  }
+
+  if (quoted || escaped) return undefined;
+  segments.push(value.slice(start));
+  return segments;
 }
 
 function normalizeImageContentType(contentType: string) {

@@ -64,6 +64,11 @@ const safeMetadataKeys = new Set([
   "outputBytes",
   "outputKind",
   "provider",
+  "providerContentLength",
+  "providerHttpStatus",
+  "providerRequestId",
+  "providerResponseBytes",
+  "providerServerTiming",
   "region",
   "route",
 ]);

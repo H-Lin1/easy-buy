@@ -37,12 +37,27 @@
 - **WHEN** 请求验证、鉴权、供应商或持久化阶段失败
 - **THEN** 已完成阶段仍被记录，响应和结构化日志标记失败状态，且原有 HTTP 状态和用户错误行为保持不变
 
+### Requirement: 展示图供应商响应边界可独立诊断
+展示图 Route SHALL 将供应商响应头等待、响应体读取和 JSON 解析记录为独立阶段，并 SHALL 仅从现有供应商响应中提取经过净化的白名单诊断字段，不得因此新增远程请求。
+
+#### Scenario: 成功响应区分传输与解析
+- **WHEN** 展示图供应商返回成功的 JSON 响应
+- **THEN** 服务端汇总分别包含 `provider_fetch_ttfb`、`provider_response_body_read` 和 `provider_response_json_parse`，并包含 HTTP 状态、实际响应字节数以及存在且有效的请求 ID、`Server-Timing` 或 `Content-Length`
+
+#### Scenario: 供应商诊断头缺失或异常
+- **WHEN** 白名单响应头缺失、格式无效或超过允许长度
+- **THEN** 系统忽略相应可选字段并继续原有业务处理，且不会记录完整响应头或原始异常值
+
+#### Scenario: 响应体或 JSON 解析失败
+- **WHEN** 读取供应商响应体或解析 JSON 失败
+- **THEN** 对应阶段标记失败，Route 仍沿用既有失败状态和 HTTP 行为，并输出一条不含响应正文的结构化计时汇总
+
 ### Requirement: 诊断数据不得包含敏感内容
 性能记录 MUST 仅包含白名单诊断字段，并 MUST NOT 包含 API Key、访问令牌、Authorization 头、图片或 Base64 内容、完整提示词、签名 URL、用户邮箱或其他用户输入正文。
 
 #### Scenario: 检查结构化记录
 - **WHEN** 成功与失败请求生成性能汇总
-- **THEN** 汇总仅包含关联标识、操作名称、Route、结果状态、阶段耗时、非敏感大小信息及允许的供应商元数据
+- **THEN** 汇总仅包含关联标识、操作名称、Route、结果状态、阶段耗时、HTTP 状态、非敏感大小信息及经过净化的供应商请求 ID 和计时元数据
 
 ### Requirement: 监控不增加远程业务操作
 性能监控 SHALL NOT 为保存计时结果新增数据库写入、Storage 操作或第三方监控请求，并 SHALL NOT 改变 AI 模型、并发限制、上传状态或页面交互。

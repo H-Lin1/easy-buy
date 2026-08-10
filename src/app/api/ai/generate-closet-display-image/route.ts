@@ -9,8 +9,11 @@ import {
 } from "@/lib/ai/image-edit-prompt";
 import {
   decodeImageEditBase64,
+  extractImageEditResponseDiagnostics,
   extractImageEditOutput,
   createImageEditRequestInit,
+  parseImageEditResponseJson,
+  readImageEditResponseBody,
   type ImageEditOutput,
 } from "@/lib/ai/image-provider";
 import {
@@ -175,7 +178,7 @@ async function handlePost(
     );
     if (processingError) throw processingError;
 
-    const generatedImage = await callConfiguredImageEdit(imageDataUrl, trace);
+    const generatedImage = await callConfiguredImageEdit(imageDataUrl, timing);
     timing.addMetadata({ outputKind: generatedImage.kind });
     const { fileBody, extension, contentType } =
       generatedImage.kind === "url"
@@ -285,8 +288,9 @@ async function handlePost(
 
 async function callConfiguredImageEdit(
   imageDataUrl: string,
-  trace: TimingTrace,
+  timing: ReturnType<typeof createRouteTiming>,
 ): Promise<ImageEditOutput> {
+  const { trace } = timing;
   const imageEditRequest = trace.measureSync("provider_request_build", () =>
     createImageEditRequest(
       imageDataUrl,
@@ -308,13 +312,29 @@ async function callConfiguredImageEdit(
       (result) => (result.ok ? "success" : "failure"),
     );
 
+    try {
+      timing.addMetadata(extractImageEditResponseDiagnostics(response));
+    } catch {
+      // Provider diagnostics must not change image generation behavior.
+    }
+
     if (!response.ok) {
       throw new ImageEditProviderError("provider_request_failed", response.status);
     }
 
+    let responseBody: string;
+    try {
+      const bodyResult = await readImageEditResponseBody(response, trace);
+      responseBody = bodyResult.bodyText;
+      timing.addMetadata({ providerResponseBytes: bodyResult.responseBytes });
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") throw error;
+      throw new ImageEditProviderError("invalid_provider_response");
+    }
+
     let result: unknown;
     try {
-      result = await trace.measure("provider_response_json", () => response.json());
+      result = parseImageEditResponseJson(responseBody, trace);
     } catch {
       throw new ImageEditProviderError("invalid_provider_response");
     }

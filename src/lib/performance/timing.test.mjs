@@ -122,6 +122,11 @@ test("keeps only bounded allowlisted metadata", () => {
     provider: "tripo",
     model: "gpt-image-2",
     inputBytes: 415845,
+    providerHttpStatus: 200,
+    providerRequestId: "req_abc-123",
+    providerServerTiming: "inference;dur=48580.2",
+    providerContentLength: 975452,
+    providerResponseBytes: 975452,
     failureKind: "provider_failed\nnext-line",
     apiKey: "secret-key",
     authorization: "Bearer secret-token",
@@ -134,6 +139,11 @@ test("keeps only bounded allowlisted metadata", () => {
     provider: "tripo",
     model: "gpt-image-2",
     inputBytes: 415845,
+    providerHttpStatus: 200,
+    providerRequestId: "req_abc-123",
+    providerServerTiming: "inference;dur=48580.2",
+    providerContentLength: 975452,
+    providerResponseBytes: 975452,
     failureKind: "provider_failed next-line",
   });
   assert.equal(JSON.stringify(sanitized).includes("secret"), false);

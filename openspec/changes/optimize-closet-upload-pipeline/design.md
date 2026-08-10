@@ -51,6 +51,14 @@
 
 日志固定包含 trace ID、operation/route、结果、总耗时、span 列表和经过审查的字节数或 provider/model 名称。禁止把请求体、错误原文、URL、认证头和用户内容合并进汇总。每条 Route 至多写一条日志，客户端每件衣服至多写一条最终汇总，控制日志开销。
 
+### 7. 在展示图供应商边界拆分响应体读取与 JSON 解析
+
+展示图供应商 `fetch` 返回响应头后，先在 `provider_response_body_read` span 中读取响应文本并计算 UTF-8 实际字节数，再在 `provider_response_json_parse` span 中执行 JSON 解析。这样可以把供应商首字节等待、响应体传输和应用侧解析分别观察，不再由 `response.json()` 合并后两段。
+
+供应商响应诊断只允许记录 HTTP 状态、数值化的 `Content-Length`、实际响应字节数、经过长度和字符限制的请求 ID，以及只保留 metric 名称和 duration 的 `Server-Timing`。请求 ID 只从明确列出的响应头名称读取；完整响应头、响应正文、接口 URL、图片/Base64 和提示词均不进入日志。
+
+该拆分不增加任何供应商调用、Storage 操作或数据库写入。`Content-Length` 可能描述压缩传输长度，而实际响应字节数按 Fetch 解压后的 UTF-8 文本计算，两者只用于诊断，不要求相等。供应商响应头到达前的内部排队、推理与网络等待仍只能合并在 `provider_fetch_ttfb` 中；若供应商未返回自身 `Server-Timing`，应用侧无法进一步可靠拆分。
+
 ## Risks / Trade-offs
 
 - [浏览器关闭或资源长期不加载导致客户端汇总不完整] → 为展示图 load 设置非阻塞超时，并以 `timeout` 状态结束 trace。
@@ -58,6 +66,7 @@
 - [日志量增加] → 每个 Route 只输出一条小型汇总，不记录逐阶段日志或图片内容。
 - [替换 CSS background 产生细微渲染差异] → 保留原固定高度、宽度、圆角、cover 与 center 规则，并通过桌面和移动端截图验收。
 - [监控代码异常影响业务响应] → 格式化、日志和客户端资源回调必须失败隔离，不能改变原有 HTTP 状态或上传结果。
+- [供应商诊断头包含异常或过长内容] → 只读取固定白名单，对请求 ID、计时名称和数值执行长度、字符与有限数检查；无效值直接忽略。
 
 ## Migration Plan
 

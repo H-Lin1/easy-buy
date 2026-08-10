@@ -20,3 +20,10 @@
 
 - [x] 4.1 Run targeted timing and existing closet tests, TypeScript checking, lint, production build, OpenSpec strict validation and `git diff --check`.
 - [x] 4.2 Verify on desktop and mobile that original and display images retain their current framing, and confirm a real upload exposes correlated browser, Network and server timing data without changing upload behavior.
+
+## 5. Provider Response Diagnostics
+
+- [x] 5.1 Add reusable, bounded helpers for allowlisted provider response diagnostics, request ID sanitization, numeric content length, safe `Server-Timing` metadata and actual UTF-8 response byte counts.
+- [x] 5.2 Split the display-image provider response into body-read and JSON-parse spans, and attach only the safe provider diagnostics to the existing single Route summary without adding network or persistence operations.
+- [x] 5.3 Add focused tests for diagnostic header allowlisting, sanitization, response byte counts, timing metadata and invalid or missing values.
+- [x] 5.4 Run targeted and full tests, TypeScript checking, lint, production build, strict OpenSpec validation and `git diff --check`.
