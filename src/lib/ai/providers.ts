@@ -67,7 +67,11 @@ export async function generateDecisionJson(prompt: string) {
   return completion.choices[0]?.message.content ?? "{}";
 }
 
-export async function generateVisionJson(prompt: string, imageDataUrls: string[]) {
+export async function generateVisionJson(
+  prompt: string,
+  imageDataUrls: string[],
+  signal?: AbortSignal,
+) {
   const config = getAiCapabilityConfig("vision");
   const client = createOpenAiCompatibleClient(config);
   const content = [
@@ -83,21 +87,24 @@ export async function generateVisionJson(prompt: string, imageDataUrls: string[]
     })),
   ];
 
-  const completion = await client.chat.completions.create({
-    model: requireModel(config),
-    messages: [
-      {
-        role: "system",
-        content:
-          "你是服装图片和商品截图识别助手。你只输出严格 JSON，帮助用户把真实衣服照片或待买商品截图转成可确认的服装标签。你不重绘衣服，不猜测品牌、价格、用户身份或用户身材；价格只能来自图片文字或用户补充。",
-      },
-      {
-        role: "user",
-        content,
-      },
-    ],
-    temperature: 0.1,
-  });
+  const completion = await client.chat.completions.create(
+    {
+      model: requireModel(config),
+      messages: [
+        {
+          role: "system",
+          content:
+            "你是服装图片和商品截图识别助手。你只输出严格 JSON，帮助用户把真实衣服照片或待买商品截图转成可确认的服装标签。你不重绘衣服，不猜测品牌、价格、用户身份或用户身材；价格只能来自图片文字或用户补充。",
+        },
+        {
+          role: "user",
+          content,
+        },
+      ],
+      temperature: 0.1,
+    },
+    { signal },
+  );
 
   return completion.choices[0]?.message.content ?? "{}";
 }

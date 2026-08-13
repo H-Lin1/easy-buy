@@ -1,12 +1,11 @@
 import type { ClothingItem } from "@/lib/types";
+import {
+  closetSeasonOptions,
+  normalizeClosetSeasons,
+  type ClosetSeason,
+} from "./season.ts";
 
-export const closetSeasonOptions = [
-  { value: "spring", label: "春季" },
-  { value: "summer", label: "夏季" },
-  { value: "autumn", label: "秋季" },
-  { value: "winter", label: "冬季" },
-  { value: "all-season", label: "四季" },
-] as const;
+export { closetSeasonOptions } from "./season.ts";
 
 export const closetStatusOptions = [
   { value: "often", label: "常穿" },
@@ -15,7 +14,7 @@ export const closetStatusOptions = [
   { value: "unknown", label: "待确认" },
 ] as const;
 
-export type ClosetSeasonFilter = (typeof closetSeasonOptions)[number]["value"];
+export type ClosetSeasonFilter = ClosetSeason;
 export type ClosetStatusFilter = ClothingItem["wearFrequency"];
 
 export type ClosetFilters = {
@@ -57,15 +56,15 @@ function matchesAnyValue(values: readonly string[] | null | undefined, selected:
 
 function matchesSeason(
   seasonTags: readonly string[] | null | undefined,
-  selected: Set<string>,
+  selected: Set<ClosetSeason>,
 ) {
   if (selected.size === 0) return true;
 
-  const availableSeasons = new Set(seasonTags?.map(normalizeClosetValue).filter(Boolean));
+  const availableSeasons = new Set(normalizeClosetSeasons(seasonTags));
   return [...selected].some(
     (season) =>
       availableSeasons.has(season) ||
-      (season !== "all-season" && availableSeasons.has("all-season")),
+      (season !== "四季" && availableSeasons.has("四季")),
   );
 }
 
@@ -78,7 +77,7 @@ function matchesSearchQuery(item: ClothingItem, normalizedQuery: string) {
     item.color,
     ...(item.styleTags ?? []),
     ...(item.scenarioTags ?? []),
-    ...(item.seasonTags ?? []),
+    ...normalizeClosetSeasons(item.seasonTags),
   ];
 
   return searchableValues.some((value) => normalizeClosetValue(value).includes(normalizedQuery));
@@ -135,7 +134,7 @@ export function filterClosetItems(
   const categories = selectedValues(filters.categories);
   const styles = selectedValues(filters.styles);
   const colors = selectedValues(filters.colors);
-  const seasons = selectedValues(filters.seasons);
+  const seasons = new Set(normalizeClosetSeasons(filters.seasons));
   const statuses = selectedValues(filters.statuses);
 
   return items.filter(

@@ -1,3 +1,5 @@
+import { normalizeClosetSeasons } from "./season.ts";
+
 export type ClosetEmbeddingDraft = {
   name: string;
   category: string;
@@ -8,6 +10,8 @@ export type ClosetEmbeddingDraft = {
   seasonTags: string[];
   wearFrequency: "often" | "sometimes" | "rarely" | "unknown";
 };
+
+export const CLOSET_ANALYSIS_OWNER_FLAG_PREFIX = "closet_analysis_owner:";
 
 const fitLabels: Record<ClosetEmbeddingDraft["fit"], string> = {
   slim: "修身",
@@ -24,6 +28,8 @@ const wearFrequencyLabels: Record<ClosetEmbeddingDraft["wearFrequency"], string>
 };
 
 export function buildClosetEmbeddingText(draft: ClosetEmbeddingDraft) {
+  const seasonTags = normalizeClosetSeasons(draft.seasonTags);
+
   return [
     draft.name,
     `品类：${draft.category}`,
@@ -31,7 +37,7 @@ export function buildClosetEmbeddingText(draft: ClosetEmbeddingDraft) {
     `版型：${fitLabels[draft.fit]}`,
     `风格：${draft.styleTags.join("、") || "待确认"}`,
     `场景：${draft.scenarioTags.join("、") || "待确认"}`,
-    `季节：${draft.seasonTags.join("、") || "待确认"}`,
+    `季节：${seasonTags.join("、") || "待确认"}`,
     `穿着频率：${wearFrequencyLabels[draft.wearFrequency]}`,
   ].join("；");
 }
@@ -44,5 +50,8 @@ export function removeClosetConfirmationFlags(flags?: string[]) {
     "closet_analysis_failed",
   ]);
 
-  return (flags ?? []).filter((flag) => !removable.has(flag));
+  return (flags ?? []).filter(
+    (flag) =>
+      !removable.has(flag) && !flag.startsWith(CLOSET_ANALYSIS_OWNER_FLAG_PREFIX),
+  );
 }

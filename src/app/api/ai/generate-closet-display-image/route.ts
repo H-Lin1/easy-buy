@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 
@@ -9,8 +9,11 @@ import {
 } from "@/lib/ai/image-edit-prompt";
 import {
   decodeImageEditBase64,
+  extractImageEditResponseDiagnostics,
   extractImageEditOutput,
   createImageEditRequestInit,
+  parseImageEditResponseJson,
+  readImageEditResponseBody,
   type ImageEditOutput,
 } from "@/lib/ai/image-provider";
 import {
@@ -19,7 +22,10 @@ import {
   getAiCapabilityConfigError,
   hasImageEditConfig,
 } from "@/lib/ai/providers";
+import { claimableDisplayImageStatuses } from "@/lib/closet/display-workflow";
 import { appEnv } from "@/lib/env";
+import { createRouteTiming } from "@/lib/performance/route-timing";
+import type { TimingTrace } from "@/lib/performance/timing";
 
 export const runtime = "nodejs";
 
@@ -29,46 +35,65 @@ const requestSchema = z.object({
   imageDataUrl: z.string().startsWith("data:image/"),
 });
 
-type ClosetQualityRow = {
-  image_quality_flags: string[] | null;
-};
-
-const closetItemSelect =
-  "id,image_path,processed_image_path,display_image_path,display_image_status,display_image_model,display_image_prompt_version,image_quality_flags,category,color,fit,style_tags,season,scenario_tags,wear_frequency,status,summary,embedding_text,ai_confidence,user_corrected";
+const displayImageSelect =
+  "id,display_image_path,display_image_status,display_image_model,display_image_prompt_version";
 
 export async function POST(request: NextRequest) {
-  const authHeader = request.headers.get("authorization");
+  const timing = createRouteTiming(request, {
+    operation: "closet_display_image_route",
+    route: "generate_closet_display_image",
+  });
+
+  try {
+    return await handlePost(request, timing);
+  } catch (error) {
+    console.error("[closet-display-image] route failed", {
+      failure: describeDisplayImageFailure(error),
+    });
+
+    return timing.json(
+      { message: "Display image generation failed." },
+      { status: 500, metadata: { failureKind: "unexpected_route_failure" } },
+    );
+  }
+}
+
+async function handlePost(
+  request: NextRequest,
+  timing: ReturnType<typeof createRouteTiming>,
+) {
+  const { trace } = timing;
+  const authHeader = trace.measureSync(
+    "request_headers",
+    () => request.headers.get("authorization"),
+    (value) => (value?.startsWith("Bearer ") ? "success" : "failure"),
+  );
 
   if (!authHeader?.startsWith("Bearer ")) {
-    return NextResponse.json({ message: "Missing auth token." }, { status: 401 });
+    return timing.json(
+      { message: "Missing auth token." },
+      { status: 401, metadata: { failureKind: "missing_auth" } },
+    );
   }
 
   if (!appEnv.supabaseUrl || !appEnv.supabaseAnonKey) {
-    return NextResponse.json({ message: "Supabase is not configured." }, { status: 500 });
-  }
-
-  if (!hasImageEditConfig()) {
-    return NextResponse.json(
-      { message: getAiCapabilityConfigError("imageEdit") },
-      { status: 500 },
+    return timing.json(
+      { message: "Supabase is not configured." },
+      { status: 500, metadata: { failureKind: "supabase_not_configured" } },
     );
   }
 
-  const imageEditModel = getAiCapabilityConfig("imageEdit").model;
-  if (!imageEditModel) {
-    return NextResponse.json(
-      { message: getAiCapabilityConfigError("imageEdit") },
-      { status: 500 },
-    );
-  }
-
-  const body = await request.json().catch(() => null);
-  const parsed = requestSchema.safeParse(body);
+  const body = await trace.measure("request_body_json", () => request.json()).catch(() => null);
+  const parsed = trace.measureSync(
+    "request_validate",
+    () => requestSchema.safeParse(body),
+    (result) => (result.success ? "success" : "failure"),
+  );
 
   if (!parsed.success) {
-    return NextResponse.json(
+    return timing.json(
       { message: "Invalid display image request.", issues: parsed.error.issues },
-      { status: 400 },
+      { status: 400, metadata: { failureKind: "invalid_request" } },
     );
   }
 
@@ -81,73 +106,161 @@ export async function POST(request: NextRequest) {
   });
 
   const token = authHeader.replace("Bearer ", "");
-  const { data: userData, error: userError } = await supabase.auth.getUser(token);
+  const { data: userData, error: userError } = await trace.measure(
+    "auth_get_user",
+    () => supabase.auth.getUser(token),
+    (result) => (result.error || !result.data.user ? "failure" : "success"),
+  );
 
   if (userError || !userData.user) {
-    return NextResponse.json({ message: "Invalid auth token." }, { status: 401 });
+    return timing.json(
+      { message: "Invalid auth token." },
+      { status: 401, metadata: { failureKind: "invalid_auth" } },
+    );
   }
 
   const { closetItemId, imagePath, imageDataUrl } = parsed.data;
   const userId = userData.user.id;
+  timing.addMetadata({ inputChars: imageDataUrl.length });
 
-  const { data: closetItem, error: closetError } = await supabase
-    .from("closet_items")
-    .select("id,image_path")
-    .eq("id", closetItemId)
-    .single();
+  const { data: closetItem, error: closetError } = await trace.measure(
+    "db_item_lookup",
+    () =>
+      supabase
+        .from("closet_items")
+        .select("id,image_path")
+        .eq("id", closetItemId)
+        .single(),
+    (result) => (result.error || !result.data ? "failure" : "success"),
+  );
 
   if (closetError || !closetItem || closetItem.image_path !== imagePath) {
-    return NextResponse.json({ message: "Closet item not found." }, { status: 404 });
+    return timing.json(
+      { message: "Closet item not found." },
+      { status: 404, metadata: { failureKind: "item_not_found" } },
+    );
   }
 
-  await supabase
-    .from("closet_items")
-    .update({
-      display_image_status: "processing",
-      display_image_model: imageEditModel,
-      display_image_prompt_version: CLOSET_DISPLAY_PROMPT_VERSION,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", closetItemId);
+  const { data: claimedItem, error: processingError } = await trace.measure(
+    "db_mark_processing",
+    () =>
+      supabase
+        .from("closet_items")
+        .update({
+          display_image_status: "processing",
+        })
+        .eq("id", closetItemId)
+        .in("display_image_status", [...claimableDisplayImageStatuses])
+        .select("id")
+        .maybeSingle(),
+    (result) => (result.error || !result.data ? "failure" : "success"),
+  );
+
+  if (processingError) throw processingError;
+  if (!claimedItem) {
+    const { data: authoritativeItem, error: authoritativeItemError } = await trace.measure(
+      "db_read_claim_conflict",
+      () =>
+        supabase
+          .from("closet_items")
+          .select(displayImageSelect)
+          .eq("id", closetItemId)
+          .maybeSingle(),
+      (result) => (result.error || !result.data ? "failure" : "success"),
+    );
+    if (authoritativeItemError) throw authoritativeItemError;
+
+    return timing.json(
+      {
+        message: "Display image generation is already in progress.",
+        item: authoritativeItem ?? undefined,
+      },
+      { status: 409, metadata: { failureKind: "display_image_not_claimed" } },
+    );
+  }
+
+  let uploadedDisplayImagePath: string | undefined;
+  let displayImageCommitted = false;
 
   try {
-    const generatedImage = await callConfiguredImageEdit(imageDataUrl);
+    if (!hasImageEditConfig()) {
+      throw new ImageEditConfigurationError(
+        "image_edit_not_configured",
+        getAiCapabilityConfigError("imageEdit"),
+      );
+    }
+
+    const imageEditConfig = getAiCapabilityConfig("imageEdit");
+    const imageEditModel = imageEditConfig.model;
+    if (!imageEditModel) {
+      throw new ImageEditConfigurationError(
+        "image_edit_model_missing",
+        getAiCapabilityConfigError("imageEdit"),
+      );
+    }
+    timing.addMetadata({ provider: imageEditConfig.provider, model: imageEditModel });
+
+    const generatedImage = await callConfiguredImageEdit(imageDataUrl, timing, request.signal);
+    timing.addMetadata({ outputKind: generatedImage.kind });
     const { fileBody, extension, contentType } =
       generatedImage.kind === "url"
-        ? await downloadGeneratedImage(generatedImage.value)
-        : decodeImageEditBase64(generatedImage.value);
+        ? await downloadGeneratedImage(generatedImage.value, trace)
+        : trace.measureSync("output_base64_decode", () =>
+            decodeImageEditBase64(generatedImage.value),
+          );
+    timing.addMetadata({ outputBytes: fileBody.length });
     const displayImagePath = `${userId}/display/${crypto.randomUUID()}${extension}`;
 
-    const { error: uploadError } = await supabase.storage
-      .from("closet-images")
-      .upload(displayImagePath, fileBody, {
-        cacheControl: "3600",
-        contentType,
-        upsert: false,
-      });
+    const { error: uploadError } = await trace.measure(
+      "storage_upload",
+      () =>
+        supabase.storage.from("closet-images").upload(displayImagePath, fileBody, {
+          cacheControl: "3600",
+          contentType,
+          upsert: false,
+        }),
+      (result) => (result.error ? "failure" : "success"),
+    );
 
     if (uploadError) throw uploadError;
+    uploadedDisplayImagePath = displayImagePath;
 
-    const { data, error } = await supabase
-      .from("closet_items")
-      .update({
-        display_image_path: displayImagePath,
-        display_image_status: "ready",
-        display_image_model: imageEditModel,
-        display_image_prompt_version: CLOSET_DISPLAY_PROMPT_VERSION,
-        image_quality_flags: await mergeCurrentQualityFlags(supabase, closetItemId, {
-          add: ["display_image_ready"],
-          remove: ["display_image_queued", "display_image_processing", "display_image_failed"],
-        }),
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", closetItemId)
-      .select(closetItemSelect)
-      .single();
+    const { data, error } = await trace.measure(
+      "db_mark_ready",
+      () =>
+        supabase
+          .from("closet_items")
+          .update({
+            display_image_path: displayImagePath,
+            display_image_status: "ready",
+            display_image_model: imageEditModel,
+            display_image_prompt_version: CLOSET_DISPLAY_PROMPT_VERSION,
+          })
+          .eq("id", closetItemId)
+          .eq("display_image_status", "processing")
+          .select(displayImageSelect)
+          .maybeSingle(),
+      (result) => (result.error || !result.data ? "failure" : "success"),
+    );
 
     if (error) throw error;
+    if (!data) {
+      await removeUncommittedDisplayImage(
+        supabase,
+        displayImagePath,
+        trace,
+        closetItemId,
+        "storage_cleanup_unowned",
+      );
+      uploadedDisplayImagePath = undefined;
+      return timing.json(
+        { message: "Display image generation no longer owns this item." },
+        { status: 409, metadata: { failureKind: "display_image_commit_not_owned" } },
+      );
+    }
+    displayImageCommitted = true;
 
-    return NextResponse.json({
+    return timing.json({
       item: data,
     });
   } catch (error) {
@@ -156,61 +269,143 @@ export async function POST(request: NextRequest) {
       failure: describeDisplayImageFailure(error),
     });
 
-    await supabase
-      .from("closet_items")
-      .update({
-        display_image_status: "failed",
-        image_quality_flags: await mergeCurrentQualityFlags(supabase, closetItemId, {
-          add: ["display_image_failed"],
-          remove: ["display_image_queued", "display_image_processing", "display_image_ready"],
-        }),
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", closetItemId);
+    if (uploadedDisplayImagePath && !displayImageCommitted) {
+      await removeUncommittedDisplayImage(
+        supabase,
+        uploadedDisplayImagePath,
+        trace,
+        closetItemId,
+        "storage_cleanup_failed",
+      );
+    }
 
-    return NextResponse.json(
+    try {
+      const { error: markFailedError } = await trace.measure(
+        "db_mark_failed",
+        () =>
+          supabase
+            .from("closet_items")
+            .update({
+              display_image_status: "failed",
+            })
+            .eq("id", closetItemId)
+            .eq("display_image_status", "processing"),
+        (result) => (result.error ? "failure" : "success"),
+      );
+      if (markFailedError) throw markFailedError;
+    } catch (cleanupError) {
+      console.error("[closet-display-image] failure state update failed", {
+        closetItemId,
+        failure: describeDisplayImageFailure(cleanupError),
+      });
+    }
+
+    const failureKind = describeDisplayImageFailure(error);
+    return timing.json(
       {
-        message: "Display image generation failed.",
+        message:
+          error instanceof ImageEditConfigurationError
+            ? error.message
+            : "Display image generation failed.",
       },
-      { status: 500 },
+      {
+        status: 500,
+        metadata: { failureKind },
+      },
     );
   }
 }
 
-async function callConfiguredImageEdit(imageDataUrl: string): Promise<ImageEditOutput> {
-  const imageEditRequest = createImageEditRequest(
-    imageDataUrl,
-    buildClosetDisplayPrompt(),
-    buildClosetDisplayNegativePrompt(),
+async function callConfiguredImageEdit(
+  imageDataUrl: string,
+  timing: ReturnType<typeof createRouteTiming>,
+  requestSignal: AbortSignal,
+): Promise<ImageEditOutput> {
+  const { trace } = timing;
+  const imageEditRequest = trace.measureSync("provider_request_build", () =>
+    createImageEditRequest(
+      imageDataUrl,
+      buildClosetDisplayPrompt(),
+      buildClosetDisplayNegativePrompt(),
+    ),
   );
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), imageEditRequest.timeoutMs);
+  const abortProviderRequest = () => controller.abort();
+  requestSignal.addEventListener("abort", abortProviderRequest, { once: true });
+  if (requestSignal.aborted) controller.abort();
 
   try {
-    const response = await fetch(imageEditRequest.endpoint, {
-      ...createImageEditRequestInit(imageEditRequest),
-      signal: controller.signal,
-    });
+    const response = await trace.measure(
+      "provider_fetch_ttfb",
+      () =>
+        fetch(imageEditRequest.endpoint, {
+          ...createImageEditRequestInit(imageEditRequest),
+          signal: controller.signal,
+        }),
+      (result) => (result.ok ? "success" : "failure"),
+    );
+
+    try {
+      timing.addMetadata(extractImageEditResponseDiagnostics(response));
+    } catch {
+      // Provider diagnostics must not change image generation behavior.
+    }
 
     if (!response.ok) {
       throw new ImageEditProviderError("provider_request_failed", response.status);
     }
 
+    let responseBody: string;
+    try {
+      const bodyResult = await readImageEditResponseBody(response, trace);
+      responseBody = bodyResult.bodyText;
+      timing.addMetadata({ providerResponseBytes: bodyResult.responseBytes });
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") throw error;
+      throw new ImageEditProviderError("invalid_provider_response");
+    }
+
     let result: unknown;
     try {
-      result = await response.json();
+      result = parseImageEditResponseJson(responseBody, trace);
     } catch {
       throw new ImageEditProviderError("invalid_provider_response");
     }
 
-    const imageOutput = extractImageEditOutput(result);
-    if (!imageOutput) {
-      throw new ImageEditProviderError("missing_image_output");
-    }
-
-    return imageOutput;
+    return trace.measureSync("provider_output_extract", () => {
+      const imageOutput = extractImageEditOutput(result);
+      if (!imageOutput) {
+        throw new ImageEditProviderError("missing_image_output");
+      }
+      return imageOutput;
+    });
   } finally {
     clearTimeout(timeout);
+    requestSignal.removeEventListener("abort", abortProviderRequest);
+  }
+}
+
+async function removeUncommittedDisplayImage(
+  supabase: SupabaseClient,
+  displayImagePath: string,
+  trace: TimingTrace,
+  closetItemId: string,
+  spanName: string,
+) {
+  try {
+    const { error } = await trace.measure(
+      spanName,
+      () => supabase.storage.from("closet-images").remove([displayImagePath]),
+      (result) => (result.error ? "failure" : "success"),
+    );
+    if (error) throw error;
+  } catch (error) {
+    console.error("[closet-display-image] orphan cleanup failed", {
+      closetItemId,
+      displayImagePath,
+      failure: describeDisplayImageFailure(error),
+    });
   }
 }
 
@@ -227,7 +422,20 @@ class ImageEditProviderError extends Error {
   }
 }
 
+class ImageEditConfigurationError extends Error {
+  constructor(
+    readonly failure: "image_edit_not_configured" | "image_edit_model_missing",
+    message: string,
+  ) {
+    super(message);
+    this.name = "ImageEditConfigurationError";
+  }
+}
+
 function describeDisplayImageFailure(error: unknown) {
+  if (error instanceof ImageEditConfigurationError) {
+    return error.failure;
+  }
   if (error instanceof ImageEditProviderError) {
     return error.status ? `${error.failure}:${error.status}` : error.failure;
   }
@@ -237,8 +445,12 @@ function describeDisplayImageFailure(error: unknown) {
   return "image_generation_or_storage_failed";
 }
 
-async function downloadGeneratedImage(url: string) {
-  const response = await fetch(url);
+async function downloadGeneratedImage(url: string, trace: TimingTrace) {
+  const response = await trace.measure(
+    "output_url_fetch",
+    () => fetch(url),
+    (result) => (result.ok ? "success" : "failure"),
+  );
 
   if (!response.ok) {
     throw new Error(`Failed to download generated image: ${response.status}`);
@@ -249,7 +461,9 @@ async function downloadGeneratedImage(url: string) {
   const extension = extensionFromContentType(contentType);
 
   return {
-    fileBody: Buffer.from(await response.arrayBuffer()),
+    fileBody: Buffer.from(
+      await trace.measure("output_url_body", () => response.arrayBuffer()),
+    ),
     extension,
     contentType,
   };
@@ -273,29 +487,4 @@ function extensionFromContentType(contentType: string) {
   if (contentType.includes("jpeg") || contentType.includes("jpg")) return ".jpg";
   if (contentType.includes("webp")) return ".webp";
   return ".png";
-}
-
-async function mergeCurrentQualityFlags(
-  supabase: SupabaseClient,
-  closetItemId: string,
-  changes: { add?: string[]; remove?: string[] },
-) {
-  const { data } = await supabase
-    .from("closet_items")
-    .select("image_quality_flags")
-    .eq("id", closetItemId)
-    .single<ClosetQualityRow>();
-
-  return mergeQualityFlags(data?.image_quality_flags ?? [], changes.add ?? [], changes.remove ?? []);
-}
-
-function mergeQualityFlags(current: string[], add: string[], remove: string[]) {
-  const removeSet = new Set(remove);
-
-  return Array.from(
-    new Set([
-      ...current.filter((flag) => flag && !removeSet.has(flag)),
-      ...add.filter((flag) => flag && !removeSet.has(flag)),
-    ]),
-  );
 }

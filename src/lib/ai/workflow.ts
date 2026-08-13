@@ -16,6 +16,7 @@ import type {
 } from "@/lib/ai/types";
 import { retrieveFashionKnowledge } from "@/lib/ai/knowledge";
 import { buildPurchaseEmbeddingText } from "@/lib/ai/purchase-analysis";
+import { closetSeasonValues, normalizeClosetSeasons } from "@/lib/closet/season";
 import {
   embedText,
   generateDecisionJson,
@@ -722,7 +723,7 @@ function scoreClosetItem(
 
   const styleOverlap = overlapCount(item.styleTags, candidate.styleTags);
   const scenarioOverlap = overlapCount(item.scenarioTags, candidate.possibleScenarios);
-  const seasonOverlap = overlapCount(item.seasonTags ?? [], ["all-season", "spring", "summer", "autumn", "winter"]);
+  const seasonOverlap = overlapCount(normalizeClosetSeasons(item.seasonTags), closetSeasonValues);
   const semantic = item.embedding?.length && candidateEmbedding?.length
     ? Math.max(0, cosineSimilarity(item.embedding, candidateEmbedding))
     : 0;
@@ -1378,7 +1379,7 @@ function normalizeColor(color: string) {
   return color.replace(/\s/g, "").replace("浅", "").replace("深", "");
 }
 
-function overlapCount(a: string[] = [], b: string[] = []) {
+function overlapCount(a: readonly string[] = [], b: readonly string[] = []) {
   const normalizedB = new Set(b.map((item) => item.toLowerCase()));
   return a.filter((item) => normalizedB.has(item.toLowerCase())).length;
 }

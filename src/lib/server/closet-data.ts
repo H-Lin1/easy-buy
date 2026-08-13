@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { ClothingItem } from "@/lib/types";
+import { normalizeClosetSeasons } from "@/lib/closet/season";
 
 type ClosetRetrievalRow = {
   id: string;
@@ -51,7 +52,7 @@ export async function loadRealClosetItems(supabase: SupabaseClient): Promise<Clo
         color: item.color ?? "unknown",
         fit: item.fit ?? "unknown",
         styleTags: item.style_tags ?? [],
-        seasonTags: item.season ?? [],
+        seasonTags: normalizeClosetSeasons(item.season),
         scenarioTags: item.scenario_tags ?? [],
         wearFrequency: item.wear_frequency ?? "unknown",
         status: item.status ?? "active",

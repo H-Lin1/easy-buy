@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { buildTaxonomyPromptBlock } from "@/lib/ai/taxonomy";
+import { normalizeClosetSeasons } from "@/lib/closet/season";
 
 const fitSchema = z.preprocess(
   (value) => normalizeFitValue(value),
@@ -59,6 +60,7 @@ ${buildTaxonomyPromptBlock()}
 - 如果品类、版型、材质、长度无法确定，写 unknown 或待确认，不要强行判断。
 - fit 只能输出 slim、regular、oversized、unknown。修身/紧身对应 slim；合体/直筒/常规对应 regular；宽松/廓形/落肩对应 oversized。
 - styleTags、scenarioTags、materialGuess 优先使用上面的标签体系。
+- season 只能输出春季、夏季、秋季、冬季、四季；无法判断时输出空数组，不要输出英文季节。
 
 图片文件名：${options.fileName ?? "unknown"}
 ${
@@ -82,7 +84,7 @@ ${userFeedback}
   "sleeveLength": "sleeveless | short | long | unknown",
   "materialGuess": "视觉可见的可能材质或功能观感，例如 棉感/牛仔/雪纺/防晒面料/户外功能面料，不确定用 unknown",
   "styleTags": ["极简", "通勤", "休闲"],
-  "season": ["spring", "summer", "autumn", "winter", "all-season"],
+  "season": ["春季", "夏季", "秋季", "冬季", "四季"],
   "formality": 1,
   "scenarioTags": ["通勤", "日常出街", "旅行"],
   "imageQualityFlags": ["background_complex", "folded", "occluded", "partial_view", "low_light", "color_cast", "low_confidence"],
@@ -119,7 +121,7 @@ export function normalizeClosetAnalysis(result: ClosetAnalysisResult) {
   const itemName = cleanText(result.itemName) || buildItemName(color, category);
   const styleTags = uniqueNonEmpty(result.styleTags).slice(0, 6);
   const scenarioTags = uniqueNonEmpty(result.scenarioTags).slice(0, 6);
-  const season = uniqueNonEmpty(result.season).slice(0, 5);
+  const season = normalizeClosetSeasons(result.season).slice(0, 5);
   const secondaryColors = uniqueNonEmpty(result.secondaryColors).slice(0, 4);
   const imageQualityFlags = uniqueNonEmpty(result.imageQualityFlags);
   const reviewReasons = uniqueNonEmpty(result.reviewReasons);
@@ -129,20 +131,18 @@ export function normalizeClosetAnalysis(result: ClosetAnalysisResult) {
   const summary =
     cleanText(result.summary) ||
     `${itemName}，偏${fitLabel(result.fit ?? "unknown")}版型，适合${scenarioTags[0] ?? "日常"}场景。`;
-  const embeddingText =
-    cleanText(result.embeddingText) ||
-    [
-      itemName,
-      `品类：${category}`,
-      `颜色：${color}`,
-      `版型：${fitLabel(result.fit ?? "unknown")}`,
-      `风格：${styleTags.join("、") || "待确认"}`,
-      `场景：${scenarioTags.join("、") || "待确认"}`,
-      `季节：${season.join("、") || "待确认"}`,
-      result.materialGuess ? `可能材质/功能：${result.materialGuess}` : "",
-    ]
-      .filter(Boolean)
-      .join("；");
+  const embeddingText = [
+    itemName,
+    `品类：${category}`,
+    `颜色：${color}`,
+    `版型：${fitLabel(result.fit ?? "unknown")}`,
+    `风格：${styleTags.join("、") || "待确认"}`,
+    `场景：${scenarioTags.join("、") || "待确认"}`,
+    `季节：${season.join("、") || "待确认"}`,
+    result.materialGuess ? `可能材质/功能：${result.materialGuess}` : "",
+  ]
+    .filter(Boolean)
+    .join("；");
 
   return {
     itemName,
