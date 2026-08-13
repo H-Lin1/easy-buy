@@ -13,6 +13,7 @@ import {
   hasVisionConfig,
   sanitizeAiErrorMessage,
 } from "@/lib/ai/providers";
+import { CLOSET_ANALYSIS_OWNER_FLAG_PREFIX } from "@/lib/closet/embedding-text";
 import { appEnv } from "@/lib/env";
 import { createRouteTiming } from "@/lib/performance/route-timing";
 import type { TimingTrace } from "@/lib/performance/timing";
@@ -26,13 +27,20 @@ const requestSchema = z.object({
   displayImageDataUrl: z.string().startsWith("data:image/").optional(),
   fileName: z.string().optional(),
   userFeedback: z.string().max(800).optional(),
+  intent: z.enum(["initial_upload", "user_reanalysis"]).default("initial_upload"),
 });
 
 const closetItemSelect =
-  "id,image_path,processed_image_path,display_image_path,display_image_status,display_image_model,display_image_prompt_version,image_quality_flags,category,color,fit,style_tags,season,scenario_tags,wear_frequency,status,summary,embedding_text,ai_confidence,user_corrected";
+  "id,image_path,processed_image_path,display_image_path,display_image_status,display_image_model,display_image_prompt_version,image_quality_flags,category,color,fit,style_tags,season,scenario_tags,wear_frequency,status,summary,embedding_text,ai_confidence,user_corrected,updated_at";
 
 type ClosetQualityRow = {
   image_quality_flags: string[] | null;
+};
+
+type QualityFlagChanges = {
+  add?: string[];
+  remove?: string[];
+  removePrefixes?: string[];
 };
 
 export async function POST(request: NextRequest) {
@@ -126,8 +134,15 @@ async function handlePost(
     );
   }
 
-  const { closetItemId, imagePath, originalImageDataUrl, displayImageDataUrl, fileName, userFeedback } =
-    parsed.data;
+  const {
+    closetItemId,
+    imagePath,
+    originalImageDataUrl,
+    displayImageDataUrl,
+    fileName,
+    userFeedback,
+    intent,
+  } = parsed.data;
 
   timing.addMetadata({
     imageCount: displayImageDataUrl ? 2 : 1,
@@ -138,7 +153,7 @@ async function handlePost(
     () =>
       supabase
         .from("closet_items")
-        .select("id,image_path,display_image_path")
+        .select(closetItemSelect)
         .eq("id", closetItemId)
         .single(),
     (result) => (result.error || !result.data ? "failure" : "success"),
@@ -151,17 +166,66 @@ async function handlePost(
     );
   }
 
+  const manualReanalysis = intent === "user_reanalysis" && Boolean(closetItem.user_corrected);
+  const analysisOwnerFlag = `${CLOSET_ANALYSIS_OWNER_FLAG_PREFIX}${crypto.randomUUID()}`;
+  const originalQualityFlags = ((closetItem.image_quality_flags ?? []) as string[]).filter(
+    (flag: string) => !flag.startsWith(CLOSET_ANALYSIS_OWNER_FLAG_PREFIX),
+  );
+
   try {
-    await updateQualityFlags(
+    const analysisClaimed = await updateQualityFlags(
       supabase,
       closetItemId,
       {
-        add: ["closet_analysis_processing"],
+        add: ["closet_analysis_processing", analysisOwnerFlag],
         remove: ["closet_analysis_queued", "closet_analysis_failed"],
+        removePrefixes: [CLOSET_ANALYSIS_OWNER_FLAG_PREFIX],
       },
       trace,
       "db_mark_processing",
+      manualReanalysis,
+      manualReanalysis ? closetItem.updated_at : undefined,
     );
+
+    if (!analysisClaimed) {
+      const { data: authoritativeItem, error: authoritativeItemError } = await trace.measure(
+        "db_read_confirmed_before_analysis",
+        () =>
+          supabase
+            .from("closet_items")
+            .select(closetItemSelect)
+            .eq("id", closetItemId)
+            .single(),
+        (result) => (result.error || !result.data ? "failure" : "success"),
+      );
+
+      if (authoritativeItemError || !authoritativeItem) {
+        throw authoritativeItemError ?? new Error("Authoritative closet item could not be read.");
+      }
+
+      const analysisAlreadyInProgress = (
+        authoritativeItem.image_quality_flags ?? []
+      ).includes("closet_analysis_processing");
+      const conflict = analysisAlreadyInProgress
+        ? "analysis_already_in_progress"
+        : authoritativeItem.user_corrected
+          ? "analysis_superseded_by_confirmation"
+          : "analysis_state_changed";
+
+      return timing.json(
+        {
+          message:
+            conflict === "analysis_already_in_progress"
+              ? "Closet item analysis is already in progress."
+              : conflict === "analysis_superseded_by_confirmation"
+                ? "Closet item confirmation already owns the latest labels."
+                : "Closet item analysis state changed before this request could start.",
+          conflict,
+          item: authoritativeItem,
+        },
+        { status: 409, metadata: { failureKind: conflict } },
+      );
+    }
 
     const imageDataUrls = [originalImageDataUrl, displayImageDataUrl].filter(
       (url): url is string => Boolean(url),
@@ -173,56 +237,109 @@ async function handlePost(
         userFeedback,
       }),
     );
-    const raw = await trace.measure("vision_api_sdk", () => generateVisionJson(prompt, imageDataUrls));
+    const raw = await trace.measure("vision_api_sdk", () =>
+      generateVisionJson(prompt, imageDataUrls, request.signal),
+    );
     const analysis = trace.measureSync("analysis_parse", () => parseClosetAnalysisJson(raw));
+    const analysisQualityFlags = analysis.imageQualityFlags.filter(
+      (flag: string) => !flag.startsWith(CLOSET_ANALYSIS_OWNER_FLAG_PREFIX),
+    );
     const qualityFlags = await mergeCurrentQualityFlags(
       supabase,
       closetItemId,
       {
         add: [
-          ...analysis.imageQualityFlags,
+          ...analysisQualityFlags,
           "ai_label_ready",
-          ...(analysis.needsUserReview ? ["needs_ai_label_confirmation"] : []),
+          ...(analysis.needsUserReview || manualReanalysis
+            ? ["needs_ai_label_confirmation"]
+            : []),
         ],
         remove: [
           "closet_analysis_queued",
           "closet_analysis_processing",
           "closet_analysis_failed",
-          "display_image_queued",
         ],
+        removePrefixes: [CLOSET_ANALYSIS_OWNER_FLAG_PREFIX],
       },
       trace,
       "db_quality_flags_read",
     );
 
+    const analysisPatch = {
+      category: analysis.category,
+      color: analysis.color,
+      secondary_colors: analysis.secondaryColors,
+      fit: analysis.fit,
+      style_tags: analysis.styleTags,
+      season: analysis.season,
+      formality: analysis.formality,
+      scenario_tags: analysis.scenarioTags,
+      summary: analysis.itemName,
+      embedding_text: analysis.embeddingText,
+      ai_confidence: analysis.aiConfidence,
+      user_corrected: false,
+      image_quality_flags: qualityFlags,
+    };
+
     const { data, error } = await trace.measure(
       "db_mark_ready",
-      () =>
-        supabase
+      () => {
+        const update = supabase
           .from("closet_items")
           .update({
-            category: analysis.category,
-            color: analysis.color,
-            secondary_colors: analysis.secondaryColors,
-            fit: analysis.fit,
-            style_tags: analysis.styleTags,
-            season: analysis.season,
-            formality: analysis.formality,
-            scenario_tags: analysis.scenarioTags,
-            summary: analysis.itemName,
-            embedding_text: analysis.embeddingText,
-            ai_confidence: analysis.aiConfidence,
-            user_corrected: false,
-            image_quality_flags: qualityFlags,
+            ...analysisPatch,
             updated_at: new Date().toISOString(),
           })
-          .eq("id", closetItemId)
-          .select(closetItemSelect)
-          .single(),
+          .eq("id", closetItemId);
+        const guardedUpdate = update
+          .eq("user_corrected", manualReanalysis)
+          .contains("image_quality_flags", ["closet_analysis_processing", analysisOwnerFlag]);
+        return guardedUpdate.select(closetItemSelect).maybeSingle();
+      },
       (result) => (result.error || !result.data ? "failure" : "success"),
     );
 
     if (error) throw error;
+    if (!data) {
+      const { data: confirmedItem, error: confirmedItemError } = await trace.measure(
+        "db_read_confirmed_item",
+        () =>
+          supabase
+            .from("closet_items")
+            .select(closetItemSelect)
+            .eq("id", closetItemId)
+            .single(),
+        (result) => (result.error || !result.data ? "failure" : "success"),
+      );
+
+      if (confirmedItemError || !confirmedItem) {
+        throw confirmedItemError ?? new Error("Confirmed closet item could not be read.");
+      }
+
+      const analysisAlreadyInProgress = (
+        confirmedItem.image_quality_flags ?? []
+      ).includes("closet_analysis_processing");
+      const conflict = analysisAlreadyInProgress
+        ? "analysis_already_in_progress"
+        : confirmedItem.user_corrected
+          ? "analysis_superseded_by_confirmation"
+          : "analysis_state_changed";
+
+      return timing.json(
+        {
+          message:
+            conflict === "analysis_already_in_progress"
+              ? "A newer closet item analysis is already in progress."
+              : conflict === "analysis_superseded_by_confirmation"
+                ? "Closet item confirmation already owns the latest labels."
+                : "Closet item analysis state changed before this result could be committed.",
+          conflict,
+          item: confirmedItem,
+        },
+        { status: 409, metadata: { failureKind: conflict } },
+      );
+    }
 
     return timing.json({
       item: data,
@@ -235,30 +352,57 @@ async function handlePost(
     });
 
     try {
-      const qualityFlags = await mergeCurrentQualityFlags(
-        supabase,
-        closetItemId,
-        {
-          add: ["closet_analysis_failed", "needs_ai_label_confirmation"],
-          remove: ["closet_analysis_queued", "closet_analysis_processing"],
-        },
-        trace,
-        "db_failure_flags_read",
-      );
+      if (manualReanalysis) {
+        const { error: restoreConfirmedError } = await trace.measure(
+          "db_restore_confirmed_after_analysis_failure",
+          () =>
+            supabase
+              .from("closet_items")
+              .update({
+                image_quality_flags: originalQualityFlags,
+                updated_at: new Date().toISOString(),
+              })
+              .eq("id", closetItemId)
+              .eq("user_corrected", true)
+              .contains("image_quality_flags", [
+                "closet_analysis_processing",
+                analysisOwnerFlag,
+              ]),
+          (result) => (result.error ? "failure" : "success"),
+        );
+        if (restoreConfirmedError) throw restoreConfirmedError;
+      } else {
+        const qualityFlags = await mergeCurrentQualityFlags(
+          supabase,
+          closetItemId,
+          {
+            add: ["closet_analysis_failed", "needs_ai_label_confirmation"],
+            remove: ["closet_analysis_queued", "closet_analysis_processing"],
+            removePrefixes: [CLOSET_ANALYSIS_OWNER_FLAG_PREFIX],
+          },
+          trace,
+          "db_failure_flags_read",
+        );
 
-      const { error: markFailedError } = await trace.measure(
-        "db_mark_failed",
-        () =>
-          supabase
-            .from("closet_items")
-            .update({
-              image_quality_flags: qualityFlags,
-              updated_at: new Date().toISOString(),
-            })
-            .eq("id", closetItemId),
-        (result) => (result.error ? "failure" : "success"),
-      );
-      if (markFailedError) throw markFailedError;
+        const { error: markFailedError } = await trace.measure(
+          "db_mark_failed",
+          () =>
+            supabase
+              .from("closet_items")
+              .update({
+                image_quality_flags: qualityFlags,
+                updated_at: new Date().toISOString(),
+              })
+              .eq("id", closetItemId)
+              .eq("user_corrected", false)
+              .contains("image_quality_flags", [
+                "closet_analysis_processing",
+                analysisOwnerFlag,
+              ]),
+          (result) => (result.error ? "failure" : "success"),
+        );
+        if (markFailedError) throw markFailedError;
+      }
     } catch (cleanupError) {
       console.error("[closet-analysis] failure state update failed", {
         closetItemId,
@@ -276,9 +420,11 @@ async function handlePost(
 async function updateQualityFlags(
   supabase: SupabaseClient,
   closetItemId: string,
-  changes: { add?: string[]; remove?: string[] },
+  changes: QualityFlagChanges,
   trace: TimingTrace,
   spanPrefix: string,
+  expectedUserCorrected = false,
+  expectedUpdatedAt?: string | null,
 ) {
   const flags = await mergeCurrentQualityFlags(
     supabase,
@@ -288,25 +434,35 @@ async function updateQualityFlags(
     `${spanPrefix}_flags_read`,
   );
 
-  const { error } = await trace.measure(
+  const { data, error } = await trace.measure(
     spanPrefix,
-    () =>
-      supabase
+    () => {
+      let update = supabase
         .from("closet_items")
         .update({
           image_quality_flags: flags,
           updated_at: new Date().toISOString(),
         })
-        .eq("id", closetItemId),
-    (result) => (result.error ? "failure" : "success"),
+        .eq("id", closetItemId)
+        .eq("user_corrected", expectedUserCorrected)
+        .not(
+          "image_quality_flags",
+          "cs",
+          '{"closet_analysis_processing"}',
+        );
+      if (expectedUpdatedAt) update = update.eq("updated_at", expectedUpdatedAt);
+      return update.select("id").maybeSingle();
+    },
+    (result) => (result.error || !result.data ? "failure" : "success"),
   );
   if (error) throw error;
+  return Boolean(data);
 }
 
 async function mergeCurrentQualityFlags(
   supabase: SupabaseClient,
   closetItemId: string,
-  changes: { add?: string[]; remove?: string[] },
+  changes: QualityFlagChanges,
   trace: TimingTrace,
   spanName: string,
 ) {
@@ -322,15 +478,30 @@ async function mergeCurrentQualityFlags(
   );
   if (error) throw error;
 
-  return mergeQualityFlags(data?.image_quality_flags ?? [], changes.add ?? [], changes.remove ?? []);
+  return mergeQualityFlags(
+    data?.image_quality_flags ?? [],
+    changes.add ?? [],
+    changes.remove ?? [],
+    changes.removePrefixes ?? [],
+  );
 }
 
-function mergeQualityFlags(current: string[], add: string[], remove: string[]) {
+function mergeQualityFlags(
+  current: string[],
+  add: string[],
+  remove: string[],
+  removePrefixes: string[],
+) {
   const removeSet = new Set(remove);
 
   return Array.from(
     new Set([
-      ...current.filter((flag) => flag && !removeSet.has(flag)),
+      ...current.filter(
+        (flag) =>
+          flag &&
+          !removeSet.has(flag) &&
+          !removePrefixes.some((prefix) => flag.startsWith(prefix)),
+      ),
       ...add.filter((flag) => flag && !removeSet.has(flag)),
     ]),
   );

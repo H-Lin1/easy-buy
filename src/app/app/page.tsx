@@ -32,8 +32,10 @@ import {
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import type { DragEvent, ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ThinkingOrb, type OrbState } from "thinking-orbs";
 
 import type { PurchaseDecisionReport } from "@/lib/ai/types";
+import { runWithConcurrency } from "@/lib/closet/concurrency";
 import {
   createEmptyClosetFilters,
   filterClosetItems,
@@ -42,6 +44,28 @@ import {
   type ClosetFilterOption,
   type ClosetFilters,
 } from "@/lib/closet/filter-items";
+import {
+  applyClosetAnalysisResult,
+  applyClosetConfirmationResult,
+  applyClosetDisplayPatch,
+  applyClosetReanalysisResult,
+  filterLegacyDisplayImageFlags,
+  formatDisplayCompletionNoticeSummary,
+  mergeDisplayCompletionNotices,
+  type ClosetDisplayPatch,
+  type DisplayCompletionNotice,
+  type DisplayCompletionNoticeSummary,
+} from "@/lib/closet/display-workflow";
+import {
+  collectClosetStorageCleanupPaths,
+  restoreClosetItemAtIndex,
+} from "@/lib/closet/deletion-workflow";
+import {
+  getClosetAnalysisProgress,
+  getClosetDisplayProgress,
+  type ClosetUploadTaskProgress,
+} from "@/lib/closet/upload-progress";
+import { normalizeClosetSeasons } from "@/lib/closet/season";
 import {
   createTimingTrace,
   emitTimingSummary,
@@ -119,6 +143,14 @@ type ClosetItemRow = {
   user_corrected: boolean | null;
 };
 
+type ClosetDisplayImageRow = {
+  id: string;
+  display_image_path: string | null;
+  display_image_status: ClothingItem["displayImageStatus"] | null;
+  display_image_model: string | null;
+  display_image_prompt_version: string | null;
+};
+
 const closetItemSelect =
   "id,image_path,processed_image_path,display_image_path,display_image_status,display_image_model,display_image_prompt_version,image_quality_flags,category,color,fit,style_tags,season,scenario_tags,wear_frequency,status,summary,embedding_text,ai_confidence,user_corrected";
 
@@ -135,6 +167,7 @@ type ClosetConfirmationDraft = {
 
 type ClosetUploadTraceContext = {
   trace: TimingTrace;
+  sessionEpoch: number;
   fileBytes: number;
   batchSize: number;
   dataUrlChars?: number;
@@ -146,9 +179,10 @@ type ClosetUploadTraceContext = {
   analysisSucceeded?: boolean;
   displaySucceeded?: boolean;
   displayImageUrl?: string;
+  displayImageLoadOutcome?: TimingOutcome;
   displayImageLoadPromise: Promise<TimingOutcome>;
   beginDisplayImageLoad: (url?: string) => void;
-  finishDisplayImageLoad: (outcome: TimingOutcome) => void;
+  finishDisplayImageLoad: (outcome: TimingOutcome) => boolean;
   finalized: boolean;
 };
 
@@ -158,7 +192,34 @@ type ClosetImageLoadHandler = (
   outcome: Extract<TimingOutcome, "success" | "failure">,
 ) => void;
 
-function createClosetUploadTraceContext(file: File, batchSize: number): ClosetUploadTraceContext {
+type ClosetBusyOperation = "analysis" | "confirmation" | "display" | "deletion";
+type ClosetAbortableOperation = "analysis" | "display";
+
+type ClosetBusyItemIds = Record<ClosetBusyOperation, string[]>;
+
+function createEmptyClosetBusyItemIds(): ClosetBusyItemIds {
+  return {
+    analysis: [],
+    confirmation: [],
+    display: [],
+    deletion: [],
+  };
+}
+
+function createClosetBusyCountMaps(): Record<ClosetBusyOperation, Map<string, number>> {
+  return {
+    analysis: new Map(),
+    confirmation: new Map(),
+    display: new Map(),
+    deletion: new Map(),
+  };
+}
+
+function createClosetUploadTraceContext(
+  file: File,
+  batchSize: number,
+  sessionEpoch: number,
+): ClosetUploadTraceContext {
   const trace = createTimingTrace({
     operation: "closet_upload",
     traceId: crypto.randomUUID(),
@@ -169,10 +230,10 @@ function createClosetUploadTraceContext(file: File, batchSize: number): ClosetUp
   });
   let displayImageLoadSpan: TimingSpanHandle | undefined;
   let displayImageLoadFinished = false;
-  let displayImageLoadTimeout: ReturnType<typeof setTimeout> | undefined;
 
   const context: ClosetUploadTraceContext = {
     trace,
+    sessionEpoch,
     fileBytes: file.size,
     batchSize,
     displayImageLoadPromise,
@@ -180,16 +241,14 @@ function createClosetUploadTraceContext(file: File, batchSize: number): ClosetUp
       if (!url || displayImageLoadFinished || displayImageLoadSpan) return;
       context.displayImageUrl = url;
       displayImageLoadSpan = trace.startSpan("display_image_load");
-      displayImageLoadTimeout = setTimeout(() => {
-        context.finishDisplayImageLoad("timeout");
-      }, 30_000);
     },
     finishDisplayImageLoad(outcome) {
-      if (displayImageLoadFinished) return;
+      if (displayImageLoadFinished) return false;
       displayImageLoadFinished = true;
-      if (displayImageLoadTimeout) clearTimeout(displayImageLoadTimeout);
+      context.displayImageLoadOutcome = outcome;
       displayImageLoadSpan?.finish(outcome);
       resolveDisplayImageLoad(outcome);
+      return true;
     },
     finalized: false,
   };
@@ -350,6 +409,17 @@ const wearFrequencyOptions: Array<{ value: ClothingItem["wearFrequency"]; label:
   { value: "unknown", label: "待确认" },
 ];
 
+const closetDisplayStatusLabels: Record<
+  NonNullable<ClothingItem["displayImageStatus"]>,
+  string
+> = {
+  not_started: "展示图待生成",
+  queued: "展示图排队中",
+  processing: "展示图生成中",
+  ready: "展示图已完成",
+  failed: "展示图生成失败",
+};
+
 type ClosetFilterKey = keyof ClosetFilters;
 
 const closetFilterLabels: Record<ClosetFilterKey, string> = {
@@ -448,7 +518,7 @@ async function mapClosetItemFromDb(
     color: row.color || "待识别",
     fit: row.fit ?? "unknown",
     styleTags: row.style_tags?.length ? row.style_tags : ["待识别"],
-    seasonTags: row.season ?? [],
+    seasonTags: normalizeClosetSeasons(row.season),
     scenarioTags: row.scenario_tags ?? [],
     wearFrequency: row.wear_frequency ?? "unknown",
     status: row.status ?? "active",
@@ -462,7 +532,7 @@ async function mapClosetItemFromDb(
     imageUrl: displayImage?.signedUrl ?? processedImage?.signedUrl ?? originalImage?.signedUrl,
     displayImageUrl: displayImage?.signedUrl,
     originalImageUrl: originalImage?.signedUrl,
-    imageQualityFlags: row.image_quality_flags ?? [],
+    imageQualityFlags: filterLegacyDisplayImageFlags(row.image_quality_flags),
     aiConfidence: row.ai_confidence ?? undefined,
     userCorrected: row.user_corrected ?? false,
     embeddingText: row.embedding_text ?? undefined,
@@ -655,7 +725,7 @@ function createConfirmationDraft(item: ClothingItem): ClosetConfirmationDraft {
     fit: item.fit,
     styleTags: item.styleTags.filter((tag) => tag !== "待识别" && tag !== "AI 识别中"),
     scenarioTags: item.scenarioTags,
-    seasonTags: item.seasonTags ?? [],
+    seasonTags: normalizeClosetSeasons(item.seasonTags),
     wearFrequency: item.wearFrequency,
   };
 }
@@ -739,7 +809,7 @@ function mergeImageQualityFlags(
 }
 
 function needsClosetConfirmation(item: ClothingItem) {
-  const flags = item.imageQualityFlags ?? [];
+  const flags = filterLegacyDisplayImageFlags(item.imageQualityFlags);
   const pending =
     item.category === "待识别" ||
     item.category === "识别中" ||
@@ -781,21 +851,8 @@ async function fetchImageAsDataUrl(imageUrl: string) {
   return blobToDataUrl(await response.blob());
 }
 
-async function runWithConcurrency<T>(
-  items: T[],
-  concurrency: number,
-  worker: (item: T) => Promise<void>,
-) {
-  const queue = [...items];
-  const runners = Array.from({ length: Math.min(concurrency, queue.length) }, async () => {
-    while (queue.length) {
-      const item = queue.shift();
-      if (!item) continue;
-      await worker(item);
-    }
-  });
-
-  await Promise.all(runners);
+function isAbortError(error: unknown) {
+  return error instanceof Error && error.name === "AbortError";
 }
 
 function calculateBmi(heightCm: number | null, weightKg: number | null) {
@@ -822,6 +879,28 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string) {
 
   return Promise.race([promise, timeout]).finally(() => {
     if (timeoutId) clearTimeout(timeoutId);
+  });
+}
+
+function loadImageResource(url: string, timeoutMs = 30_000): Promise<TimingOutcome> {
+  return new Promise((resolve) => {
+    const image = new Image();
+    let settled = false;
+    const timeoutId = window.setTimeout(() => finish("timeout"), timeoutMs);
+
+    function finish(outcome: TimingOutcome) {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timeoutId);
+      image.onload = null;
+      image.onerror = null;
+      resolve(outcome);
+    }
+
+    image.decoding = "async";
+    image.onload = () => finish("success");
+    image.onerror = () => finish("failure");
+    image.src = url;
   });
 }
 
@@ -855,20 +934,39 @@ export default function Home() {
   const [chatState, setChatState] = useState<DecisionChatState>(() => createEmptyChatState());
   const [userClosetItems, setUserClosetItems] = useState<ClothingItem[]>([]);
   const [closetLoading, setClosetLoading] = useState(false);
+  const [closetUploadBusy, setClosetUploadBusy] = useState(false);
   const [closetMessage, setClosetMessage] = useState("");
-  const [confirmationHidden, setConfirmationHidden] = useState(false);
-  const [deferredConfirmationIds, setDeferredConfirmationIds] = useState<string[]>([]);
-  const [busyClosetItemIds, setBusyClosetItemIds] = useState<string[]>([]);
+  const [displayCompletionNotices, setDisplayCompletionNotices] = useState<
+    DisplayCompletionNotice[]
+  >([]);
+  const [busyClosetItemIds, setBusyClosetItemIds] = useState<ClosetBusyItemIds>(
+    createEmptyClosetBusyItemIds,
+  );
   const [queuedAnalysisItemIds, setQueuedAnalysisItemIds] = useState<string[]>([]);
   const analysisQueueRef = useRef<
-    Array<{ item: ClothingItem; userFeedback?: string }>
+    Array<{ item: ClothingItem; userFeedback?: string; sessionEpoch: number }>
   >([]);
   const activeAnalysisCountRef = useRef(0);
   const activeAnalysisIdsRef = useRef(new Set<string>());
   const queuedAnalysisIdsRef = useRef(new Set<string>());
-  const busyItemCountsRef = useRef(new Map<string, number>());
+  const deletedClosetItemIdsRef = useRef(new Set<string>());
+  const closetRequestControllersRef = useRef<
+    Record<ClosetAbortableOperation, Map<string, Set<AbortController>>>
+  >({
+    analysis: new Map(),
+    display: new Map(),
+  });
+  const busyItemCountsRef = useRef(createClosetBusyCountMaps());
+  const closetUploadBusyRef = useRef(false);
   const closetUploadTracesRef = useRef(new Map<string, ClosetUploadTraceContext>());
   const activeClosetUploadTracesRef = useRef(new Set<ClosetUploadTraceContext>());
+  const activeUserIdRef = useRef<string | null>(null);
+  const closetSessionEpochRef = useRef(0);
+  const closetLoadRequestRef = useRef(0);
+  const displayCompletionSummary = useMemo(
+    () => formatDisplayCompletionNoticeSummary(displayCompletionNotices, userClosetItems),
+    [displayCompletionNotices, userClosetItems],
+  );
 
   const flushClosetUploadTraces = useCallback(() => {
     activeClosetUploadTracesRef.current.forEach((context) => {
@@ -879,6 +977,100 @@ export default function Home() {
     closetUploadTracesRef.current.clear();
   }, []);
 
+  const clearClosetTransientState = useCallback(() => {
+    closetLoadRequestRef.current += 1;
+    setDisplayCompletionNotices([]);
+    setBusyClosetItemIds(createEmptyClosetBusyItemIds());
+    busyItemCountsRef.current = createClosetBusyCountMaps();
+    setQueuedAnalysisItemIds([]);
+    activeAnalysisIdsRef.current.clear();
+    queuedAnalysisIdsRef.current.clear();
+    deletedClosetItemIdsRef.current.clear();
+    Object.values(closetRequestControllersRef.current).forEach((controllersByItem) => {
+      controllersByItem.forEach((controllers) =>
+        controllers.forEach((controller) => controller.abort()),
+      );
+      controllersByItem.clear();
+    });
+    analysisQueueRef.current = [];
+    activeAnalysisCountRef.current = 0;
+    closetUploadBusyRef.current = false;
+    setClosetUploadBusy(false);
+    setClosetLoading(false);
+    setClosetMessage("");
+    flushClosetUploadTraces();
+  }, [flushClosetUploadTraces]);
+
+  const updateAuthenticatedUser = useCallback(
+    (nextUser: User | null) => {
+      const nextUserId = nextUser?.id ?? null;
+      const userChanged = activeUserIdRef.current !== nextUserId;
+
+      if (userChanged) {
+        activeUserIdRef.current = nextUserId;
+        closetSessionEpochRef.current += 1;
+        clearClosetTransientState();
+      }
+      setUser(nextUser);
+      return userChanged;
+    },
+    [clearClosetTransientState],
+  );
+
+  function isCurrentClosetSession(sessionEpoch: number) {
+    return closetSessionEpochRef.current === sessionEpoch && activeUserIdRef.current !== null;
+  }
+
+  function isActiveClosetItem(itemId: string, sessionEpoch: number) {
+    return (
+      isCurrentClosetSession(sessionEpoch) && !deletedClosetItemIdsRef.current.has(itemId)
+    );
+  }
+
+  function createClosetRequestController(
+    operation: ClosetAbortableOperation,
+    itemId: string,
+  ) {
+    const controller = new AbortController();
+    const controllersByItem = closetRequestControllersRef.current[operation];
+    const controllers = controllersByItem.get(itemId) ?? new Set<AbortController>();
+    controllers.add(controller);
+    controllersByItem.set(itemId, controllers);
+    return controller;
+  }
+
+  function releaseClosetRequestController(
+    operation: ClosetAbortableOperation,
+    itemId: string,
+    controller: AbortController,
+  ) {
+    const controllersByItem = closetRequestControllersRef.current[operation];
+    const controllers = controllersByItem.get(itemId);
+    if (!controllers) return;
+    controllers.delete(controller);
+    if (controllers.size === 0) controllersByItem.delete(itemId);
+  }
+
+  function abortClosetItemRequests(itemId: string) {
+    (Object.keys(closetRequestControllersRef.current) as ClosetAbortableOperation[]).forEach(
+      (operation) => {
+        const controllers = closetRequestControllersRef.current[operation].get(itemId);
+        controllers?.forEach((controller) => controller.abort());
+        closetRequestControllersRef.current[operation].delete(itemId);
+      },
+    );
+  }
+
+  useEffect(() => {
+    if (!displayCompletionNotices.length) return;
+
+    const timeoutId = window.setTimeout(() => {
+      setDisplayCompletionNotices([]);
+    }, 8_000);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [displayCompletionNotices]);
+
   const loadProfile = useCallback(
     async (userId: string) => {
       const { data, error } = await supabase
@@ -886,6 +1078,8 @@ export default function Home() {
         .select("*")
         .eq("user_id", userId)
         .maybeSingle();
+
+      if (activeUserIdRef.current !== userId) return;
 
       if (error) {
         console.error(error);
@@ -900,6 +1094,15 @@ export default function Home() {
 
   const loadClosetItems = useCallback(
     async (userId: string) => {
+      if (activeUserIdRef.current !== userId) return;
+      const requestId = closetLoadRequestRef.current + 1;
+      closetLoadRequestRef.current = requestId;
+      const sessionEpoch = closetSessionEpochRef.current;
+      const isCurrentLoad = () =>
+        activeUserIdRef.current === userId &&
+        closetSessionEpochRef.current === sessionEpoch &&
+        closetLoadRequestRef.current === requestId;
+
       setClosetLoading(true);
       setClosetMessage("");
 
@@ -909,6 +1112,8 @@ export default function Home() {
         .eq("user_id", userId)
         .neq("status", "archived")
         .order("updated_at", { ascending: false });
+
+      if (!isCurrentLoad()) return;
 
       if (error) {
         console.error(error);
@@ -921,6 +1126,7 @@ export default function Home() {
       const mappedItems = await Promise.all(
         ((data ?? []) as ClosetItemRow[]).map((item) => mapClosetItemFromDb(supabase, item)),
       );
+      if (!isCurrentLoad()) return;
       setUserClosetItems(mappedItems);
       setClosetLoading(false);
     },
@@ -936,6 +1142,8 @@ export default function Home() {
         .eq("status", "active")
         .order("updated_at", { ascending: false })
         .limit(30);
+
+      if (activeUserIdRef.current !== userId) return;
 
       if (sessionsError) {
         console.error(sessionsError);
@@ -992,6 +1200,7 @@ export default function Home() {
         }),
       );
 
+      if (activeUserIdRef.current !== userId) return;
       setChatSessions(mappedSessions);
     },
     [supabase],
@@ -1007,6 +1216,8 @@ export default function Home() {
         .eq("user_id", userId)
         .order("updated_at", { ascending: false })
         .limit(80);
+
+      if (activeUserIdRef.current !== userId) return;
 
       if (error) {
         console.error(error);
@@ -1134,6 +1345,7 @@ export default function Home() {
         }),
       );
 
+      if (activeUserIdRef.current !== userId) return;
       setDecisionItems(mappedItems);
     },
     [supabase],
@@ -1144,6 +1356,7 @@ export default function Home() {
     const authFallbackId = setTimeout(() => {
       if (!active) return;
       console.warn("Auth initialization fallback fired.");
+      closetLoadRequestRef.current += 1;
       setAuthLoading(false);
       setClosetLoading(false);
     }, 10000);
@@ -1157,19 +1370,27 @@ export default function Home() {
         );
         if (!active) return;
 
-        setUser(data.session?.user ?? null);
-        if (data.session?.user) {
+        const sessionUser = data.session?.user ?? null;
+        const userChanged = updateAuthenticatedUser(sessionUser);
+        if (sessionUser && userChanged) {
+          setProfile(null);
+          setUserClosetItems([]);
+          setChatSessions([]);
+          setDecisionItems([]);
           const results = await Promise.allSettled([
-            withTimeout(loadProfile(data.session.user.id), 8000, "profile load"),
-            withTimeout(loadClosetItems(data.session.user.id), 8000, "closet load"),
-            withTimeout(loadChatSessions(data.session.user.id), 8000, "chat sessions load"),
-            withTimeout(loadDecisionItems(data.session.user.id), 8000, "decision items load"),
+            withTimeout(loadProfile(sessionUser.id), 8000, "profile load"),
+            withTimeout(loadClosetItems(sessionUser.id), 8000, "closet load"),
+            withTimeout(loadChatSessions(sessionUser.id), 8000, "chat sessions load"),
+            withTimeout(loadDecisionItems(sessionUser.id), 8000, "decision items load"),
           ]);
+
+          if (activeUserIdRef.current !== sessionUser.id) return;
 
           results.forEach((result, index) => {
             if (result.status === "rejected") {
-              if (index === 0) setProfile(createEmptyProfile(data.session.user.id));
+              if (index === 0) setProfile(createEmptyProfile(sessionUser.id));
               if (index === 1) {
+                closetLoadRequestRef.current += 1;
                 setClosetLoading(false);
                 setClosetMessage("衣橱加载较慢，已先进入页面。你可以稍后刷新或重新打开衣橱。");
               }
@@ -1195,15 +1416,20 @@ export default function Home() {
     loadSession();
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
+      const sessionUser = session?.user ?? null;
+      const userChanged = updateAuthenticatedUser(sessionUser);
       setAuthLoading(false);
-      if (session?.user) {
-        loadProfile(session.user.id);
-        loadClosetItems(session.user.id);
-        loadChatSessions(session.user.id);
-        loadDecisionItems(session.user.id);
+      if (sessionUser) {
+        if (!userChanged) return;
+        setProfile(null);
+        setUserClosetItems([]);
+        setChatSessions([]);
+        setDecisionItems([]);
+        loadProfile(sessionUser.id);
+        loadClosetItems(sessionUser.id);
+        loadChatSessions(sessionUser.id);
+        loadDecisionItems(sessionUser.id);
       } else {
-        flushClosetUploadTraces();
         setProfile(null);
         setUserClosetItems([]);
         setChatSessions([]);
@@ -1221,11 +1447,13 @@ export default function Home() {
     };
   }, [
     flushClosetUploadTraces,
+    clearClosetTransientState,
     loadChatSessions,
     loadClosetItems,
     loadDecisionItems,
     loadProfile,
     supabase,
+    updateAuthenticatedUser,
   ]);
 
   const filteredDecisions = useMemo(() => {
@@ -1260,24 +1488,26 @@ export default function Home() {
 
   async function signOut() {
     await supabase.auth.signOut();
-    setUser(null);
+    updateAuthenticatedUser(null);
     setProfile(null);
     setUserClosetItems([]);
     setChatSessions([]);
     setDecisionItems([]);
     setActiveChatId(undefined);
     setChatState(createEmptyChatState());
-    setBusyClosetItemIds([]);
-    setQueuedAnalysisItemIds([]);
-    activeAnalysisIdsRef.current.clear();
-    queuedAnalysisIdsRef.current.clear();
-    analysisQueueRef.current = [];
-    flushClosetUploadTraces();
+    clearClosetTransientState();
     setView("chat");
   }
 
-  function markItemBusy(itemId: string, busy: boolean) {
-    const counts = busyItemCountsRef.current;
+  function markItemBusy(
+    operation: ClosetBusyOperation,
+    itemId: string,
+    busy: boolean,
+    sessionEpoch?: number,
+  ) {
+    if (sessionEpoch !== undefined && !isCurrentClosetSession(sessionEpoch)) return;
+
+    const counts = busyItemCountsRef.current[operation];
     const currentCount = counts.get(itemId) ?? 0;
 
     if (busy) {
@@ -1288,7 +1518,21 @@ export default function Home() {
       counts.set(itemId, currentCount - 1);
     }
 
-    setBusyClosetItemIds([...counts.keys()]);
+    setBusyClosetItemIds((current) => ({
+      ...current,
+      [operation]: [...counts.keys()],
+    }));
+  }
+
+  function announceDisplayCompletion(
+    itemId: string,
+    outcome: DisplayCompletionNotice["outcome"],
+    sessionEpoch: number,
+  ) {
+    if (!isActiveClosetItem(itemId, sessionEpoch)) return;
+    setDisplayCompletionNotices((current) =>
+      mergeDisplayCompletionNotices(current, { itemId, outcome }),
+    );
   }
 
   function recordClosetImageLoad(
@@ -1298,10 +1542,33 @@ export default function Home() {
   ) {
     const context = closetUploadTracesRef.current.get(itemId);
     if (!context || context.displayImageUrl !== imageUrl) return;
-    context.finishDisplayImageLoad(outcome);
+    const accepted = context.finishDisplayImageLoad(outcome);
+    if (!accepted) return;
+
+    if (!isActiveClosetItem(itemId, context.sessionEpoch)) return;
+
+    if (outcome === "success") {
+      announceDisplayCompletion(itemId, "success", context.sessionEpoch);
+    } else {
+      setUserClosetItems((items) =>
+        items.map((item) =>
+          item.id === itemId && item.displayImageUrl === imageUrl
+            ? {
+                ...item,
+                displayImageUrl: undefined,
+                imageUrl: item.originalImageUrl ?? item.imageUrl,
+              }
+            : item,
+        ),
+      );
+      announceDisplayCompletion(itemId, "warning", context.sessionEpoch);
+    }
   }
 
-  function setAnalysisQueued(itemId: string, queued: boolean) {
+  function setAnalysisQueued(itemId: string, queued: boolean, sessionEpoch?: number) {
+    if (sessionEpoch !== undefined && !isCurrentClosetSession(sessionEpoch)) return;
+    if (queued && deletedClosetItemIdsRef.current.has(itemId)) return;
+
     if (queued) {
       queuedAnalysisIdsRef.current.add(itemId);
     } else {
@@ -1311,7 +1578,10 @@ export default function Home() {
     setQueuedAnalysisItemIds([...queuedAnalysisIdsRef.current]);
   }
 
-  function setAnalysisActive(itemId: string, active: boolean) {
+  function setAnalysisActive(itemId: string, active: boolean, sessionEpoch?: number) {
+    if (sessionEpoch !== undefined && !isCurrentClosetSession(sessionEpoch)) return;
+    if (active && deletedClosetItemIdsRef.current.has(itemId)) return;
+
     if (active) {
       activeAnalysisIdsRef.current.add(itemId);
     } else {
@@ -1319,7 +1589,19 @@ export default function Home() {
     }
   }
 
-  function updateLocalItemFlags(itemId: string, add: string[], remove: string[] = []) {
+  function updateLocalItemFlags(
+    itemId: string,
+    add: string[],
+    remove: string[] = [],
+    sessionEpoch?: number,
+  ) {
+    if (
+      sessionEpoch !== undefined &&
+      (!isCurrentClosetSession(sessionEpoch) || deletedClosetItemIdsRef.current.has(itemId))
+    ) {
+      return;
+    }
+
     setUserClosetItems((items) =>
       items.map((item) =>
         item.id === itemId
@@ -1336,20 +1618,27 @@ export default function Home() {
     while (activeAnalysisCountRef.current < 2 && analysisQueueRef.current.length > 0) {
       const task = analysisQueueRef.current.shift();
       if (!task) return;
+      if (!isCurrentClosetSession(task.sessionEpoch)) continue;
+      if (deletedClosetItemIdsRef.current.has(task.item.id)) {
+        setAnalysisQueued(task.item.id, false, task.sessionEpoch);
+        continue;
+      }
 
-      setAnalysisQueued(task.item.id, false);
-      setAnalysisActive(task.item.id, true);
-      markItemBusy(task.item.id, true);
+      setAnalysisQueued(task.item.id, false, task.sessionEpoch);
+      setAnalysisActive(task.item.id, true, task.sessionEpoch);
+      markItemBusy("analysis", task.item.id, true, task.sessionEpoch);
       updateLocalItemFlags(
         task.item.id,
         ["closet_analysis_processing", "needs_ai_label_confirmation"],
         ["closet_analysis_queued", "closet_analysis_failed"],
+        task.sessionEpoch,
       );
       activeAnalysisCountRef.current += 1;
 
-      void runQueuedClosetAnalysis(task.item, task.userFeedback).finally(() => {
-        setAnalysisActive(task.item.id, false);
-        markItemBusy(task.item.id, false);
+      void runQueuedClosetAnalysis(task.item, task.userFeedback, task.sessionEpoch).finally(() => {
+        if (!isCurrentClosetSession(task.sessionEpoch)) return;
+        setAnalysisActive(task.item.id, false, task.sessionEpoch);
+        markItemBusy("analysis", task.item.id, false, task.sessionEpoch);
         activeAnalysisCountRef.current = Math.max(0, activeAnalysisCountRef.current - 1);
         processAnalysisQueue();
       });
@@ -1358,11 +1647,19 @@ export default function Home() {
 
   async function uploadClosetImages(files: File[]) {
     if (!user || files.length === 0) return;
+    if (closetUploadBusyRef.current) {
+      setClosetMessage("上一批衣服仍在识别，请等待识别完成后再继续上传。");
+      return;
+    }
+    const sessionEpoch = closetSessionEpochRef.current;
 
-    setClosetLoading(true);
+    closetUploadBusyRef.current = true;
+    setClosetUploadBusy(true);
     setClosetMessage("");
     const traceContexts: ClosetUploadTraceContext[] = [];
     const createdItems: ClothingItem[] = [];
+    let preparationFailureCount = 0;
+    let firstPreparationError: unknown;
     const displayJobs: Array<{
       item: ClothingItem;
       imageDataUrl: string;
@@ -1378,113 +1675,176 @@ export default function Home() {
     }> = [];
 
     try {
-      setConfirmationHidden(false);
-      setDeferredConfirmationIds([]);
-
       for (const file of files) {
-        const context = createClosetUploadTraceContext(file, files.length);
+        const context = createClosetUploadTraceContext(file, files.length, sessionEpoch);
         traceContexts.push(context);
         activeClosetUploadTracesRef.current.add(context);
-        const imageDataUrl = await context.trace.measure("file_read", () => fileToDataUrl(file));
-        context.dataUrlChars = imageDataUrl.length;
-        const extension = file.name.split(".").pop()?.toLowerCase() || "jpg";
-        const safeExtension = ["jpg", "jpeg", "png", "webp"].includes(extension)
-          ? extension
-          : "jpg";
-        const imagePath = `${user.id}/${crypto.randomUUID()}.${safeExtension}`;
+        try {
+          if (!isCurrentClosetSession(sessionEpoch)) {
+            throw new Error("登录会话已切换，上传流程已停止。");
+          }
 
-        const { error: uploadError } = await context.trace.measure(
-          "original_storage_upload",
-          () =>
-            supabase.storage.from("closet-images").upload(imagePath, file, {
-              cacheControl: "3600",
-              contentType: file.type,
-              upsert: false,
-            }),
-          (result) => (result.error ? "failure" : "success"),
-        );
+          const imageDataUrl = await context.trace.measure("file_read", () => fileToDataUrl(file));
+          context.dataUrlChars = imageDataUrl.length;
+          if (!isCurrentClosetSession(sessionEpoch)) {
+            throw new Error("登录会话已切换，上传流程已停止。");
+          }
 
-        if (uploadError) throw uploadError;
+          const extension = file.name.split(".").pop()?.toLowerCase() || "jpg";
+          const safeExtension = ["jpg", "jpeg", "png", "webp"].includes(extension)
+            ? extension
+            : "jpg";
+          const imagePath = `${user.id}/${crypto.randomUUID()}.${safeExtension}`;
 
-        const { data, error } = await context.trace.measure(
-          "item_insert",
-          () =>
-            supabase
-              .from("closet_items")
-              .insert({
-                user_id: user.id,
-                image_path: imagePath,
-                processed_image_path: null,
-                display_image_path: null,
-                display_image_status: "queued",
-                display_image_model: null,
-                display_image_prompt_version: null,
-                image_quality_flags: [
-                  "original_saved",
-                  "display_image_queued",
-                  "closet_analysis_queued",
-                  "needs_ai_label_confirmation",
-                ],
-                category: "待识别",
-                color: "待识别",
-                fit: "unknown",
-                style_tags: ["待识别"],
-                scenario_tags: [],
-                season: [],
-                wear_frequency: "unknown",
-                status: "active",
-                summary: file.name.replace(/\.[^.]+$/, "") || "新上传衣服",
-                embedding_text: null,
-                ai_confidence: null,
-                user_corrected: false,
-              })
-              .select(closetItemSelect)
-              .single(),
-          (result) => (result.error || !result.data ? "failure" : "success"),
-        );
+          const { error: uploadError } = await context.trace.measure(
+            "original_storage_upload",
+            () =>
+              supabase.storage.from("closet-images").upload(imagePath, file, {
+                cacheControl: "3600",
+                contentType: file.type,
+                upsert: false,
+              }),
+            (result) => (result.error ? "failure" : "success"),
+          );
 
-        if (error) throw error;
-        const mappedItem = await mapClosetItemFromDb(supabase, data as ClosetItemRow, {
-          trace: context.trace,
-          prefix: "initial",
-        });
-        context.itemId = mappedItem.id;
-        if (!context.finalized) {
-          closetUploadTracesRef.current.set(mappedItem.id, context);
+          if (uploadError) throw uploadError;
+          if (!isCurrentClosetSession(sessionEpoch)) {
+            throw new Error("登录会话已切换，上传流程已停止。");
+          }
+
+          const { data, error } = await context.trace.measure(
+            "item_insert",
+            () =>
+              supabase
+                .from("closet_items")
+                .insert({
+                  user_id: user.id,
+                  image_path: imagePath,
+                  processed_image_path: null,
+                  display_image_path: null,
+                  display_image_status: "queued",
+                  display_image_model: null,
+                  display_image_prompt_version: null,
+                  image_quality_flags: [
+                    "original_saved",
+                    "closet_analysis_queued",
+                    "needs_ai_label_confirmation",
+                  ],
+                  category: "待识别",
+                  color: "待识别",
+                  fit: "unknown",
+                  style_tags: ["待识别"],
+                  scenario_tags: [],
+                  season: [],
+                  wear_frequency: "unknown",
+                  status: "active",
+                  summary: file.name.replace(/\.[^.]+$/, "") || "新上传衣服",
+                  embedding_text: null,
+                  ai_confidence: null,
+                  user_corrected: false,
+                })
+                .select(closetItemSelect)
+                .single(),
+            (result) => (result.error || !result.data ? "failure" : "success"),
+          );
+
+          if (error) throw error;
+          if (!isCurrentClosetSession(sessionEpoch)) {
+            throw new Error("登录会话已切换，上传流程已停止。");
+          }
+
+          const mappedItem = await mapClosetItemFromDb(supabase, data as ClosetItemRow, {
+            trace: context.trace,
+            prefix: "initial",
+          });
+          if (!isCurrentClosetSession(sessionEpoch)) {
+            throw new Error("登录会话已切换，上传流程已停止。");
+          }
+
+          context.itemId = mappedItem.id;
+          if (!context.finalized) {
+            closetUploadTracesRef.current.set(mappedItem.id, context);
+          }
+          createdItems.push(mappedItem);
+          displayJobs.push({
+            item: mappedItem,
+            imageDataUrl,
+            context,
+            queueSpan: context.trace.startSpan("display_queue_wait"),
+          });
+          analysisJobs.push({
+            item: mappedItem,
+            imageDataUrl,
+            fileName: file.name,
+            context,
+            queueSpan: context.trace.startSpan("analysis_queue_wait"),
+          });
+        } catch (itemError) {
+          preparationFailureCount += 1;
+          firstPreparationError ??= itemError;
+          context.analysisSucceeded = false;
+          context.displaySucceeded = false;
+          context.finishDisplayImageLoad("failure");
+          void finalizeClosetUploadTrace(context).finally(() => {
+            activeClosetUploadTracesRef.current.delete(context);
+            if (context.itemId) closetUploadTracesRef.current.delete(context.itemId);
+          });
+          console.error("[closet-upload] item preparation failed", itemError);
+
+          if (!isCurrentClosetSession(sessionEpoch)) throw itemError;
         }
-        createdItems.push(mappedItem);
-        displayJobs.push({
-          item: mappedItem,
-          imageDataUrl,
-          context,
-          queueSpan: context.trace.startSpan("display_queue_wait"),
-        });
-        analysisJobs.push({
-          item: mappedItem,
-          imageDataUrl,
-          fileName: file.name,
-          context,
-          queueSpan: context.trace.startSpan("analysis_queue_wait"),
-        });
       }
 
+      if (createdItems.length === 0) {
+        throw firstPreparationError ?? new Error("上传失败，请稍后再试。");
+      }
+
+      if (!isCurrentClosetSession(sessionEpoch)) {
+        throw new Error("登录会话已切换，上传流程已停止。");
+      }
       setUserClosetItems((items) => [...createdItems, ...items]);
       setClosetMessage(
-        `已上传 ${createdItems.length} 件衣服。正在并行生成展示图和识别衣服标签，原图已保留作为事实来源。`,
+        `已上传 ${createdItems.length} 件衣服${preparationFailureCount ? `，另有 ${preparationFailureCount} 件未完成上传` : ""}。正在并行生成展示图和识别衣服标签，原图已保留作为事实来源。`,
       );
-      setClosetLoading(false);
 
-      let displaySuccessCount = 0;
       let analysisSuccessCount = 0;
-      await Promise.all([
-        runWithConcurrency(displayJobs, 2, async (job) => {
+      const displayPromise = runWithConcurrency(
+        displayJobs,
+        2,
+        async (job) => {
           job.queueSpan.finish();
+          if (deletedClosetItemIdsRef.current.has(job.item.id)) {
+            job.context.displaySucceeded = false;
+            job.context.finishDisplayImageLoad("failure");
+            return;
+          }
           const result = await generateClosetDisplayImage(job.item, job.imageDataUrl, job.context);
           job.context.displaySucceeded = result.ok;
-          if (result.ok) displaySuccessCount += 1;
-        }),
-        runWithConcurrency(analysisJobs, 2, async (job) => {
+        },
+        {
+          onQueued: (job) =>
+            markItemBusy("display", job.item.id, true, job.context.sessionEpoch),
+          onSettled: (job) =>
+            markItemBusy("display", job.item.id, false, job.context.sessionEpoch),
+        },
+      ).catch((error) => {
+        console.error("[closet-upload] display workflow failed", error);
+        displayJobs.forEach((job) => {
+          if (job.context.displaySucceeded === undefined) {
+            job.context.displaySucceeded = false;
+            job.context.finishDisplayImageLoad("failure");
+          }
+        });
+      });
+      const analysisPromise = runWithConcurrency(
+        analysisJobs,
+        2,
+        async (job) => {
           job.queueSpan.finish();
+          if (deletedClosetItemIdsRef.current.has(job.item.id)) {
+            job.context.analysisSucceeded = false;
+            return;
+          }
           const result = await analyzeClosetItem(
             job.item,
             job.imageDataUrl,
@@ -1493,23 +1853,49 @@ export default function Home() {
           );
           job.context.analysisSucceeded = result.ok;
           if (result.ok) analysisSuccessCount += 1;
-        }),
-      ]);
-
-      traceContexts.forEach((context) => {
-        void finalizeClosetUploadTrace(context).finally(() => {
-          activeClosetUploadTracesRef.current.delete(context);
-          if (context.itemId) closetUploadTracesRef.current.delete(context.itemId);
+        },
+        {
+          onQueued: (job) => setAnalysisQueued(job.item.id, true, job.context.sessionEpoch),
+          onStarted: (job) => setAnalysisQueued(job.item.id, false, job.context.sessionEpoch),
+          onSettled: (job) => setAnalysisQueued(job.item.id, false, job.context.sessionEpoch),
+        },
+      ).catch((error) => {
+        console.error("[closet-upload] analysis workflow failed", error);
+        analysisJobs.forEach((job) => {
+          if (job.context.analysisSucceeded === undefined) {
+            job.context.analysisSucceeded = false;
+          }
         });
       });
 
-      if (displaySuccessCount === createdItems.length) {
+      void Promise.all([analysisPromise, displayPromise]).then(() => {
+        traceContexts.forEach((context) => {
+          void finalizeClosetUploadTrace(context).finally(() => {
+            activeClosetUploadTracesRef.current.delete(context);
+            if (context.itemId) closetUploadTracesRef.current.delete(context.itemId);
+          });
+        });
+      });
+
+      await analysisPromise;
+
+      if (!isCurrentClosetSession(sessionEpoch)) return;
+
+      const activeCreatedItems = createdItems.filter(
+        (item) => !deletedClosetItemIdsRef.current.has(item.id),
+      );
+      if (activeCreatedItems.length === 0) {
+        setClosetMessage("已删除本次上传的衣服。");
+        return;
+      }
+
+      if (analysisSuccessCount === activeCreatedItems.length) {
         setClosetMessage(
-          `已完成 ${createdItems.length} 件衣服的上传处理。${analysisSuccessCount} 件已识别标签，展示图优先显示，左上角可切回原图。`,
+          `已识别 ${analysisSuccessCount} 件衣服，可以立即确认保存${preparationFailureCount ? `；另有 ${preparationFailureCount} 件未完成上传` : ""}。展示图会继续生成，完成后会通知你。`,
         );
       } else {
         setClosetMessage(
-          `已上传 ${createdItems.length} 件衣服，其中 ${analysisSuccessCount} 件已识别标签、${displaySuccessCount} 件展示图生成完成。失败项可在卡片菜单中重试。`,
+          `已上传 ${activeCreatedItems.length} 件衣服，其中 ${analysisSuccessCount} 件已完成识别，可以先确认保存；识别失败项可在卡片中重试${preparationFailureCount ? `，另有 ${preparationFailureCount} 件未完成上传` : ""}。展示图会继续生成。`,
         );
       }
     } catch (error) {
@@ -1525,9 +1911,14 @@ export default function Home() {
         });
       });
       console.error(error);
-      setClosetMessage(error instanceof Error ? error.message : "上传失败，请稍后再试。");
+      if (isCurrentClosetSession(sessionEpoch)) {
+        setClosetMessage(error instanceof Error ? error.message : "上传失败，请稍后再试。");
+      }
     } finally {
-      setClosetLoading(false);
+      if (isCurrentClosetSession(sessionEpoch)) {
+        closetUploadBusyRef.current = false;
+        setClosetUploadBusy(false);
+      }
     }
   }
 
@@ -1535,23 +1926,24 @@ export default function Home() {
     item: ClothingItem,
     imageDataUrl: string,
     traceContext?: ClosetUploadTraceContext,
+    expectedSessionEpoch = traceContext?.sessionEpoch ?? closetSessionEpochRef.current,
   ) {
     const trace = traceContext?.trace;
+    const sessionEpoch = expectedSessionEpoch;
+
+    if (!isActiveClosetItem(item.id, sessionEpoch)) {
+      traceContext?.finishDisplayImageLoad("failure");
+      return { ok: false, cancelled: true, message: "任务已取消。" };
+    }
+
     const branchSpan = trace?.startSpan("display_branch_total");
+    const requestController = createClosetRequestController("display", item.id);
     let branchOutcome: TimingOutcome = "failure";
-    markItemBusy(item.id, true);
+    markItemBusy("display", item.id, true, sessionEpoch);
     setUserClosetItems((items) =>
       items.map((currentItem) =>
         currentItem.id === item.id
-          ? {
-              ...currentItem,
-              displayImageStatus: "processing",
-              imageQualityFlags: mergeImageQualityFlags(
-                currentItem.imageQualityFlags,
-                ["display_image_processing", "needs_ai_label_confirmation"],
-                ["display_image_queued", "display_image_failed"],
-              ),
-            }
+          ? applyClosetDisplayPatch(currentItem, { displayImageStatus: "processing" })
           : currentItem,
       ),
     );
@@ -1569,6 +1961,9 @@ export default function Home() {
       );
       const token = sessionData.session?.access_token;
       if (!token) throw new Error("登录状态已过期，请重新登录。");
+      if (!isActiveClosetItem(item.id, sessionEpoch)) {
+        return { ok: false, cancelled: true, message: "任务已取消。" };
+      }
 
       const requestId = crypto.randomUUID();
       const requestBody = measureSyncWithTrace(trace, "display_request_serialize", () =>
@@ -1591,6 +1986,7 @@ export default function Home() {
               "X-Request-Id": requestId,
             },
             body: requestBody,
+            signal: requestController.signal,
           }),
         (result) => (result.ok ? "success" : "failure"),
       );
@@ -1601,65 +1997,327 @@ export default function Home() {
       }
 
       const result = await measureWithTrace(trace, "display_response_json", () =>
-        response.json() as Promise<{ item?: ClosetItemRow; message?: string }>,
+        response.json() as Promise<{ item?: ClosetDisplayImageRow; message?: string }>,
       );
 
+      if (!isActiveClosetItem(item.id, sessionEpoch)) {
+        traceContext?.finishDisplayImageLoad("failure");
+        return { ok: false, cancelled: true, message: "任务已取消。" };
+      }
+
       if (!response.ok || !result.item) {
+        if (response.status === 409) {
+          const authoritative = result.item
+            ? {
+                patch: {
+                  displayImagePath: result.item.display_image_path ?? undefined,
+                  displayImageStatus: result.item.display_image_status ?? "processing",
+                  displayImageModel: result.item.display_image_model ?? undefined,
+                  displayImagePromptVersion:
+                    result.item.display_image_prompt_version ?? undefined,
+                } satisfies ClosetDisplayPatch,
+              }
+            : await readAuthoritativeClosetDisplayState(item, trace);
+          if (!isActiveClosetItem(item.id, sessionEpoch)) {
+            traceContext?.finishDisplayImageLoad("failure");
+            return { ok: false, cancelled: true, message: "任务已取消。" };
+          }
+
+          setUserClosetItems((items) =>
+            items.map((currentItem) =>
+              currentItem.id === item.id
+                ? applyClosetDisplayPatch(
+                    currentItem,
+                    authoritative?.patch ?? { displayImageStatus: "processing" },
+                  )
+                : currentItem,
+            ),
+          );
+          traceContext?.finishDisplayImageLoad("failure");
+          return { ok: false, conflict: true, message: result.message ?? "展示图正在生成。" };
+        }
         throw new Error(result.message ?? "展示图生成失败。");
       }
 
-      const mappedItem = await mapClosetItemFromDb(
-        supabase,
-        result.item,
-        trace ? { trace, prefix: "display_response" } : undefined,
+      if (!result.item.display_image_path) {
+        throw new Error("展示图路径缺失。");
+      }
+      const { data: displayImage, error: displayImageError } = await measureWithTrace(
+        trace,
+        "display_response_display_signed_url",
+        () =>
+          supabase.storage
+            .from("closet-images")
+            .createSignedUrl(result.item!.display_image_path as string, 60 * 60),
+        (signedResult) => (signedResult.error || !signedResult.data?.signedUrl ? "failure" : "success"),
       );
+      if (displayImageError) {
+        console.warn("[closet-display-image] signed URL unavailable", displayImageError.message);
+      }
+      if (!isActiveClosetItem(item.id, sessionEpoch)) {
+        traceContext?.finishDisplayImageLoad("failure");
+        return { ok: false, cancelled: true, message: "任务已取消。" };
+      }
+
+      const displayPatch = {
+        displayImagePath: result.item.display_image_path,
+        displayImageStatus: result.item.display_image_status ?? "ready",
+        displayImageModel: result.item.display_image_model ?? undefined,
+        displayImagePromptVersion: result.item.display_image_prompt_version ?? undefined,
+        ...(displayImage?.signedUrl
+          ? { displayImageUrl: displayImage.signedUrl, imageUrl: displayImage.signedUrl }
+          : {
+              displayImageUrl: undefined,
+              imageUrl: item.originalImageUrl ?? item.imageUrl,
+            }),
+      } satisfies ClosetDisplayPatch;
       if (traceContext) {
-        if (mappedItem.displayImageUrl) {
-          traceContext.beginDisplayImageLoad(mappedItem.displayImageUrl);
+        if (displayImage?.signedUrl) {
+          traceContext.beginDisplayImageLoad(displayImage.signedUrl);
         } else {
           traceContext.finishDisplayImageLoad("failure");
         }
       }
       setUserClosetItems((items) =>
-        items.map((currentItem) => (currentItem.id === mappedItem.id ? mappedItem : currentItem)),
-      );
-      branchOutcome = "success";
-      return { ok: true };
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "展示图生成失败。";
-      console.error(error);
-      setUserClosetItems((items) =>
         items.map((currentItem) =>
-          currentItem.id === item.id
-            ? {
-                ...currentItem,
-                displayImageStatus: "failed",
-                imageQualityFlags: mergeImageQualityFlags(
-                  currentItem.imageQualityFlags,
-                  ["display_image_failed", "needs_ai_label_confirmation"],
-                  ["display_image_queued", "display_image_processing", "display_image_ready"],
-                ),
-              }
+          currentItem.id === result.item?.id
+            ? applyClosetDisplayPatch(currentItem, displayPatch)
             : currentItem,
         ),
       );
-      return { ok: false, message };
+      if (displayImage?.signedUrl) {
+        const resourceOutcome = await loadImageResource(displayImage.signedUrl);
+        const shouldAnnounce = traceContext
+          ? traceContext.finishDisplayImageLoad(resourceOutcome)
+          : true;
+        const verifiedOutcome = traceContext?.displayImageLoadOutcome ?? resourceOutcome;
+
+        if (!isActiveClosetItem(item.id, sessionEpoch)) {
+          return { ok: false, cancelled: true, message: "任务已取消。" };
+        }
+
+        if (verifiedOutcome !== "success") {
+          setUserClosetItems((items) =>
+            items.map((currentItem) =>
+              currentItem.id === result.item?.id
+                ? applyClosetDisplayPatch(currentItem, {
+                    displayImageUrl: undefined,
+                    imageUrl:
+                      currentItem.originalImageUrl ?? item.originalImageUrl ?? item.imageUrl,
+                  })
+                : currentItem,
+            ),
+          );
+          if (shouldAnnounce) {
+            announceDisplayCompletion(result.item.id, "warning", sessionEpoch);
+          }
+          return {
+            ok: false,
+            previewUnavailable: true,
+            message: "展示图已生成，但预览暂时无法加载，请稍后刷新衣橱。",
+          };
+        }
+
+        if (shouldAnnounce) {
+          announceDisplayCompletion(result.item.id, "success", sessionEpoch);
+        }
+        branchOutcome = "success";
+        return { ok: true };
+      }
+
+      announceDisplayCompletion(result.item.id, "warning", sessionEpoch);
+      return {
+        ok: false,
+        previewUnavailable: true,
+        message: "展示图已生成，但预览暂时无法加载，请稍后刷新衣橱。",
+      };
+    } catch (error) {
+      if (isAbortError(error) || !isActiveClosetItem(item.id, sessionEpoch)) {
+        traceContext?.finishDisplayImageLoad("failure");
+        return { ok: false, cancelled: true, message: "任务已取消。" };
+      }
+      const message = error instanceof Error ? error.message : "展示图生成失败。";
+      console.error(error);
+      const authoritative = await readAuthoritativeClosetDisplayState(item, trace).catch(
+        (reconciliationError) => {
+          console.warn("[closet-display-image] state reconciliation failed", reconciliationError);
+          return null;
+        },
+      );
+      if (!isActiveClosetItem(item.id, sessionEpoch)) {
+        traceContext?.finishDisplayImageLoad("failure");
+        return { ok: false, cancelled: true, message: "任务已取消。" };
+      }
+      const fallbackPatch = {
+        displayImagePath: item.displayImagePath,
+        displayImageStatus: item.displayImageStatus,
+        displayImageModel: item.displayImageModel,
+        displayImagePromptVersion: item.displayImagePromptVersion,
+        displayImageUrl: item.displayImageUrl,
+        imageUrl: item.imageUrl,
+      } satisfies ClosetDisplayPatch;
+      const authoritativeStatus = authoritative?.status;
+      const reconciledPatch = authoritative?.patch ?? fallbackPatch;
+
+      setUserClosetItems((items) =>
+        items.map((currentItem) =>
+          currentItem.id === item.id
+            ? applyClosetDisplayPatch(currentItem, reconciledPatch)
+            : currentItem,
+        ),
+      );
+
+      let reconciledImageOutcome: TimingOutcome | undefined;
+      let shouldAnnounceReconciledOutcome = !traceContext;
+      if (authoritative?.displayImageUrl) {
+        traceContext?.beginDisplayImageLoad(authoritative.displayImageUrl);
+        const resourceOutcome = await loadImageResource(authoritative.displayImageUrl);
+        shouldAnnounceReconciledOutcome = traceContext
+          ? traceContext.finishDisplayImageLoad(resourceOutcome)
+          : true;
+        reconciledImageOutcome = traceContext?.displayImageLoadOutcome ?? resourceOutcome;
+      } else {
+        shouldAnnounceReconciledOutcome = traceContext
+          ? traceContext.finishDisplayImageLoad("failure")
+          : true;
+      }
+
+      if (!isActiveClosetItem(item.id, sessionEpoch)) {
+        return { ok: false, cancelled: true, message: "任务已取消。" };
+      }
+
+      const readyImageChanged =
+        authoritativeStatus === "ready" &&
+        (item.displayImageStatus !== "ready" ||
+          authoritative?.patch.displayImagePath !== item.displayImagePath);
+      const reconciledSuccess = readyImageChanged && reconciledImageOutcome === "success";
+      const reconciledWarning =
+        !authoritative ||
+        authoritativeStatus === "processing" ||
+        (readyImageChanged && reconciledImageOutcome !== "success");
+      if (reconciledSuccess) {
+        if (shouldAnnounceReconciledOutcome) {
+          announceDisplayCompletion(item.id, "success", sessionEpoch);
+        }
+        branchOutcome = "success";
+      } else if (reconciledWarning) {
+        if (authoritativeStatus === "ready") {
+          setUserClosetItems((items) =>
+            items.map((currentItem) =>
+              currentItem.id === item.id
+                ? applyClosetDisplayPatch(currentItem, {
+                    displayImageUrl: undefined,
+                    imageUrl:
+                      currentItem.originalImageUrl ?? item.originalImageUrl ?? item.imageUrl,
+                  })
+                : currentItem,
+            ),
+          );
+        }
+        if (shouldAnnounceReconciledOutcome) {
+          announceDisplayCompletion(item.id, "warning", sessionEpoch);
+        }
+      } else if (shouldAnnounceReconciledOutcome) {
+        announceDisplayCompletion(item.id, "failure", sessionEpoch);
+      }
+      return reconciledSuccess
+        ? { ok: true, reconciled: true }
+        : reconciledWarning && authoritativeStatus === "ready"
+          ? {
+              ok: false,
+              previewUnavailable: true,
+              message: "展示图已生成，但预览暂时无法加载，请稍后刷新衣橱。",
+            }
+          : { ok: false, message };
     } finally {
+      releaseClosetRequestController("display", item.id, requestController);
       branchSpan?.finish(branchOutcome);
-      markItemBusy(item.id, false);
+      markItemBusy("display", item.id, false, sessionEpoch);
     }
+  }
+
+  async function readAuthoritativeClosetDisplayState(
+    item: ClothingItem,
+    trace?: TimingTrace,
+  ) {
+    const { data, error } = await measureWithTrace(
+      trace,
+      "display_reconcile_db",
+      () =>
+        supabase
+          .from("closet_items")
+          .select(
+            "id,display_image_path,display_image_status,display_image_model,display_image_prompt_version",
+          )
+          .eq("id", item.id)
+          .maybeSingle<ClosetDisplayImageRow>(),
+      (result) => (result.error || !result.data ? "failure" : "success"),
+    );
+    if (error || !data) return null;
+
+    let displayImageUrl: string | undefined;
+    if (data.display_image_status === "ready" && data.display_image_path) {
+      const { data: signedImage, error: signedImageError } = await measureWithTrace(
+        trace,
+        "display_reconcile_signed_url",
+        () =>
+          supabase.storage
+            .from("closet-images")
+            .createSignedUrl(data.display_image_path as string, 60 * 60),
+        (result) => (result.error || !result.data?.signedUrl ? "failure" : "success"),
+      );
+      if (signedImageError) {
+        console.warn(
+          "[closet-display-image] reconciled signed URL unavailable",
+          signedImageError.message,
+        );
+      }
+      displayImageUrl = signedImage?.signedUrl;
+    }
+
+    const patch = {
+      displayImagePath: data.display_image_path ?? undefined,
+      displayImageStatus: data.display_image_status ?? "not_started",
+      displayImageModel: data.display_image_model ?? undefined,
+      displayImagePromptVersion: data.display_image_prompt_version ?? undefined,
+      ...(data.display_image_status === "ready"
+        ? {
+            displayImageUrl,
+            imageUrl: displayImageUrl ?? item.originalImageUrl ?? item.imageUrl,
+          }
+        : {}),
+    } satisfies ClosetDisplayPatch;
+
+    return {
+      patch,
+      status: patch.displayImageStatus,
+      displayImageUrl,
+    };
   }
 
   async function analyzeClosetItem(
     item: ClothingItem,
     originalImageDataUrl: string,
-    options: { displayImageDataUrl?: string; fileName?: string; userFeedback?: string } = {},
+    options: {
+      displayImageDataUrl?: string;
+      fileName?: string;
+      userFeedback?: string;
+      intent?: "initial_upload" | "user_reanalysis";
+    } = {},
     traceContext?: ClosetUploadTraceContext,
+    expectedSessionEpoch = traceContext?.sessionEpoch ?? closetSessionEpochRef.current,
   ) {
     const trace = traceContext?.trace;
+    const sessionEpoch = expectedSessionEpoch;
+
+    if (!isActiveClosetItem(item.id, sessionEpoch)) {
+      return { ok: false, cancelled: true, message: "任务已取消。" };
+    }
+
     const branchSpan = trace?.startSpan("analysis_branch_total");
+    const requestController = createClosetRequestController("analysis", item.id);
     let branchOutcome: TimingOutcome = "failure";
-    markItemBusy(item.id, true);
+    markItemBusy("analysis", item.id, true, sessionEpoch);
     setUserClosetItems((items) =>
       items.map((currentItem) =>
         currentItem.id === item.id
@@ -1690,6 +2348,9 @@ export default function Home() {
       );
       const token = data.session?.access_token;
       if (!token) throw new Error("登录状态已过期，请重新登录。");
+      if (!isActiveClosetItem(item.id, sessionEpoch)) {
+        return { ok: false, cancelled: true, message: "任务已取消。" };
+      }
 
       const requestId = crypto.randomUUID();
       const requestBody = measureSyncWithTrace(trace, "analysis_request_serialize", () =>
@@ -1700,6 +2361,7 @@ export default function Home() {
           displayImageDataUrl: options.displayImageDataUrl,
           fileName: options.fileName ?? item.name,
           userFeedback: options.userFeedback,
+          intent: options.intent ?? "initial_upload",
         }),
       );
       const response = await measureWithTrace(
@@ -1715,6 +2377,7 @@ export default function Home() {
               "X-Request-Id": requestId,
             },
             body: requestBody,
+            signal: requestController.signal,
           }),
         (result) => (result.ok ? "success" : "failure"),
       );
@@ -1725,8 +2388,59 @@ export default function Home() {
       }
 
       const result = await measureWithTrace(trace, "analysis_response_json", () =>
-        response.json() as Promise<{ item?: ClosetItemRow; message?: string }>,
+        response.json() as Promise<{
+          item?: ClosetItemRow;
+          message?: string;
+          conflict?:
+            | "analysis_already_in_progress"
+            | "analysis_superseded_by_confirmation"
+            | "analysis_state_changed";
+        }>,
       );
+
+      if (!isActiveClosetItem(item.id, sessionEpoch)) {
+        return { ok: false, cancelled: true, message: "任务已取消。" };
+      }
+
+      if (response.status === 409 && result.item) {
+        if (result.conflict === "analysis_already_in_progress") {
+          branchOutcome = "success";
+          return {
+            ok: false,
+            conflict: true,
+            message: "这件衣服已经在识别中，请等待当前识别完成。",
+          };
+        }
+
+        const mappedItem = await mapClosetItemFromDb(
+          supabase,
+          result.item,
+          trace ? { trace, prefix: "analysis_superseded_response" } : undefined,
+        );
+        if (!isActiveClosetItem(item.id, sessionEpoch)) {
+          return { ok: false, cancelled: true, message: "任务已取消。" };
+        }
+        setUserClosetItems((items) =>
+          items.map((currentItem) =>
+            currentItem.id === mappedItem.id
+              ? result.conflict === "analysis_state_changed" && !mappedItem.userCorrected
+                ? options.intent === "user_reanalysis"
+                  ? applyClosetReanalysisResult(currentItem, mappedItem)
+                  : applyClosetAnalysisResult(currentItem, mappedItem)
+                : applyClosetConfirmationResult(currentItem, mappedItem)
+              : currentItem,
+          ),
+        );
+        branchOutcome = "success";
+        return {
+          ok: false,
+          superseded: true,
+          message:
+            result.conflict === "analysis_state_changed"
+              ? "衣服识别状态已被更新，本次重复请求未覆盖最新结果。"
+              : "用户确认已优先保留，本次识别结果未覆盖衣橱数据。",
+        };
+      }
 
       if (!response.ok || !result.item) {
         throw new Error(result.message ?? "衣服识别失败。");
@@ -1737,39 +2451,68 @@ export default function Home() {
         result.item,
         trace ? { trace, prefix: "analysis_response" } : undefined,
       );
+      if (!isActiveClosetItem(item.id, sessionEpoch)) {
+        return { ok: false, cancelled: true, message: "任务已取消。" };
+      }
       setUserClosetItems((items) =>
-        items.map((currentItem) => (currentItem.id === mappedItem.id ? mappedItem : currentItem)),
+        items.map((currentItem) =>
+          currentItem.id === mappedItem.id
+            ? options.intent === "user_reanalysis"
+              ? applyClosetReanalysisResult(currentItem, mappedItem)
+              : applyClosetAnalysisResult(currentItem, mappedItem)
+            : currentItem,
+        ),
       );
       branchOutcome = "success";
       return { ok: true };
     } catch (error) {
+      if (isAbortError(error) || !isActiveClosetItem(item.id, sessionEpoch)) {
+        return { ok: false, cancelled: true, message: "任务已取消。" };
+      }
       const message = error instanceof Error ? error.message : "衣服识别失败。";
       console.error(error);
       setUserClosetItems((items) =>
         items.map((currentItem) =>
-          currentItem.id === item.id
-            ? {
-                ...currentItem,
-                category: currentItem.category === "识别中" ? "待识别" : currentItem.category,
-                styleTags:
-                  currentItem.styleTags[0] === "AI 识别中" ? ["待识别"] : currentItem.styleTags,
-                imageQualityFlags: mergeImageQualityFlags(
-                  currentItem.imageQualityFlags,
-                  ["closet_analysis_failed", "needs_ai_label_confirmation"],
-                  ["closet_analysis_queued", "closet_analysis_processing"],
-                ),
-              }
-            : currentItem,
+          currentItem.id !== item.id
+            ? currentItem
+            : options.intent === "user_reanalysis" && item.userCorrected
+              ? applyClosetReanalysisResult(currentItem, item)
+              : {
+                  ...currentItem,
+                  category: currentItem.category === "识别中" ? "待识别" : currentItem.category,
+                  styleTags:
+                    currentItem.styleTags[0] === "AI 识别中" ? ["待识别"] : currentItem.styleTags,
+                  imageQualityFlags: mergeImageQualityFlags(
+                    currentItem.imageQualityFlags,
+                    ["closet_analysis_failed", "needs_ai_label_confirmation"],
+                    ["closet_analysis_queued", "closet_analysis_processing"],
+                  ),
+                },
         ),
       );
       return { ok: false, message };
     } finally {
+      releaseClosetRequestController("analysis", item.id, requestController);
       branchSpan?.finish(branchOutcome);
-      markItemBusy(item.id, false);
+      markItemBusy("analysis", item.id, false, sessionEpoch);
     }
   }
 
   async function retryClosetDisplayImage(item: ClothingItem) {
+    const sessionEpoch = closetSessionEpochRef.current;
+
+    if (!isActiveClosetItem(item.id, sessionEpoch)) return;
+
+    if (
+      (busyItemCountsRef.current.display.get(item.id) ?? 0) > 0 ||
+      item.displayImageStatus === "processing"
+    ) {
+      setClosetMessage(`「${item.name}」的展示图已经在生成中。`);
+      return;
+    }
+
+    markItemBusy("display", item.id, true, sessionEpoch);
+
     try {
       if (!item.originalImageUrl) {
         throw new Error("原图暂不可用，无法重新生成展示图。");
@@ -1778,20 +2521,39 @@ export default function Home() {
       setClosetMessage("正在重新生成展示图，原图仍会保留。");
 
       const imageDataUrl = await fetchImageAsDataUrl(item.originalImageUrl);
-      const result = await generateClosetDisplayImage(item, imageDataUrl);
+      if (!isActiveClosetItem(item.id, sessionEpoch)) return;
+      const result = await generateClosetDisplayImage(
+        item,
+        imageDataUrl,
+        undefined,
+        sessionEpoch,
+      );
+
+      if ("cancelled" in result && result.cancelled) return;
+      if (!isActiveClosetItem(item.id, sessionEpoch)) return;
 
       setClosetMessage(
         result.ok
           ? "展示图已重新生成。卡片默认会优先显示展示图，也可以切回原图。"
-          : `展示图重新生成失败：${result.message}`,
+          : "previewUnavailable" in result && result.previewUnavailable
+            ? result.message
+            : `展示图重新生成失败：${result.message}`,
       );
     } catch (error) {
       console.error(error);
-      setClosetMessage(error instanceof Error ? error.message : "展示图重新生成失败。");
+      if (isActiveClosetItem(item.id, sessionEpoch)) {
+        setClosetMessage(error instanceof Error ? error.message : "展示图重新生成失败。");
+      }
+    } finally {
+      markItemBusy("display", item.id, false, sessionEpoch);
     }
   }
 
   async function retryClosetAnalysis(item: ClothingItem, userFeedback?: string) {
+    const sessionEpoch = closetSessionEpochRef.current;
+
+    if (!isActiveClosetItem(item.id, sessionEpoch)) return;
+
     if (queuedAnalysisIdsRef.current.has(item.id) || activeAnalysisIdsRef.current.has(item.id)) {
       setClosetMessage(`「${item.name}」已经在识别队列中。`);
       return;
@@ -1802,18 +2564,25 @@ export default function Home() {
       return;
     }
 
-    analysisQueueRef.current.push({ item, userFeedback });
-    setAnalysisQueued(item.id, true);
+    analysisQueueRef.current.push({ item, userFeedback, sessionEpoch });
+    setAnalysisQueued(item.id, true, sessionEpoch);
     updateLocalItemFlags(
       item.id,
       ["closet_analysis_queued", "needs_ai_label_confirmation"],
       ["closet_analysis_failed", "closet_analysis_processing"],
+      sessionEpoch,
     );
     setClosetMessage(`已将「${item.name}」加入重新识别队列。`);
     processAnalysisQueue();
   }
 
-  async function runQueuedClosetAnalysis(item: ClothingItem, userFeedback?: string) {
+  async function runQueuedClosetAnalysis(
+    item: ClothingItem,
+    userFeedback: string | undefined,
+    sessionEpoch: number,
+  ) {
+    if (!isActiveClosetItem(item.id, sessionEpoch)) return;
+
     try {
       if (!item.originalImageUrl) {
         throw new Error("原图暂不可用，无法重新识别衣服标签。");
@@ -1826,6 +2595,7 @@ export default function Home() {
       );
 
       const originalImageDataUrl = await fetchImageAsDataUrl(item.originalImageUrl);
+      if (!isActiveClosetItem(item.id, sessionEpoch)) return;
       let displayImageDataUrl: string | undefined;
 
       if (item.displayImageUrl) {
@@ -1836,39 +2606,85 @@ export default function Home() {
         }
       }
 
+      if (!isActiveClosetItem(item.id, sessionEpoch)) return;
+
       const result = await analyzeClosetItem(item, originalImageDataUrl, {
         displayImageDataUrl,
         fileName: item.name,
         userFeedback,
-      });
+        intent: "user_reanalysis",
+      }, undefined, sessionEpoch);
+
+      if (!isActiveClosetItem(item.id, sessionEpoch)) return;
+
+      if ("cancelled" in result && result.cancelled) return;
 
       setClosetMessage(
         result.ok
           ? "衣服标签已重新识别。请在后续确认流程中检查并修正细节。"
-          : `衣服标签重新识别失败：${result.message}`,
+          : "conflict" in result && result.conflict
+            ? result.message
+            : `衣服标签重新识别失败：${result.message}`,
       );
     } catch (error) {
       console.error(error);
-      setClosetMessage(error instanceof Error ? error.message : "衣服标签重新识别失败。");
+      if (isActiveClosetItem(item.id, sessionEpoch)) {
+        setClosetMessage(error instanceof Error ? error.message : "衣服标签重新识别失败。");
+      }
     }
   }
 
   async function deleteClosetItem(item: ClothingItem) {
+    if ((busyItemCountsRef.current.deletion.get(item.id) ?? 0) > 0) return;
     const confirmed = window.confirm(`确定删除「${item.name}」吗？原图和展示图也会尽量一起清理。`);
     if (!confirmed) return;
+    const sessionEpoch = closetSessionEpochRef.current;
+    const originalIndex = userClosetItems.findIndex((currentItem) => currentItem.id === item.id);
 
-    markItemBusy(item.id, true);
+    markItemBusy("deletion", item.id, true, sessionEpoch);
+    deletedClosetItemIdsRef.current.add(item.id);
+    analysisQueueRef.current = analysisQueueRef.current.filter(
+      (task) => task.item.id !== item.id,
+    );
+    setAnalysisQueued(item.id, false, sessionEpoch);
+    abortClosetItemRequests(item.id);
+    const traceContext = closetUploadTracesRef.current.get(item.id);
+    if (traceContext) {
+      traceContext.analysisSucceeded = false;
+      traceContext.displaySucceeded = false;
+      traceContext.finishDisplayImageLoad("failure");
+      void finalizeClosetUploadTrace(traceContext).finally(() => {
+        activeClosetUploadTracesRef.current.delete(traceContext);
+        closetUploadTracesRef.current.delete(item.id);
+      });
+    }
+    setDisplayCompletionNotices((current) =>
+      current.filter((notice) => notice.itemId !== item.id),
+    );
+    setUserClosetItems((items) => items.filter((currentItem) => currentItem.id !== item.id));
     setClosetMessage("");
 
     try {
-      const { error } = await supabase.from("closet_items").delete().eq("id", item.id);
+      const { data: deletedItem, error } = await supabase
+        .from("closet_items")
+        .delete()
+        .eq("id", item.id)
+        .select("image_path,processed_image_path,display_image_path")
+        .maybeSingle<{
+          image_path: string | null;
+          processed_image_path: string | null;
+          display_image_path: string | null;
+        }>();
       if (error) throw error;
 
-      const paths = [
-        item.imagePath,
-        item.processedImagePath,
-        item.displayImagePath,
-      ].filter((path): path is string => Boolean(path));
+      const paths = collectClosetStorageCleanupPaths(
+        item,
+        {
+          imagePath: deletedItem?.image_path,
+          processedImagePath: deletedItem?.processed_image_path,
+          displayImagePath: deletedItem?.display_image_path,
+        },
+      );
 
       if (paths.length) {
         const { error: removeError } = await supabase.storage.from("closet-images").remove(paths);
@@ -1877,20 +2693,30 @@ export default function Home() {
         }
       }
 
-      setUserClosetItems((items) => items.filter((currentItem) => currentItem.id !== item.id));
-      setClosetMessage(`已删除「${item.name}」。`);
+      if (isCurrentClosetSession(sessionEpoch)) {
+        setClosetMessage(`已删除「${item.name}」。`);
+      }
     } catch (error) {
       console.error(error);
-      setClosetMessage(error instanceof Error ? error.message : "删除失败，请稍后再试。");
+      if (isCurrentClosetSession(sessionEpoch)) {
+        deletedClosetItemIdsRef.current.delete(item.id);
+        setUserClosetItems((items) => restoreClosetItemAtIndex(items, item, originalIndex));
+        setClosetMessage(error instanceof Error ? error.message : "删除失败，请稍后再试。");
+      }
     } finally {
-      markItemBusy(item.id, false);
+      markItemBusy("deletion", item.id, false, sessionEpoch);
     }
   }
 
-  async function confirmClosetItemOnServer(item: ClothingItem, draft: ClosetConfirmationDraft) {
+  async function confirmClosetItemOnServer(
+    item: ClothingItem,
+    draft: ClosetConfirmationDraft,
+    sessionEpoch: number,
+  ) {
     const { data } = await supabase.auth.getSession();
     const token = data.session?.access_token;
     if (!token) throw new Error("登录状态已过期，请重新登录。");
+    if (!isCurrentClosetSession(sessionEpoch)) throw new Error("登录会话已切换。");
 
     const response = await fetch("/api/ai/confirm-closet-item", {
       method: "POST",
@@ -1912,29 +2738,39 @@ export default function Home() {
     if (!response.ok || !result.item) {
       throw new Error(result.message ?? "确认保存失败，请稍后再试。");
     }
+    if (!isCurrentClosetSession(sessionEpoch)) throw new Error("登录会话已切换。");
 
     return mapClosetItemFromDb(supabase, result.item);
   }
 
   async function confirmClosetItem(item: ClothingItem, draft: ClosetConfirmationDraft) {
-    markItemBusy(item.id, true);
+    const sessionEpoch = closetSessionEpochRef.current;
+    markItemBusy("confirmation", item.id, true, sessionEpoch);
     setClosetMessage("");
 
     try {
-      const mappedItem = await confirmClosetItemOnServer(item, draft);
+      const mappedItem = await confirmClosetItemOnServer(item, draft, sessionEpoch);
+      if (!isCurrentClosetSession(sessionEpoch)) return;
       setUserClosetItems((items) =>
-        items.map((currentItem) => (currentItem.id === mappedItem.id ? mappedItem : currentItem)),
+        items.map((currentItem) =>
+          currentItem.id === mappedItem.id
+            ? applyClosetConfirmationResult(currentItem, mappedItem)
+            : currentItem,
+        ),
       );
       setClosetMessage(`已确认「${mappedItem.name}」的衣橱标签，并写入搭配检索向量。`);
     } catch (error) {
       console.error(error);
-      setClosetMessage(error instanceof Error ? error.message : "确认保存失败，请稍后再试。");
+      if (isCurrentClosetSession(sessionEpoch)) {
+        setClosetMessage(error instanceof Error ? error.message : "确认保存失败，请稍后再试。");
+      }
     } finally {
-      markItemBusy(item.id, false);
+      markItemBusy("confirmation", item.id, false, sessionEpoch);
     }
   }
 
   async function confirmHighConfidenceClosetItems(items: ClothingItem[]) {
+    const sessionEpoch = closetSessionEpochRef.current;
     const targetItems = items.filter((item) => {
       const confidence = item.aiConfidence ?? 0;
       return confidence >= 0.8 && !(item.imageQualityFlags ?? []).includes("closet_analysis_failed");
@@ -1945,27 +2781,37 @@ export default function Home() {
       return;
     }
 
-    targetItems.forEach((item) => markItemBusy(item.id, true));
+    targetItems.forEach((item) =>
+      markItemBusy("confirmation", item.id, true, sessionEpoch),
+    );
     setClosetMessage("");
 
     try {
       const updatedItems = await Promise.all(
         targetItems.map(async (item) => {
           const draft = createConfirmationDraft(item);
-          return confirmClosetItemOnServer(item, draft);
+          return confirmClosetItemOnServer(item, draft, sessionEpoch);
         }),
       );
+      if (!isCurrentClosetSession(sessionEpoch)) return;
 
       const updatedById = new Map(updatedItems.map((item) => [item.id, item]));
       setUserClosetItems((items) =>
-        items.map((item) => updatedById.get(item.id) ?? item),
+        items.map((item) => {
+          const updatedItem = updatedById.get(item.id);
+          return updatedItem ? applyClosetConfirmationResult(item, updatedItem) : item;
+        }),
       );
       setClosetMessage(`已批量确认 ${updatedItems.length} 件高置信度衣服，并写入搭配检索向量。`);
     } catch (error) {
       console.error(error);
-      setClosetMessage(error instanceof Error ? error.message : "批量确认失败，请稍后再试。");
+      if (isCurrentClosetSession(sessionEpoch)) {
+        setClosetMessage(error instanceof Error ? error.message : "批量确认失败，请稍后再试。");
+      }
     } finally {
-      targetItems.forEach((item) => markItemBusy(item.id, false));
+      targetItems.forEach((item) =>
+        markItemBusy("confirmation", item.id, false, sessionEpoch),
+      );
     }
   }
 
@@ -2383,6 +3229,16 @@ export default function Home() {
 
   return (
     <main className="easy-buy-app min-h-screen bg-[#f6f0eb] p-0 text-stone-800 sm:p-3 lg:p-4">
+      {displayCompletionSummary && (
+        <ClosetDisplayCompletionToast
+          summary={displayCompletionSummary}
+          onClose={() => setDisplayCompletionNotices([])}
+          onViewCloset={() => {
+            setView("closet");
+            setDisplayCompletionNotices([]);
+          }}
+        />
+      )}
       <div className="app-layout mx-auto flex max-w-[1600px] flex-col gap-0 lg:flex-row lg:gap-4">
         <Sidebar
           currentView={activeView}
@@ -2429,18 +3285,13 @@ export default function Home() {
             <ClosetView
               items={userClosetItems}
               isLoading={closetLoading}
+              isUploadBusy={closetUploadBusy}
               message={closetMessage}
-              confirmationHidden={confirmationHidden}
-              deferredConfirmationIds={deferredConfirmationIds}
               busyItemIds={busyClosetItemIds}
               queuedAnalysisItemIds={queuedAnalysisItemIds}
               onUploadImages={uploadClosetImages}
               onConfirmItem={confirmClosetItem}
               onConfirmHighConfidence={confirmHighConfidenceClosetItems}
-              onHideConfirmations={() => setConfirmationHidden(true)}
-              onDeferConfirmation={(itemId) =>
-                setDeferredConfirmationIds((ids) => Array.from(new Set([...ids, itemId])))
-              }
               onRetryDisplayImage={retryClosetDisplayImage}
               onRetryAnalysis={retryClosetAnalysis}
               onDeleteItem={deleteClosetItem}
@@ -2471,6 +3322,72 @@ export default function Home() {
         </section>
       </div>
     </main>
+  );
+}
+
+function ClosetDisplayCompletionToast({
+  summary,
+  onClose,
+  onViewCloset,
+}: {
+  summary: DisplayCompletionNoticeSummary;
+  onClose: () => void;
+  onViewCloset: () => void;
+}) {
+  const isFailure = summary.outcome === "failure";
+  const isWarning = summary.outcome === "warning" || summary.outcome === "mixed";
+  const StatusIcon = isFailure ? XCircle : isWarning ? Info : CheckCircle2;
+
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
+      className={cn(
+        "fixed right-4 top-4 z-[60] w-[min(24rem,calc(100vw-2rem))] rounded-[12px] border bg-white p-4 shadow-[0_18px_48px_rgba(45,43,50,0.18)]",
+        isFailure
+          ? "border-[#e8b8b2]"
+          : isWarning
+            ? "border-[#dccb9d]"
+            : "border-[#c9d4cb]",
+      )}
+    >
+      <div className="flex items-start gap-3 pr-8">
+        <span
+          className={cn(
+            "mt-0.5 inline-flex size-9 shrink-0 items-center justify-center rounded-full",
+            isFailure
+              ? "bg-[#f2e5e3] text-[#9a514f]"
+              : isWarning
+                ? "bg-[#f5efdf] text-[#795d39]"
+                : "bg-[#edf0ed] text-[#617066]",
+          )}
+          aria-hidden="true"
+        >
+          <StatusIcon className="size-5" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold leading-6 text-[#3d281f]">{summary.message}</p>
+          <button
+            type="button"
+            onClick={onViewCloset}
+            className="mt-2 inline-flex h-8 items-center gap-1 text-sm font-medium text-[#b2605e] transition hover:text-[#8d3f3f]"
+          >
+            查看衣橱
+            <ChevronRight className="size-4" aria-hidden="true" />
+          </button>
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={onClose}
+        aria-label="关闭展示图通知"
+        title="关闭通知"
+        className="absolute right-3 top-3 inline-flex size-8 items-center justify-center rounded-full text-[#a08278] transition hover:bg-[#fbf0ec] hover:text-[#8d3f3f]"
+      >
+        <X className="size-4" aria-hidden="true" />
+      </button>
+    </div>
   );
 }
 
@@ -3695,16 +4612,13 @@ function OutfitEvidenceBoard({
 function ClosetView({
   items,
   isLoading,
+  isUploadBusy,
   message,
-  confirmationHidden,
-  deferredConfirmationIds,
   busyItemIds,
   queuedAnalysisItemIds,
   onUploadImages,
   onConfirmItem,
   onConfirmHighConfidence,
-  onHideConfirmations,
-  onDeferConfirmation,
   onRetryDisplayImage,
   onRetryAnalysis,
   onDeleteItem,
@@ -3712,16 +4626,13 @@ function ClosetView({
 }: {
   items: ClothingItem[];
   isLoading: boolean;
+  isUploadBusy: boolean;
   message: string;
-  confirmationHidden: boolean;
-  deferredConfirmationIds: string[];
-  busyItemIds: string[];
+  busyItemIds: ClosetBusyItemIds;
   queuedAnalysisItemIds: string[];
   onUploadImages: (files: File[]) => Promise<void>;
   onConfirmItem: (item: ClothingItem, draft: ClosetConfirmationDraft) => Promise<void>;
   onConfirmHighConfidence: (items: ClothingItem[]) => Promise<void>;
-  onHideConfirmations: () => void;
-  onDeferConfirmation: (itemId: string) => void;
   onRetryDisplayImage: (item: ClothingItem) => Promise<void>;
   onRetryAnalysis: (item: ClothingItem, userFeedback?: string) => Promise<void>;
   onDeleteItem: (item: ClothingItem) => Promise<void>;
@@ -3742,10 +4653,8 @@ function ClosetView({
   );
   const activeSearchQuery = searchQuery.trim();
   const hasActiveCriteria = Boolean(activeSearchQuery) || hasActiveClosetFilters(filters);
-  const deferredIdSet = new Set(deferredConfirmationIds);
-  const pendingConfirmationItems = items.filter(
-    (item) => needsClosetConfirmation(item) && !deferredIdSet.has(item.id),
-  );
+  const pendingConfirmationItems = items.filter(needsClosetConfirmation);
+  const uploadDisabled = isLoading || isUploadBusy;
 
   useEffect(() => {
     if (!openFilterKey) return;
@@ -3818,15 +4727,15 @@ function ClosetView({
               onChange={(event) => handleFiles(event.target.files)}
             />
             <button
-              disabled={isLoading}
+              disabled={uploadDisabled}
               onClick={() => fileInputRef.current?.click()}
               className="inline-flex h-11 items-center gap-2 rounded-[10px] bg-gradient-to-r from-[#cf6f70] to-[#e6a094] px-5 font-medium text-white shadow-lg shadow-rose-200/70 disabled:cursor-not-allowed disabled:opacity-60"
             >
               <Plus className="size-4" />
-              {isLoading ? "上传中" : "上传衣服"}
+              {uploadDisabled ? "上传中" : "上传衣服"}
             </button>
             <button
-              disabled={isLoading}
+              disabled={uploadDisabled}
               onClick={() => fileInputRef.current?.click()}
               className="inline-flex h-11 items-center gap-2 rounded-[10px] border border-[#ead9d0] px-5 text-[#8b6258] disabled:cursor-not-allowed disabled:opacity-60"
             >
@@ -3883,7 +4792,7 @@ function ClosetView({
           </div>
         )}
 
-        {!confirmationHidden && pendingConfirmationItems.length > 0 && (
+        {pendingConfirmationItems.length > 0 && (
           <ClosetConfirmationPanel
             items={pendingConfirmationItems}
             isBusy={isLoading}
@@ -3891,9 +4800,6 @@ function ClosetView({
             queuedAnalysisItemIds={queuedAnalysisItemIds}
             onConfirmItem={onConfirmItem}
             onConfirmHighConfidence={onConfirmHighConfidence}
-            onHide={onHideConfirmations}
-            onDeferConfirmation={onDeferConfirmation}
-            onRetryAnalysis={onRetryAnalysis}
             onDeleteItem={onDeleteItem}
             onImageLoad={onImageLoad}
           />
@@ -3923,7 +4829,14 @@ function ClosetView({
                   <ClosetCard
                     key={item.id}
                     item={item}
-                    isBusy={isLoading || busyItemIds.includes(item.id) || queuedAnalysisItemIds.includes(item.id)}
+                    isAnalysisBusy={
+                      isLoading ||
+                      busyItemIds.analysis.includes(item.id) ||
+                      queuedAnalysisItemIds.includes(item.id)
+                    }
+                    isConfirmationBusy={busyItemIds.confirmation.includes(item.id)}
+                    isDisplayBusy={busyItemIds.display.includes(item.id)}
+                    isDeleting={busyItemIds.deletion.includes(item.id)}
                     isAnalysisQueued={queuedAnalysisItemIds.includes(item.id)}
                     onRetryDisplayImage={onRetryDisplayImage}
                     onRetryAnalysis={onRetryAnalysis}
@@ -3965,11 +4878,12 @@ function ClosetView({
               先上传几件常穿衣服。后续 AI 会自动识别品类、颜色、版型和风格，并用于购买决策时的搭配检索。
             </p>
             <button
+              disabled={uploadDisabled}
               onClick={() => fileInputRef.current?.click()}
-              className="mt-5 inline-flex h-11 items-center gap-2 rounded-[10px] bg-gradient-to-r from-[#cf6f70] to-[#e6a094] px-5 font-medium text-white shadow-lg shadow-rose-200/70"
+              className="mt-5 inline-flex h-11 items-center gap-2 rounded-[10px] bg-gradient-to-r from-[#cf6f70] to-[#e6a094] px-5 font-medium text-white shadow-lg shadow-rose-200/70 disabled:cursor-not-allowed disabled:opacity-60"
             >
               <ImagePlus className="size-4" />
-              上传第一件衣服
+              {uploadDisabled ? "上传中" : "上传第一件衣服"}
             </button>
           </div>
         )}
@@ -4152,7 +5066,7 @@ function ClosetItemImage({
     <img
       src={imageUrl}
       alt=""
-      className={cn("block rounded-[10px] object-cover object-center", className)}
+      className={cn("block rounded-[10px] bg-[#faf7f4] object-contain object-center", className)}
       onLoad={() => onImageLoad(itemId, imageUrl, "success")}
       onError={() => onImageLoad(itemId, imageUrl, "failure")}
     />
@@ -4166,55 +5080,45 @@ function ClosetConfirmationPanel({
   queuedAnalysisItemIds,
   onConfirmItem,
   onConfirmHighConfidence,
-  onHide,
-  onDeferConfirmation,
-  onRetryAnalysis,
   onDeleteItem,
   onImageLoad,
 }: {
   items: ClothingItem[];
   isBusy: boolean;
-  busyItemIds: string[];
+  busyItemIds: ClosetBusyItemIds;
   queuedAnalysisItemIds: string[];
   onConfirmItem: (item: ClothingItem, draft: ClosetConfirmationDraft) => Promise<void>;
   onConfirmHighConfidence: (items: ClothingItem[]) => Promise<void>;
-  onHide: () => void;
-  onDeferConfirmation: (itemId: string) => void;
-  onRetryAnalysis: (item: ClothingItem, userFeedback?: string) => Promise<void>;
   onDeleteItem: (item: ClothingItem) => Promise<void>;
   onImageLoad: ClosetImageLoadHandler;
 }) {
   const highConfidenceCount = items.filter(
     (item) => (item.aiConfidence ?? 0) >= 0.8 && !(item.imageQualityFlags ?? []).includes("closet_analysis_failed"),
   ).length;
+  const highConfidenceBusy = items.some(
+    (item) =>
+      (item.aiConfidence ?? 0) >= 0.8 &&
+      (busyItemIds.analysis.includes(item.id) ||
+        busyItemIds.confirmation.includes(item.id) ||
+        busyItemIds.deletion.includes(item.id) ||
+        queuedAnalysisItemIds.includes(item.id)),
+  );
 
   return (
     <section className="mt-5 rounded-[16px] border border-[#e7c5ba] bg-[#fffaf7] p-4">
       <div className="flex flex-wrap items-center gap-3">
-        <div>
-          <h3 className="text-lg font-semibold text-[#3d281f]">待确认衣服</h3>
-          <p className="mt-1 text-sm text-[#8b6258]">
-            AI 已先提取标签，确认后会进入稳定衣橱数据，用于后续搭配检索。
-          </p>
-        </div>
-        <div className="ml-auto flex flex-wrap gap-2">
-          <button
-            type="button"
-            disabled={isBusy || highConfidenceCount === 0}
-            onClick={() => void onConfirmHighConfidence(items)}
-            className="inline-flex h-10 items-center gap-2 rounded-[10px] bg-[#3d281f] px-4 text-sm font-medium text-white transition hover:bg-[#533b31] disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <Check className="size-4" />
-            确认全部高置信度
-          </button>
-          <button
-            type="button"
-            onClick={onHide}
-            className="inline-flex h-10 items-center gap-2 rounded-[10px] border border-[#ead9d0] bg-white px-4 text-sm text-[#8b6258] transition hover:bg-[#fbf5f1]"
-          >
-            收起待确认
-          </button>
-        </div>
+        <h3 className="min-w-0 flex-1 text-lg font-semibold leading-7 text-[#3d281f]">
+          待确认信息（确认后会将标签存入云端衣橱，用于后续搭配检索）
+        </h3>
+        <button
+          type="button"
+          disabled={isBusy || highConfidenceBusy || highConfidenceCount === 0}
+          onClick={() => void onConfirmHighConfidence(items)}
+          className="inline-flex h-10 shrink-0 items-center gap-2 rounded-[10px] bg-[#3d281f] px-4 text-sm font-medium text-white transition hover:bg-[#533b31] disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <Check className="size-4" />
+          全部确认
+        </button>
       </div>
 
       <div className="mt-4 grid gap-4 xl:grid-cols-2">
@@ -4222,11 +5126,15 @@ function ClosetConfirmationPanel({
           <ClosetConfirmationCard
             key={`${item.id}-${item.userCorrected ? "confirmed" : "pending"}-${item.aiConfidence ?? "na"}-${item.summary ?? ""}`}
             item={item}
-            isBusy={isBusy || busyItemIds.includes(item.id) || queuedAnalysisItemIds.includes(item.id)}
+            isAnalysisBusy={
+              isBusy ||
+              busyItemIds.analysis.includes(item.id) ||
+              queuedAnalysisItemIds.includes(item.id)
+            }
+            isConfirmationBusy={busyItemIds.confirmation.includes(item.id)}
+            isDeleting={busyItemIds.deletion.includes(item.id)}
             isAnalysisQueued={queuedAnalysisItemIds.includes(item.id)}
             onConfirmItem={onConfirmItem}
-            onDeferConfirmation={onDeferConfirmation}
-            onRetryAnalysis={onRetryAnalysis}
             onDeleteItem={onDeleteItem}
             onImageLoad={onImageLoad}
           />
@@ -4238,42 +5146,43 @@ function ClosetConfirmationPanel({
 
 function ClosetConfirmationCard({
   item,
-  isBusy,
+  isAnalysisBusy,
+  isConfirmationBusy,
+  isDeleting,
   isAnalysisQueued,
   onConfirmItem,
-  onDeferConfirmation,
-  onRetryAnalysis,
   onDeleteItem,
   onImageLoad,
 }: {
   item: ClothingItem;
-  isBusy: boolean;
+  isAnalysisBusy: boolean;
+  isConfirmationBusy: boolean;
+  isDeleting: boolean;
   isAnalysisQueued: boolean;
   onConfirmItem: (item: ClothingItem, draft: ClosetConfirmationDraft) => Promise<void>;
-  onDeferConfirmation: (itemId: string) => void;
-  onRetryAnalysis: (item: ClothingItem, userFeedback?: string) => Promise<void>;
   onDeleteItem: (item: ClothingItem) => Promise<void>;
   onImageLoad: ClosetImageLoadHandler;
 }) {
   const [draft, setDraft] = useState(() => createConfirmationDraft(item));
   const [showOriginal, setShowOriginal] = useState(false);
-  const [reanalysisOpen, setReanalysisOpen] = useState(false);
-  const [reanalysisFeedback, setReanalysisFeedback] = useState("");
-  const qualityFlags = item.imageQualityFlags ?? [];
-  const analysisInProgress = qualityFlags.includes("closet_analysis_processing");
-  const analysisFailed = qualityFlags.includes("closet_analysis_failed");
-  const confidenceLabel =
-    typeof item.aiConfidence === "number" ? `${Math.round(item.aiConfidence * 100)}%` : "待识别";
+  const qualityFlags = filterLegacyDisplayImageFlags(item.imageQualityFlags);
   const displayedImageUrl =
     showOriginal && item.originalImageUrl
       ? item.originalImageUrl
       : item.displayImageUrl ?? item.originalImageUrl ?? item.imageUrl;
-  const visibleQualityFlags = qualityFlags.filter((flag) => {
-    if (!flag) return false;
-    if (flag === "closet_analysis_queued" && qualityFlags.includes("ai_label_ready")) return false;
-    if (flag === "display_image_queued" && item.displayImageStatus === "ready") return false;
-    return true;
+  const displayStatus = item.displayImageStatus ?? "not_started";
+  const analysisProgress = getClosetAnalysisProgress({
+    imageQualityFlags: qualityFlags,
+    category: item.category,
+    styleTags: item.styleTags,
+    isQueued: isAnalysisQueued,
   });
+  const displayProgress = getClosetDisplayProgress({
+    displayImageStatus: displayStatus,
+  });
+  const analysisInProgress = analysisProgress.state === "in_progress";
+  const itemInteractionBusy =
+    analysisInProgress || isAnalysisBusy || isConfirmationBusy || isDeleting;
 
   function updateDraft(patch: Partial<ClosetConfirmationDraft>) {
     setDraft((current) => ({ ...current, ...patch }));
@@ -4288,11 +5197,11 @@ function ClosetConfirmationCard({
               <ClosetItemImage
                 itemId={item.id}
                 imageUrl={displayedImageUrl}
-                className="h-56 w-full"
+                className="aspect-square w-full"
                 onImageLoad={onImageLoad}
               />
             ) : (
-              <MockProductImage palette={item.palette} className="h-56 w-full" />
+              <MockProductImage palette={item.palette} className="aspect-square w-full" />
             )}
             {item.displayImageUrl && item.originalImageUrl ? (
               <button
@@ -4308,24 +5217,10 @@ function ClosetConfirmationCard({
               </span>
             )}
           </div>
-          <div className="mt-3 rounded-[10px] bg-[#fff7f4] px-3 py-2 text-xs leading-5 text-[#9a514f]">
-            {isAnalysisQueued
-              ? "AI 标签排队中"
-              : analysisInProgress
-              ? "AI 标签识别中"
-              : analysisFailed
-                ? "AI 标签识别失败"
-                : `AI 已识别 · 置信度 ${confidenceLabel}`}
-          </div>
-          {visibleQualityFlags.length > 0 && (
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {visibleQualityFlags.slice(0, 8).map((flag) => (
-                <span key={flag} className={cn("rounded-full px-2 py-1 text-[11px]", qualityFlagTone(flag))}>
-                  {qualityFlagLabel(flag)}
-                </span>
-              ))}
-            </div>
-          )}
+          <ClosetUploadProgress
+            analysis={analysisProgress}
+            display={displayProgress}
+          />
         </div>
 
         <div className="min-w-0">
@@ -4337,103 +5232,66 @@ function ClosetConfirmationCard({
             />
             <LabeledInput
               label="品类"
-              value={draft.category}
+              value={analysisInProgress ? "待识别" : draft.category}
+              disabled={analysisInProgress}
+              muted={analysisInProgress}
               onChange={(value) => updateDraft({ category: value })}
             />
             <LabeledInput
               label="颜色"
-              value={draft.color}
+              value={analysisInProgress ? "待识别" : draft.color}
+              disabled={analysisInProgress}
+              muted={analysisInProgress}
               onChange={(value) => updateDraft({ color: value })}
             />
             <LabeledSelect
               label="版型"
-              value={draft.fit}
+              value={analysisInProgress ? "analysis_pending" : draft.fit}
               options={fitOptions}
+              pendingOption={analysisInProgress ? { value: "analysis_pending", label: "待识别" } : undefined}
+              disabled={analysisInProgress}
+              mutedValue={analysisInProgress ? "analysis_pending" : undefined}
               onChange={(value) => updateDraft({ fit: value as ClothingItem["fit"] })}
             />
             <LabeledTagInput
               label="风格标签"
-              value={draft.styleTags}
+              value={analysisInProgress ? ["待识别"] : draft.styleTags}
               placeholder="休闲、简约、通勤"
+              disabled={analysisInProgress}
+              muted={analysisInProgress}
               onChange={(value) => updateDraft({ styleTags: value })}
             />
             <LabeledTagInput
               label="场景标签"
-              value={draft.scenarioTags}
+              value={analysisInProgress ? ["待识别"] : draft.scenarioTags}
               placeholder="日常、通勤、旅行"
+              disabled={analysisInProgress}
+              muted={analysisInProgress}
               onChange={(value) => updateDraft({ scenarioTags: value })}
             />
             <LabeledTagInput
               label="季节标签"
-              value={draft.seasonTags}
-              placeholder="spring、summer、all-season"
+              value={analysisInProgress ? ["待识别"] : draft.seasonTags}
+              placeholder="春季、夏季、四季"
+              disabled={analysisInProgress}
+              muted={analysisInProgress}
               onChange={(value) => updateDraft({ seasonTags: value })}
             />
             <LabeledSelect
               label="穿着频率"
               value={draft.wearFrequency}
               options={wearFrequencyOptions}
+              mutedValue="unknown"
               onChange={(value) =>
                 updateDraft({ wearFrequency: value as ClothingItem["wearFrequency"] })
               }
             />
           </div>
 
-          {reanalysisOpen && (
-            <div className="mt-4 rounded-[12px] border border-[#ead9d0] bg-[#fffdfb] p-3">
-              <label className="block">
-                <span className="text-xs text-[#8b6258]">这次希望 AI 重点调整什么？</span>
-                <textarea
-                  value={reanalysisFeedback}
-                  onChange={(event) => setReanalysisFeedback(event.target.value)}
-                  placeholder="例如：这不是裙子，是宽松长裤；颜色更接近米白色；请忽略衣架和背景。"
-                  className="mt-2 min-h-20 w-full resize-none rounded-[10px] border border-[#ead9d0] bg-white px-3 py-2 text-sm leading-6 text-[#3d281f] outline-none transition focus:border-[#cf6f70]"
-                />
-              </label>
-              <div className="mt-2 flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setReanalysisOpen(false)}
-                  className="h-9 rounded-[9px] px-3 text-sm text-[#8b6258] transition hover:bg-[#fbf5f1]"
-                >
-                  取消
-                </button>
-                <button
-                  type="button"
-                  disabled={isBusy || !item.originalImageUrl}
-                  onClick={() => {
-                    setReanalysisOpen(false);
-                    void onRetryAnalysis(item, reanalysisFeedback.trim() || undefined);
-                  }}
-                  className="h-9 rounded-[9px] bg-[#3d281f] px-3 text-sm font-medium text-white transition hover:bg-[#533b31] disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  加入识别队列
-                </button>
-              </div>
-            </div>
-          )}
-
           <div className="mt-4 flex flex-wrap justify-end gap-2">
             <button
               type="button"
-              disabled={isBusy || !item.originalImageUrl}
-              onClick={() => setReanalysisOpen((open) => !open)}
-              className="inline-flex h-10 items-center gap-2 rounded-[10px] border border-[#ead9d0] px-4 text-sm text-[#8b6258] transition hover:bg-[#fbf5f1] disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <Pencil className="size-4" />
-              {isAnalysisQueued ? "识别排队中" : analysisInProgress ? "正在识别" : "重新识别"}
-            </button>
-            <button
-              type="button"
-              disabled={isBusy}
-              onClick={() => onDeferConfirmation(item.id)}
-              className="inline-flex h-10 items-center gap-2 rounded-[10px] border border-[#ead9d0] px-4 text-sm text-[#8b6258] transition hover:bg-[#fbf5f1] disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              稍后确认
-            </button>
-            <button
-              type="button"
-              disabled={isBusy}
+              disabled={isDeleting}
               onClick={() => void onDeleteItem(item)}
               className="inline-flex h-10 items-center gap-2 rounded-[10px] border border-[#f0c8c2] px-4 text-sm text-[#b14545] transition hover:bg-[#fff0ef] disabled:cursor-not-allowed disabled:opacity-50"
             >
@@ -4442,7 +5300,7 @@ function ClosetConfirmationCard({
             </button>
             <button
               type="button"
-              disabled={isBusy || !draft.name.trim() || !draft.category.trim()}
+              disabled={itemInteractionBusy || !draft.name.trim() || !draft.category.trim()}
               onClick={() => void onConfirmItem(item, draft)}
               className="inline-flex h-10 items-center gap-2 rounded-[10px] bg-gradient-to-r from-[#cf6f70] to-[#e6a094] px-4 text-sm font-medium text-white shadow-md shadow-rose-200/70 transition hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-50"
             >
@@ -4459,10 +5317,14 @@ function ClosetConfirmationCard({
 function LabeledInput({
   label,
   value,
+  disabled = false,
+  muted = false,
   onChange,
 }: {
   label: string;
   value: string;
+  disabled?: boolean;
+  muted?: boolean;
   onChange: (value: string) => void;
 }) {
   return (
@@ -4470,8 +5332,12 @@ function LabeledInput({
       <span className="text-xs text-[#8b6258]">{label}</span>
       <input
         value={value}
+        disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
-        className="mt-1 h-10 w-full rounded-[10px] border border-[#ead9d0] bg-[#fffdfb] px-3 text-sm text-[#3d281f] outline-none transition focus:border-[#cf6f70]"
+        className={cn(
+          "mt-1 h-10 w-full rounded-[10px] border border-[#ead9d0] bg-[#fffdfb] px-3 text-sm outline-none transition focus:border-[#cf6f70] disabled:cursor-not-allowed disabled:opacity-100",
+          muted ? "text-[#9b9592]" : "text-[#3d281f]",
+        )}
       />
     </label>
   );
@@ -4481,11 +5347,17 @@ function LabeledSelect({
   label,
   value,
   options,
+  pendingOption,
+  disabled = false,
+  mutedValue,
   onChange,
 }: {
   label: string;
   value: string;
   options: Array<{ value: string; label: string }>;
+  pendingOption?: { value: string; label: string };
+  disabled?: boolean;
+  mutedValue?: string;
   onChange: (value: string) => void;
 }) {
   return (
@@ -4493,9 +5365,16 @@ function LabeledSelect({
       <span className="text-xs text-[#8b6258]">{label}</span>
       <select
         value={value}
+        disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
-        className="mt-1 h-10 w-full rounded-[10px] border border-[#ead9d0] bg-[#fffdfb] px-3 text-sm text-[#3d281f] outline-none transition focus:border-[#cf6f70]"
+        className={cn(
+          "mt-1 h-10 w-full rounded-[10px] border border-[#ead9d0] bg-[#fffdfb] px-3 text-sm outline-none transition focus:border-[#cf6f70] disabled:cursor-not-allowed disabled:opacity-100",
+          value === mutedValue ? "text-[#9b9592]" : "text-[#3d281f]",
+        )}
       >
+        {pendingOption && (
+          <option value={pendingOption.value}>{pendingOption.label}</option>
+        )}
         {options.map((option) => (
           <option key={option.value} value={option.value}>
             {option.label}
@@ -4510,11 +5389,15 @@ function LabeledTagInput({
   label,
   value,
   placeholder,
+  disabled = false,
+  muted = false,
   onChange,
 }: {
   label: string;
   value: string[];
   placeholder: string;
+  disabled?: boolean;
+  muted?: boolean;
   onChange: (value: string[]) => void;
 }) {
   return (
@@ -4523,64 +5406,83 @@ function LabeledTagInput({
       <input
         value={value.join("、")}
         placeholder={placeholder}
+        disabled={disabled}
         onChange={(event) => onChange(splitTags(event.target.value))}
-        className="mt-1 h-10 w-full rounded-[10px] border border-[#ead9d0] bg-[#fffdfb] px-3 text-sm text-[#3d281f] outline-none transition focus:border-[#cf6f70]"
+        className={cn(
+          "mt-1 h-10 w-full rounded-[10px] border border-[#ead9d0] bg-[#fffdfb] px-3 text-sm outline-none transition focus:border-[#cf6f70] disabled:cursor-not-allowed disabled:opacity-100",
+          muted ? "text-[#9b9592]" : "text-[#3d281f]",
+        )}
       />
     </label>
   );
 }
 
-function qualityFlagLabel(flag: string) {
-  const labels: Record<string, string> = {
-    original_saved: "原图已保存",
-    display_image_queued: "展示图排队",
-    display_image_processing: "展示图生成中",
-    display_image_ready: "展示图已完成",
-    closet_analysis_queued: "识别排队",
-    closet_analysis_processing: "正在识别",
-    closet_analysis_failed: "识别失败",
-    ai_label_ready: "标签已生成",
-    needs_ai_label_confirmation: "等待确认",
-    background_complex: "背景复杂",
-    folded: "有折叠",
-    occluded: "有遮挡",
-    partial_view: "不完整",
-    low_light: "光线弱",
-    color_cast: "偏色",
-    low_confidence: "低置信度",
-    display_image_failed: "展示图失败",
-  };
-
-  return labels[flag] ?? flag;
+function ClosetUploadProgress({
+  analysis,
+  display,
+}: {
+  analysis: ClosetUploadTaskProgress;
+  display: ClosetUploadTaskProgress;
+}) {
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
+      className="mt-3 space-y-2 px-1 text-[13px] leading-5"
+    >
+      <ClosetUploadProgressRow progress={analysis} orbState="searching" />
+      <ClosetUploadProgressRow progress={display} orbState="shaping" />
+    </div>
+  );
 }
 
-function qualityFlagTone(flag: string) {
-  if (
-    [
-      "display_image_queued",
-      "display_image_processing",
-      "closet_analysis_queued",
-      "closet_analysis_processing",
-      "needs_ai_label_confirmation",
-    ].includes(flag)
-  ) {
-    return "bg-[#eadfce] text-[#795d39]";
-  }
+function ClosetUploadProgressRow({
+  progress,
+  orbState,
+}: {
+  progress: ClosetUploadTaskProgress;
+  orbState: OrbState;
+}) {
+  const iconClassName = "size-5 shrink-0";
 
-  if (["display_image_ready", "ai_label_ready", "original_saved"].includes(flag)) {
-    return "bg-[#edf0ed] text-[#617066]";
-  }
-
-  if (["display_image_failed", "closet_analysis_failed", "low_confidence"].includes(flag)) {
-    return "bg-[#f2e5e3] text-[#815453]";
-  }
-
-  return "bg-[#f8efea] text-[#8b6258]";
+  return (
+    <div
+      className={cn(
+        "flex min-h-5 items-center gap-2",
+        progress.state === "in_progress" && "text-[#76576f]",
+        progress.state === "complete" && "text-[#617066]",
+        progress.state === "failed" && "text-[#9a514f]",
+        progress.state === "waiting" && "text-[#8b7f7a]",
+      )}
+    >
+      {progress.state === "in_progress" ? (
+        <ThinkingOrb
+          state={orbState}
+          size={20}
+          theme="light"
+          speed={0.9}
+          aria-hidden="true"
+          className="shrink-0 opacity-75"
+        />
+      ) : progress.state === "complete" ? (
+        <CheckCircle2 aria-hidden="true" className={iconClassName} strokeWidth={1.75} />
+      ) : progress.state === "failed" ? (
+        <XCircle aria-hidden="true" className={iconClassName} strokeWidth={1.75} />
+      ) : (
+        <CalendarClock aria-hidden="true" className={iconClassName} strokeWidth={1.75} />
+      )}
+      <span>{progress.label}</span>
+    </div>
+  );
 }
 
 function ClosetCard({
   item,
-  isBusy,
+  isAnalysisBusy,
+  isConfirmationBusy,
+  isDisplayBusy,
+  isDeleting,
   isAnalysisQueued,
   onRetryDisplayImage,
   onRetryAnalysis,
@@ -4588,7 +5490,10 @@ function ClosetCard({
   onImageLoad,
 }: {
   item: ClothingItem;
-  isBusy: boolean;
+  isAnalysisBusy: boolean;
+  isConfirmationBusy: boolean;
+  isDisplayBusy: boolean;
+  isDeleting: boolean;
   isAnalysisQueued: boolean;
   onRetryDisplayImage: (item: ClothingItem) => Promise<void>;
   onRetryAnalysis: (item: ClothingItem, userFeedback?: string) => Promise<void>;
@@ -4597,20 +5502,18 @@ function ClosetCard({
 }) {
   const [showOriginal, setShowOriginal] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [tagDetailsExpanded, setTagDetailsExpanded] = useState(false);
+  const [tagPreviewVisible, setTagPreviewVisible] = useState(false);
   const displayReady = Boolean(item.displayImageUrl);
   const displayedImageUrl =
     showOriginal && item.originalImageUrl
       ? item.originalImageUrl
       : item.displayImageUrl ?? item.originalImageUrl ?? item.imageUrl;
   const displayStatus = item.displayImageStatus ?? "not_started";
-  const displayStatusLabel: Record<NonNullable<ClothingItem["displayImageStatus"]>, string> = {
-    not_started: "展示图待生成",
-    queued: "展示图排队中",
-    processing: "展示图生成中",
-    ready: "展示图",
-    failed: "展示图失败",
-  };
-  const qualityFlags = item.imageQualityFlags ?? [];
+  const itemInteractionBusy = isAnalysisBusy || isConfirmationBusy || isDeleting;
+  const itemDestructiveBusy =
+    itemInteractionBusy || isDisplayBusy || displayStatus === "processing";
+  const qualityFlags = filterLegacyDisplayImageFlags(item.imageQualityFlags);
   const analysisInProgress = qualityFlags.includes("closet_analysis_processing");
   const analysisFailed = qualityFlags.includes("closet_analysis_failed");
   const pendingAi =
@@ -4623,6 +5526,13 @@ function ClosetCard({
     !item.userCorrected && (qualityFlags.includes("needs_ai_label_confirmation") || !pendingAi);
   const confidenceLabel =
     typeof item.aiConfidence === "number" ? `${Math.round(item.aiConfidence * 100)}%` : undefined;
+  const cardTags = Array.from(new Set([...item.styleTags, ...item.scenarioTags].filter(Boolean)));
+  const visibleCardTags = cardTags.slice(0, 4);
+  const hiddenCardTags = cardTags.slice(visibleCardTags.length);
+  const hiddenCardTagCount = cardTags.length - visibleCardTags.length;
+  const tagDetailsId = `closet-card-tags-${item.id}`;
+  const cardTagClassName =
+    "inline-flex h-7 items-center justify-center rounded-full bg-[#f8efea] px-2.5 text-xs leading-none text-[#8b6258]";
   const statusLabel =
     item.wearFrequency === "often"
       ? "常穿"
@@ -4638,11 +5548,11 @@ function ClosetCard({
           <ClosetItemImage
             itemId={item.id}
             imageUrl={displayedImageUrl}
-            className="h-48 w-full"
+            className="aspect-square w-full"
             onImageLoad={onImageLoad}
           />
         ) : (
-          <MockProductImage palette={item.palette} className="h-48 w-full" />
+          <MockProductImage palette={item.palette} className="aspect-square w-full" />
         )}
         <span className="absolute right-2 top-2 rounded-full bg-white/90 px-3 py-1 text-xs text-[#6e5148] shadow">
           {statusLabel}
@@ -4671,7 +5581,7 @@ function ClosetCard({
           <div className="absolute right-2 top-[5.25rem] z-20 w-44 rounded-[12px] border border-[#ead9d0] bg-white p-1.5 text-sm text-[#6e5148] shadow-xl shadow-stone-200/70">
             <button
               type="button"
-              disabled={isBusy || displayStatus === "processing" || !item.originalImageUrl}
+              disabled={itemDestructiveBusy || !item.originalImageUrl}
               onClick={() => {
                 setMenuOpen(false);
                 void onRetryDisplayImage(item);
@@ -4683,7 +5593,7 @@ function ClosetCard({
             </button>
             <button
               type="button"
-              disabled={isBusy || !item.originalImageUrl}
+              disabled={itemInteractionBusy || !item.originalImageUrl}
               onClick={() => {
                 setMenuOpen(false);
                 const feedback = window.prompt(
@@ -4701,7 +5611,7 @@ function ClosetCard({
             </button>
             <button
               type="button"
-              disabled={isBusy}
+              disabled={itemDestructiveBusy}
               onClick={() => {
                 setMenuOpen(false);
                 void onDeleteItem(item);
@@ -4715,10 +5625,9 @@ function ClosetCard({
         )}
       </div>
       <h3 className="mt-3 font-semibold text-[#3d281f]">{item.name}</h3>
-      <p className="mt-1 text-sm text-[#8b6258]">{item.category}</p>
       {(displayStatus !== "ready" || pendingAi || analysisFailed || needsConfirmation) && (
         <div className="mt-3 rounded-[10px] bg-[#fff7f4] px-3 py-2 text-xs leading-5 text-[#9a514f]">
-          {displayStatusLabel[displayStatus]} ·{" "}
+          {closetDisplayStatusLabels[displayStatus]} ·{" "}
           {isAnalysisQueued
             ? "AI 标签排队中"
             : analysisInProgress
@@ -4730,13 +5639,62 @@ function ClosetCard({
                   : "AI 标签已确认"}
         </div>
       )}
-      <div className="mt-3 flex flex-wrap gap-2">
-        {[...item.styleTags, ...item.scenarioTags.slice(0, 2)].slice(0, 7).map((tag, index) => (
-          <span key={`${tag}-${index}`} className="rounded-full bg-[#f8efea] px-3 py-1 text-xs text-[#8b6258]">
-            {tag}
-          </span>
-        ))}
-      </div>
+      {visibleCardTags.length > 0 && (
+        <div className="mt-3">
+          <div className="flex min-w-0 items-center gap-1.5 overflow-hidden whitespace-nowrap">
+            {visibleCardTags.map((tag) => (
+              <span
+                key={tag}
+                title={tag}
+                className={cn(cardTagClassName, "min-w-0 flex-1 truncate")}
+              >
+                {tag}
+              </span>
+            ))}
+            {hiddenCardTagCount > 0 && (
+              <div className="relative shrink-0">
+                <button
+                  type="button"
+                  aria-expanded={tagDetailsExpanded}
+                  aria-controls={tagDetailsId}
+                  aria-label={`查看其余 ${hiddenCardTagCount} 个标签`}
+                  onMouseEnter={() => setTagPreviewVisible(true)}
+                  onMouseLeave={() => setTagPreviewVisible(false)}
+                  onFocus={() => setTagPreviewVisible(true)}
+                  onBlur={() => setTagPreviewVisible(false)}
+                  onClick={() => setTagDetailsExpanded((current) => !current)}
+                  className="rounded-full bg-[#f1e9e4] px-2.5 py-1 text-xs font-medium text-[#795d6e] transition hover:bg-[#eadfd8] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#b47b99]/45"
+                >
+                  +{hiddenCardTagCount}
+                </button>
+                {tagPreviewVisible && !tagDetailsExpanded && (
+                  <div
+                    role="tooltip"
+                    className="absolute bottom-full left-0 z-30 mb-2 w-60 rounded-[12px] border border-[#ead9d0] bg-white p-2.5 shadow-xl shadow-stone-200/70"
+                  >
+                    <div className="flex flex-wrap gap-1.5">
+                      {hiddenCardTags.map((tag) => (
+                        <span key={tag} className={cardTagClassName}>
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+          {hiddenCardTagCount > 0 && tagDetailsExpanded && (
+            <div id={tagDetailsId} className="mt-2 flex flex-wrap gap-1.5" aria-label="完整衣服标签">
+              {hiddenCardTags.map((tag) => (
+                <span key={tag} className={cardTagClassName}>
+                  {tag}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </article>
   );
 }

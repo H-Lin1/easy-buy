@@ -6,6 +6,7 @@ import {
   buildClosetEmbeddingText,
   removeClosetConfirmationFlags,
 } from "@/lib/closet/embedding-text";
+import { normalizeClosetSeasons } from "@/lib/closet/season";
 import { embedText, sanitizeAiErrorMessage, toPgVector } from "@/lib/ai/providers";
 import { appEnv } from "@/lib/env";
 
@@ -68,14 +69,18 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: "Invalid auth token." }, { status: 401 });
   }
 
-  const { closetItemId, draft } = parsed.data;
-  const { data: currentItem, error: currentError } = await supabase
+  const { closetItemId, draft: submittedDraft } = parsed.data;
+  const draft = {
+    ...submittedDraft,
+    seasonTags: normalizeClosetSeasons(submittedDraft.seasonTags),
+  };
+  const { data: accessibleItem, error: accessibleItemError } = await supabase
     .from("closet_items")
-    .select("image_quality_flags")
+    .select("id")
     .eq("id", closetItemId)
-    .single<ClosetQualityRow>();
+    .maybeSingle();
 
-  if (currentError || !currentItem) {
+  if (accessibleItemError || !accessibleItem) {
     return NextResponse.json({ message: "Closet item not found." }, { status: 404 });
   }
 
@@ -90,6 +95,17 @@ export async function POST(request: NextRequest) {
     });
     return NextResponse.json({ message: "Closet item confirmation failed." }, { status: 500 });
   }
+
+  const { data: currentItem, error: currentError } = await supabase
+    .from("closet_items")
+    .select("image_quality_flags")
+    .eq("id", closetItemId)
+    .single<ClosetQualityRow>();
+
+  if (currentError || !currentItem) {
+    return NextResponse.json({ message: "Closet item not found." }, { status: 404 });
+  }
+
   const nextFlags = removeClosetConfirmationFlags(currentItem.image_quality_flags ?? []);
 
   const { data, error } = await supabase
