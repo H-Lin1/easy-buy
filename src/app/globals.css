@@ -70,6 +70,13 @@ select:focus-visible {
   outline-offset: 2px;
 }
 
+textarea.decision-starter-textarea:focus,
+textarea.decision-starter-textarea:focus-visible {
+  border-color: transparent;
+  outline: none;
+  box-shadow: none;
+}
+
 ::selection {
   background: var(--plum-soft);
   color: var(--ink);

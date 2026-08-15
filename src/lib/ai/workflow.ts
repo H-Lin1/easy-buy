@@ -16,6 +16,7 @@ import type {
 } from "@/lib/ai/types";
 import { retrieveFashionKnowledge } from "@/lib/ai/knowledge";
 import { buildPurchaseEmbeddingText } from "@/lib/ai/purchase-analysis";
+import { withStableOutfitIds } from "@/lib/ai/outfit-try-on";
 import { closetSeasonValues, normalizeClosetSeasons } from "@/lib/closet/season";
 import {
   embedText,
@@ -523,6 +524,7 @@ function sanitizeOutfitFocusReport(report: PurchaseDecisionReport): PurchaseDeci
 
   return {
     ...report,
+    outfitCombinations: withStableOutfitIds(report.outfitCombinations),
     summary:
       cleanupOutfitFocusText(report.summary) ||
       "本次判断聚焦于候选商品是否能和真实衣橱形成自然、可复用的搭配组合。",

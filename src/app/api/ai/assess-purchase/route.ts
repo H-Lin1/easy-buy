@@ -9,10 +9,15 @@ import {
 } from "@/lib/ai/purchase-analysis";
 import {
   embedText,
+  generateImageRequiredGuidance,
   generateVisionJson,
   sanitizeAiErrorMessage,
   toPgVector,
 } from "@/lib/ai/providers";
+import {
+  hasPurchaseImage,
+  IMAGE_REQUIRED_FALLBACK_MESSAGE,
+} from "@/lib/ai/image-required-guidance";
 import type { UserStyleProfile } from "@/lib/ai/types";
 import {
   parseCandidateFromMessage,
@@ -87,6 +92,22 @@ export async function POST(request: NextRequest) {
 
   try {
     const { message, imageDataUrl, sessionId, trace: shouldTrace } = parsed.data;
+    if (!hasPurchaseImage(imageDataUrl)) {
+      let guidance = IMAGE_REQUIRED_FALLBACK_MESSAGE;
+      try {
+        guidance = await generateImageRequiredGuidance(message);
+      } catch (error) {
+        console.warn("[purchase-assessment] image guidance fallback used", {
+          message: sanitizeAiErrorMessage(error),
+        });
+      }
+
+      return NextResponse.json({
+        mode: "image_required" as const,
+        message: guidance,
+      });
+    }
+
     const routeTrace: Array<{
       id: string;
       title: string;
@@ -94,8 +115,7 @@ export async function POST(request: NextRequest) {
       input: Record<string, unknown>;
       output: Record<string, unknown>;
     }> = [];
-    const screenshotPath = imageDataUrl
-      ? await traceStep(routeTrace, "upload_purchase_screenshot", "保存待买商品截图", {
+    const screenshotPath = await traceStep(routeTrace, "upload_purchase_screenshot", "保存待买商品截图", {
           hasImage: true,
           imageBytesApprox: getDataUrlByteLength(imageDataUrl),
         }, async () => {
@@ -106,37 +126,19 @@ export async function POST(request: NextRequest) {
               screenshotPath: path,
             },
           };
-        })
-      : undefined;
-    const screenshotUrl = screenshotPath
-      ? await createSignedImageUrl(supabase, "purchase-screenshots", screenshotPath)
-      : undefined;
-    const candidate = imageDataUrl
-      ? await traceStep(routeTrace, "analyze_purchase_candidate", "识别待买商品截图", {
+        });
+    const screenshotUrl = await createSignedImageUrl(
+      supabase,
+      "purchase-screenshots",
+      screenshotPath,
+    );
+    const candidate = await traceStep(routeTrace, "analyze_purchase_candidate", "识别待买商品截图", {
           message,
           hasImage: true,
           screenshotPath,
         }, async () => {
           const result = stripUnsupportedPrice(
             await analyzePurchaseCandidateSafely(message, imageDataUrl, screenshotPath, screenshotUrl),
-            message,
-          );
-          return {
-            value: result,
-            output: {
-              candidate: sanitizeCandidateForTrace(result),
-            },
-          };
-        })
-      : await traceStep(routeTrace, "parse_candidate_from_message", "从文字描述理解待买商品", {
-          message,
-          hasImage: false,
-        }, async () => {
-          const result = stripUnsupportedPrice(
-            {
-              ...parseCandidateFromMessage(message),
-              detectedText: message,
-            },
             message,
           );
           return {
@@ -243,6 +245,7 @@ export async function POST(request: NextRequest) {
     });
 
     return NextResponse.json({
+      mode: "assessment" as const,
       report,
       candidateId,
       reportId,
