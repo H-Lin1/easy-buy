@@ -17,6 +17,17 @@ import type {
 import { retrieveFashionKnowledge } from "@/lib/ai/knowledge";
 import { buildPurchaseEmbeddingText } from "@/lib/ai/purchase-analysis";
 import { withStableOutfitIds } from "@/lib/ai/outfit-try-on";
+import {
+  buildDecisionImageEvidence,
+  DECISION_OUTFIT_SELECTION_RULES,
+  DECISION_SLOT_ORDER,
+  groupDecisionClosetMatches,
+  normalizeDecisionText,
+  normalizeDecisionTextArray,
+  serializeIndependentDecisionPrompt,
+  validateDecisionOutfitCombinations,
+  type DecisionImageEvidence,
+} from "@/lib/ai/decision-evidence";
 import { closetSeasonValues, normalizeClosetSeasons } from "@/lib/closet/season";
 import {
   embedText,
@@ -190,7 +201,8 @@ export async function runPurchaseAssessmentTrace(request: PurchaseAssessmentRequ
     state.closetMatches,
     state.knowledgeSnippets,
   );
-  const prompt = buildDecisionPrompt(state, fallbackReport);
+  const prompt = buildDecisionPrompt(state, fallbackReport.candidate);
+  const imageEvidence = buildDecisionImageEvidenceForState(state);
   const assessStartedAt = Date.now();
   let finalReport: PurchaseDecisionReport;
   let modelOutput: Record<string, unknown>;
@@ -205,10 +217,11 @@ export async function runPurchaseAssessmentTrace(request: PurchaseAssessmentRequ
     try {
       console.info("[purchase-workflow] decision model start", {
         promptChars: prompt.length,
+        imageCount: imageEvidence.length,
         closetMatches: state.closetMatches.length,
         knowledgeSnippets: state.knowledgeSnippets.length,
       });
-      const decisionResult = await generateNormalizedDecisionReport(prompt);
+      const decisionResult = await generateNormalizedDecisionReport(prompt, imageEvidence);
       const json = decisionResult.raw;
       console.info("[purchase-workflow] decision model done", {
         elapsedMs: Date.now() - assessStartedAt,
@@ -216,6 +229,10 @@ export async function runPurchaseAssessmentTrace(request: PurchaseAssessmentRequ
         attempts: decisionResult.attempts,
       });
       const parsed = decisionResult.parsed;
+      const validatedOutfits = validateDecisionOutfitCombinations(
+        parsed.outfitCombinations,
+        fallbackReport.retrievedClosetItems,
+      );
       finalReport = {
         ...fallbackReport,
         ...parsed,
@@ -226,7 +243,7 @@ export async function runPurchaseAssessmentTrace(request: PurchaseAssessmentRequ
         },
         outfitCombinations: hydrateOutfitCombinations(
           fallbackReport.candidate,
-          parsed.outfitCombinations ?? fallbackReport.outfitCombinations,
+          validatedOutfits,
           fallbackReport.retrievedClosetItems,
         ),
         retrievedClosetItems: fallbackReport.retrievedClosetItems,
@@ -261,6 +278,13 @@ export async function runPurchaseAssessmentTrace(request: PurchaseAssessmentRequ
     input: {
       promptChars: prompt.length,
       prompt: JSON.parse(prompt) as Record<string, unknown>,
+      visualEvidence: {
+        totalImageCount: imageEvidence.length,
+        candidateImageIncluded: imageEvidence[0]?.label.startsWith("待买商品原图") ?? false,
+        closetImageCount: imageEvidence.filter((entry) => entry.label.startsWith("衣橱候选"))
+          .length,
+        labels: imageEvidence.map((entry) => entry.label),
+      },
       fallbackDraft: compactDraftReport(fallbackReport),
     },
     output: {
@@ -325,9 +349,7 @@ async function retrieveCloset(state: GraphState): Promise<Partial<GraphState>> {
 
     return slotMatches;
   });
-  const outfitMatches = uniqueByItem(matches)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 8);
+  const outfitMatches = uniqueByItem(matches);
 
   return {
     closetMatches: outfitMatches.map(sanitizeMatch),
@@ -382,14 +404,16 @@ async function assessPurchase(state: GraphState): Promise<Partial<GraphState>> {
   }
 
   try {
-    const prompt = buildDecisionPrompt(state, fallbackReport);
+    const prompt = buildDecisionPrompt(state, fallbackReport.candidate);
+    const imageEvidence = buildDecisionImageEvidenceForState(state);
     const startedAt = Date.now();
     console.info("[purchase-workflow] decision model start", {
       promptChars: prompt.length,
+      imageCount: imageEvidence.length,
       closetMatches: state.closetMatches.length,
       knowledgeSnippets: state.knowledgeSnippets.length,
     });
-    const decisionResult = await generateNormalizedDecisionReport(prompt);
+    const decisionResult = await generateNormalizedDecisionReport(prompt, imageEvidence);
     const json = decisionResult.raw;
     console.info("[purchase-workflow] decision model done", {
       elapsedMs: Date.now() - startedAt,
@@ -397,6 +421,10 @@ async function assessPurchase(state: GraphState): Promise<Partial<GraphState>> {
       attempts: decisionResult.attempts,
     });
     const parsed = decisionResult.parsed;
+    const validatedOutfits = validateDecisionOutfitCombinations(
+      parsed.outfitCombinations,
+      fallbackReport.retrievedClosetItems,
+    );
 
     const modelReport = sanitizeOutfitFocusReport({
         ...fallbackReport,
@@ -408,7 +436,7 @@ async function assessPurchase(state: GraphState): Promise<Partial<GraphState>> {
         },
         outfitCombinations: hydrateOutfitCombinations(
           fallbackReport.candidate,
-          parsed.outfitCombinations ?? fallbackReport.outfitCombinations,
+          validatedOutfits,
           fallbackReport.retrievedClosetItems,
         ),
         retrievedClosetItems: fallbackReport.retrievedClosetItems,
@@ -440,14 +468,17 @@ function parseModelReport(content: string) {
   return JSON.parse(extractFirstJsonObject(cleaned)) as Partial<PurchaseDecisionReport>;
 }
 
-async function generateNormalizedDecisionReport(prompt: string) {
+async function generateNormalizedDecisionReport(
+  prompt: string,
+  imageEvidence: DecisionImageEvidence[],
+) {
   let lastError: unknown;
 
   for (let attempt = 1; attempt <= 2; attempt += 1) {
     let raw = "";
 
     try {
-      raw = await generateDecisionJson(prompt);
+      raw = await generateDecisionJson(prompt, imageEvidence);
       return {
         raw,
         attempts: attempt,
@@ -470,17 +501,40 @@ async function generateNormalizedDecisionReport(prompt: string) {
 }
 
 function normalizeModelReport(report: Partial<PurchaseDecisionReport>) {
+  const raw = report as Record<string, unknown>;
   const normalized: Partial<PurchaseDecisionReport> = {
     ...report,
-    outfitCombinations: Array.isArray(report.outfitCombinations)
-      ? report.outfitCombinations
+    outfitCombinations: Array.isArray(raw.outfitCombinations)
+      ? (raw.outfitCombinations as OutfitCombination[])
       : undefined,
   };
-  const reasonsToBuy = toStringArray((report as { reasonsToBuy?: unknown }).reasonsToBuy);
-  const reasonsToSave = toStringArray((report as { reasonsToSave?: unknown }).reasonsToSave);
-  const risks = toStringArray((report as { risks?: unknown }).risks);
-  const bodyFitNotes = toStringArray((report as { bodyFitNotes?: unknown }).bodyFitNotes);
+  delete normalized.confidence;
+  delete normalized.scores;
+  delete normalized.summary;
+  delete normalized.decisionLabel;
+  delete normalized.nextStep;
+  delete normalized.reasonsToBuy;
+  delete normalized.reasonsToSave;
+  delete normalized.risks;
+  delete normalized.bodyFitNotes;
+  if (!isDecisionValue(raw.decision)) delete normalized.decision;
+  if (!isDecisionStatusValue(raw.decisionStatus)) delete normalized.decisionStatus;
 
+  const confidence = normalizePercentage(raw.confidence);
+  const scores = normalizeDecisionScores(raw.scores);
+  const summary = normalizeDecisionText(raw.summary);
+  const decisionLabel = normalizeDecisionText(raw.decisionLabel);
+  const nextStep = normalizeDecisionText(raw.nextStep);
+  const reasonsToBuy = normalizeDecisionTextArray(raw.reasonsToBuy);
+  const reasonsToSave = normalizeDecisionTextArray(raw.reasonsToSave);
+  const risks = normalizeDecisionTextArray(raw.risks);
+  const bodyFitNotes = normalizeDecisionTextArray(raw.bodyFitNotes);
+
+  if (confidence !== undefined) normalized.confidence = confidence;
+  if (scores) normalized.scores = scores;
+  if (summary) normalized.summary = summary;
+  if (decisionLabel) normalized.decisionLabel = decisionLabel;
+  if (nextStep) normalized.nextStep = nextStep;
   if (reasonsToBuy) normalized.reasonsToBuy = reasonsToBuy;
   if (reasonsToSave) normalized.reasonsToSave = reasonsToSave;
   if (risks) normalized.risks = risks;
@@ -489,12 +543,49 @@ function normalizeModelReport(report: Partial<PurchaseDecisionReport>) {
   return normalized;
 }
 
-function toStringArray(value: unknown) {
-  if (Array.isArray(value)) {
-    return value.map((item) => String(item).trim()).filter(Boolean);
-  }
-  if (typeof value === "string" && value.trim()) return [value.trim()];
-  return undefined;
+function normalizeDecisionScores(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+
+  const rawScores = value as Record<string, unknown>;
+  const scoreKeys: Array<keyof PurchaseDecisionReport["scores"]> = [
+    "wardrobeFit",
+    "outfitPotential",
+    "duplicateRisk",
+    "styleConsistency",
+    "priceValue",
+    "fitComfort",
+    "careCost",
+  ];
+  const scores = Object.fromEntries(
+    scoreKeys.flatMap((key) => {
+      const score = normalizePercentage(rawScores[key]);
+      return score === undefined ? [] : [[key, score]];
+    }),
+  ) as Partial<PurchaseDecisionReport["scores"]>;
+
+  return Object.keys(scores).length
+    ? (scores as PurchaseDecisionReport["scores"])
+    : undefined;
+}
+
+function normalizePercentage(value: unknown) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return undefined;
+  const normalized = value >= 0 && value <= 1 ? value * 100 : value;
+  return Math.max(0, Math.min(100, Math.round(normalized)));
+}
+
+function isDecisionValue(value: unknown): value is PurchaseDecisionReport["decision"] {
+  return value === "buy" || value === "save" || value === "skip";
+}
+
+function isDecisionStatusValue(
+  value: unknown,
+): value is PurchaseDecisionReport["decisionStatus"] {
+  return (
+    value === "decided_to_buy" ||
+    value === "saved_for_later" ||
+    value === "not_considering"
+  );
 }
 
 function filterOutfitFocusedKnowledge(
@@ -914,7 +1005,9 @@ function hydrateOutfitCombinations(
         match ? match.matchType === "outfit" : false,
       )
       .slice(0, 4);
-    const explicitMatches = uniqueByItem([...idMatches, ...namedMatches]);
+    const explicitMatches = uniqueByItem(
+      combination.closetItemIds?.length ? idMatches : namedMatches,
+    );
     const selectedMatches = uniqueByItem([
       ...explicitMatches,
       ...(explicitMatches.length ? [] : fallbackMatches),
@@ -958,15 +1051,27 @@ function buildOutfitSummary(candidate: PurchaseCandidateAIProfile, matches: Clos
   return `这组搭配以「${candidate.productName}」为核心，结合「${itemNames}」形成${scenario}场景下的可穿组合，仍建议以真实试穿和版型协调为准。`;
 }
 
-function buildDecisionPrompt(state: GraphState, fallbackReport: PurchaseDecisionReport) {
-  return JSON.stringify({
+function buildDecisionPrompt(
+  state: GraphState,
+  fallbackCandidate: PurchaseCandidateAIProfile,
+) {
+  const groupedMatches = groupDecisionClosetMatches(state.closetMatches);
+  const closetEvidenceBySlot = Object.fromEntries(
+    DECISION_SLOT_ORDER.map((slot) => [
+      slot,
+      groupedMatches[slot].map(compactClosetMatch),
+    ]),
+  );
+
+  return serializeIndependentDecisionPrompt({
     task: "基于长期主义输出衣服购买决策报告。请保持字段结构一致，直接输出 JSON。",
     outputSchema:
-      "返回 JSON，字段包含 decision, decisionStatus, decisionLabel, confidence, summary, scores, reasonsToBuy, reasonsToSave, risks, bodyFitNotes, outfitCombinations, nextStep。",
+      "返回单一 JSON 对象。decision 只能是 buy/save/skip；decisionStatus 只能是 decided_to_buy/saved_for_later/not_considering；confidence 和 scores 为 0-100 整数；summary、decisionLabel、nextStep 为字符串；reasonsToBuy、reasonsToSave、risks、bodyFitNotes 必须是字符串数组；outfitCombinations 最多 3 项，每项包含 title、scenario、summary、items 和 closetItemIds。",
     knowledgeUsage:
       "knowledge 是已检索的穿搭知识卡。请优先使用其中的 content、decisionPoints、riskSignals 和 outfitSuggestions 作为判断证据，并在 summary/reasons/risks/outfitCombinations 中体现具体知识，不要泛泛说百搭或好看。",
-    outfitBoardRules:
-      "本版本只评估可搭配组合。closetEvidence 是 RAG 返回的 Top K 可搭配候选，不代表一定真的能搭。你必须二次筛选：只有在品类互补、颜色协调、风格/场景自然、能形成真实穿着组合时，才允许进入 outfitCombinations；不要为了凑数量把不自然的衣服放进去。不是每套搭配都需要内搭：如果待买商品是 T恤、卫衣、针织衫、普通上衣等可单穿上衣，优先只搭配裤装/裙装，必要时再加外套，不要强行加入背心或另一件上衣。同一件衣服可以在多套搭配里复用，例如一件背心作为外套/衬衫的稳定内搭，分别连接两条不同裤装形成不同方案。如果强搭配证据不足，请明确说明证据不足并建议先收藏或暂不考虑。",
+    outfitBoardRules: DECISION_OUTFIT_SELECTION_RULES,
+    visualEvidenceRules:
+      "Image 1 是待买商品原图；后续图片标签包含槽位和真实 closetItemId。请核对可见颜色、明度、材质观感、纹理、廓形和长度比例。文字与清晰可见的图片冲突时以图片为准并在 risks 说明；未提供图片的文字候选仍可保守评估，但不得虚构不可见细节，也不得用其他候选图片替代。",
     excludedScope:
       "当前版本不要讨论重复购买、相似替代、已有同类、冗余购买或替代灵感。即使你观察到这类风险，也不要写入 summary、reasonsToBuy、reasonsToSave、risks、nextStep 或 outfitCombinations。只判断待买商品能否和真实衣橱组成自然搭配。",
     ideaMode:
@@ -978,14 +1083,20 @@ function buildDecisionPrompt(state: GraphState, fallbackReport: PurchaseDecision
     ),
     userMessage: state.request.message,
     userProfile: state.request.userProfile,
-    candidate: compactCandidate(state.candidate ?? fallbackReport.candidate),
-    retrievalPlan: compactRetrievalPlan(buildRetrievalPlan(state.candidate ?? fallbackReport.candidate)),
-    closetEvidence: state.closetMatches.slice(0, 6).map(compactClosetMatch),
+    candidate: compactCandidate(state.candidate ?? fallbackCandidate),
+    retrievalPlan: compactRetrievalPlan(buildRetrievalPlan(state.candidate ?? fallbackCandidate)),
+    closetEvidenceBySlot,
+    candidateWhitelist: state.closetMatches.map((match) => match.item.id),
     knowledge: state.knowledgeSnippets.slice(0, 5).map(compactKnowledgeSnippet),
-    draftReport: compactDraftReport(fallbackReport),
     safety:
       "BMI 只能用于版型和舒适度风险提示，不允许身材羞辱，不允许绝对审美否定。建议必须温和，不要强硬否定用户审美。",
   });
+}
+
+function buildDecisionImageEvidenceForState(state: GraphState) {
+  const candidate = state.candidate ?? state.request.candidate;
+  const candidateImageUrl = state.request.imageDataUrl ?? candidate?.screenshotUrl;
+  return buildDecisionImageEvidence(candidateImageUrl, state.closetMatches);
 }
 
 function compactCandidate(candidate: PurchaseCandidateAIProfile) {

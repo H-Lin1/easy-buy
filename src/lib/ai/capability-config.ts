@@ -27,7 +27,7 @@ type EnvSource = Record<string, string | undefined>;
 const supportedProviders: Record<AiCapability, readonly string[]> = {
   // Keep provider support explicit so an unknown image protocol cannot be guessed at runtime.
   vision: ["autodl"],
-  decision: ["autodl"],
+  decision: ["tripo"],
   embedding: ["siliconflow"],
   imageEdit: ["siliconflow", "tripo"],
 };
@@ -51,10 +51,10 @@ export function createAiProviderConfig(env: EnvSource = process.env): AiProvider
     }),
     decision: createCapabilityConfig(env, {
       capability: "decision",
-      prefix: "AI_DECISION",
-      provider: "autodl",
-      baseUrl: "https://www.autodl.art/api/v1",
-      model: "qwen3.6-plus",
+      prefix: "AI_DECISION2",
+      provider: "tripo",
+      baseUrl: "https://lumina.tripo3d.com/v1",
+      model: "gpt-5.6-terra",
       timeoutMs: 180000,
       maxTokens: 4096,
     }),

@@ -17,6 +17,7 @@
 /resources/closet-qwen-image-test
 /resources/closet-siliconflow-image-edit-test
 /resources/tripo-image-test
+/resources/ai-workflow-test/outfit-prompt-ab
 
 # next.js
 /.next/

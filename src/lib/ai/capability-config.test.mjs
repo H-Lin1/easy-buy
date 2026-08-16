@@ -19,11 +19,11 @@ function createSource(overrides = {}) {
     AI_VISION_BASE_URL: "https://vision.example/v1",
     AI_VISION_MODEL: "vision-model",
     AI_VISION_TIMEOUT_MS: "31000",
-    AI_DECISION_API_KEY: "decision-key",
-    AI_DECISION_BASE_URL: "https://decision.example/v1",
-    AI_DECISION_MODEL: "decision-model",
-    AI_DECISION_TIMEOUT_MS: "181000",
-    AI_DECISION_MAX_TOKENS: "4097",
+    AI_DECISION2_API_KEY: "decision-key",
+    AI_DECISION2_BASE_URL: "https://decision.example/v1",
+    AI_DECISION2_MODEL: "decision-model",
+    AI_DECISION2_TIMEOUT_MS: "181000",
+    AI_DECISION2_MAX_TOKENS: "4097",
     AI_EMBEDDING_API_KEY: "embedding-key",
     AI_EMBEDDING_BASE_URL: "https://embedding.example/v1",
     AI_EMBEDDING_MODEL: "embedding-model",
@@ -41,7 +41,7 @@ test("reads provider credentials and runtime settings independently for each cap
   const config = createAiProviderConfig(
     createSource({
       AI_VISION_PROVIDER: " AutoDL ",
-      AI_DECISION_PROVIDER: "autodl",
+      AI_DECISION2_PROVIDER: "tripo",
       AI_EMBEDDING_PROVIDER: "siliconflow",
       AI_IMAGE_EDIT_PROVIDER: "siliconflow",
     }),
@@ -57,7 +57,7 @@ test("reads provider credentials and runtime settings independently for each cap
   });
   assert.deepEqual(config.decision, {
     capability: "decision",
-    provider: "autodl",
+    provider: "tripo",
     apiKey: "decision-key",
     baseUrl: "https://decision.example/v1",
     model: "decision-model",
@@ -87,7 +87,7 @@ test("never borrows a key between vision and decision capabilities", () => {
   const config = createAiProviderConfig(
     createSource({
       AI_VISION_API_KEY: "vision-only-key",
-      AI_DECISION_API_KEY: "decision-only-key",
+      AI_DECISION2_API_KEY: "decision-only-key",
     }),
   );
 
@@ -97,7 +97,7 @@ test("never borrows a key between vision and decision capabilities", () => {
 
   const missingDecision = createAiProviderConfig(
     createSource({
-      AI_DECISION_API_KEY: undefined,
+      AI_DECISION2_API_KEY: undefined,
     }),
   );
   assert.equal(missingDecision.decision.apiKey, undefined);
@@ -118,7 +118,7 @@ test("ignores legacy shared variables", () => {
   assert.equal(config.embedding.apiKey, undefined);
   assert.equal(config.imageEdit.apiKey, undefined);
   assert.equal(config.vision.baseUrl, "https://www.autodl.art/api/v1");
-  assert.equal(config.decision.baseUrl, "https://www.autodl.art/api/v1");
+  assert.equal(config.decision.baseUrl, "https://lumina.tripo3d.com/v1");
   assert.equal(config.embedding.baseUrl, "https://api.siliconflow.cn/v1");
   assert.equal(config.imageEdit.baseUrl, "https://api.siliconflow.cn/v1");
   assert.equal(isAiCapabilityConfigured(config.vision), false);

@@ -7,6 +7,34 @@
 ### Requirement: Only eligible outfits are generated
 系统 SHALL 仅为模型生成且有真实衣橱来源依据的有效搭配创建真人试穿任务。
 
+#### Scenario: Grouped wardrobe candidates are sent to the decision model
+- **WHEN** 系统完成各穿搭槽位的 Top K 衣橱召回
+- **THEN** 系统保留每个槽位召回的全部候选，不再对合并结果执行全局前 6 截断
+- **THEN** 系统按 `inner_top`、`top`、`bottom`、`outerwear`、`onepiece` 分组提供候选及其真实 `closetItemId`
+- **THEN** 系统使用 `AI_DECISION2_*` 配置的 `gpt-5.6-terra` 多模态模型执行购买决策
+- **THEN** 系统将待买商品原图作为第一张视觉证据，并将所有具有可读取原图的分槽候选逐张提交，图片标签与真实 `closetItemId` 一一对应
+- **THEN** 模型在结构化证据之外核对图片中的颜色、明度、材质观感、廓形和长度比例，文字与可见图片冲突时优先采用图片并说明风险
+
+#### Scenario: A retrieved candidate image is unavailable
+- **WHEN** 某个已召回候选缺少原图或原图无法读取
+- **THEN** 系统仍在对应槽位保留该候选的结构化证据和真实 `closetItemId`
+- **THEN** 系统不伪造、替换或复用其他候选图片
+- **THEN** 决策模型对该候选执行保守判断，且图片缺失不阻塞其他候选和待买商品图片进入决策
+
+#### Scenario: Decision model selects reliable and distinct outfits
+- **WHEN** 决策模型从分组候选中生成搭配方案
+- **THEN** 系统不向决策模型提供规则兜底生成的草稿报告，模型仅基于原始用户输入、商品与衣橱证据、用户画像和知识卡独立判断
+- **THEN** 模型结合商品和衣橱图片进行二次筛选，以整体搭配的美观、协调和可穿性为首要目标
+- **THEN** 模型最多返回 3 套并按可靠程度从高到低排序，不强制凑满 3 套；不够自然或效果不佳的方案必须舍弃
+- **THEN** 每套最多引用 4 件衣橱单品
+- **THEN** 多套方案之间至少有一个核心衣橱单品不同，避免只替换近似单品形成重复方案
+
+#### Scenario: Outfit references are validated before generation
+- **WHEN** 服务端接收模型返回的搭配方案
+- **THEN** 服务端只接受本次分组候选池中真实存在的 `closetItemId`
+- **THEN** 服务端拒绝或清理越界数量、同套重复单品和不属于候选白名单的引用
+- **THEN** 只有全部保留方案完成校验后，系统才创建最多 3 个并行生图任务
+
 #### Scenario: Report contains eligible combinations
 - **WHEN** 决策报告由模型生成、具有待买商品图片，且搭配包含至少一个有效衣橱单品标识
 - **THEN** 系统按报告顺序选取最多 3 套搭配
@@ -22,18 +50,22 @@
 #### Scenario: Multiple outfits are generated
 - **WHEN** 同一报告包含多套有效搭配
 - **THEN** 每套生成请求均包含同一份固定模特引用
-- **THEN** 生成提示要求保持人物身份、全身构图和摄影环境一致
+- **THEN** 生成提示要求保持人物身份和身体比例一致，但不继承模特引用图的姿势、构图、光线或背景
+- **THEN** 每套成片采用完整全身、自然站姿和真实生活方式时尚摄影方向
 
 ### Requirement: Try-ons use native multi-image references
 系统 SHALL 将模特、待买商品和衣橱来源单品作为彼此独立的原生图片输入发送给当前图片编辑供应商，不再将它们缩放拼接为单张参考板。
 
 #### Scenario: Outfit references are submitted
 - **WHEN** 系统为一套有效搭配创建图片编辑请求
-- **THEN** Image 1 是固定模特，仅作为人物身份、身体比例、姿势、构图、光线和背景参考
+- **THEN** Image 1 是固定模特，仅作为人物身份和身体比例参考，不作为姿势、构图、光线、背景或原有服装参考
 - **THEN** Image 2 是待买商品，并作为其颜色、材质、纹理、图案、轮廓和结构细节的首要视觉事实来源
 - **THEN** Image 3 及之后按搭配中的来源顺序提供衣橱单品，并让每件单品只使用一次
 - **THEN** 所有图片保持各自原始像素信息，不因拼板而缩小到共享画布
 - **THEN** 生成提示明确要求忽略模特图中原有服装，并在文字描述与服装图片冲突时以服装图片像素为准
+- **THEN** 生成提示将领型或领口、袖型与袖长、肩线、衣长与下摆、整体廓形，以及裤腰高度、腰头结构、裤型和裤长声明为不可改变的服装几何约束
+- **THEN** 为了服装保真，系统允许调整人物姿势和生活方式场景，但不得通过卷袖、改短、改腰线、收窄或放宽裤腿等方式重设计原单品
+- **THEN** 系统不将面向用户解释搭配依据的 `summary` 传入图片编辑提示词，生图模型仅在已选单品、场景和上述统一约束内自行决定具体穿法
 
 ### Requirement: Try-ons generate concurrently with a maximum of three
 系统 SHALL 并行生成同一报告中的全部有效试穿图，且单批最多执行 3 个任务。
