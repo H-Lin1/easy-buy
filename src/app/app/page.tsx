@@ -68,6 +68,7 @@ import {
   type ClosetUploadTaskProgress,
 } from "@/lib/closet/upload-progress";
 import { normalizeClosetSeasons } from "@/lib/closet/season";
+import { getGarmentEvidenceRole } from "@/lib/garment/category";
 import {
   createTimingTrace,
   emitTimingSummary,
@@ -670,8 +671,8 @@ function hydrateReportForDisplay(
             category: existing?.category ?? closetItem.category,
             imageUrl: closetItem.displayImageUrl ?? closetItem.imageUrl ?? closetItem.originalImageUrl ?? existing?.imageUrl,
             matchType: existing?.matchType ?? "outfit",
-            role: existing?.role ?? getClosetEvidenceRole(closetItem.category, report.candidate.category),
-            badge: existing?.badge ?? getClosetEvidenceRole(closetItem.category, report.candidate.category),
+            role: existing?.role ?? getGarmentEvidenceRole(closetItem.category, report.candidate.category),
+            badge: existing?.badge ?? getGarmentEvidenceRole(closetItem.category, report.candidate.category),
             reason:
               existing?.reason ??
               `可用于${combination.scenario || "日常"}搭配，和待买衣服在风格或场景上能自然衔接。`,
@@ -690,23 +691,6 @@ function hydrateReportForDisplay(
       };
     }),
   };
-}
-
-function getClosetEvidenceRole(category: string, candidateCategory?: string) {
-  const itemIsTop = /背心|吊带|T恤|衬衫|针织|卫衣|上衣|Polo/i.test(category);
-  const candidateIsOuter = /外套|西装|风衣|大衣|夹克|防晒衣|冲锋衣|马甲/i.test(candidateCategory ?? "");
-  const candidateCanLayerAsOuter = /衬衫|开衫|马甲|防晒衫|针织开衫/i.test(candidateCategory ?? "");
-
-  if (itemIsTop) return candidateIsOuter || candidateCanLayerAsOuter ? "可搭内搭" : "可搭上衣";
-  if (/外套|西装|风衣|大衣|夹克|防晒衣|冲锋衣|马甲/i.test(category)) return "可搭外套";
-  if (/半身裙|短裙|长裙|A字裙|铅笔裙|百褶裙|伞裙|包臀裙|裙装/i.test(category)) {
-    return "可搭裙装";
-  }
-  if (/裤|长裤|短裤|牛仔裤|直筒|阔腿|西装裤|休闲裤|工装裤|户外裤|运动裤|卫裤|瑜伽裤|鲨鱼裤|打底裤|皮裤|裙裤|下装/i.test(category)) {
-    return "可搭裤装";
-  }
-  if (/连衣裙|套装/i.test(category)) return "可搭套装";
-  return "可搭单品";
 }
 
 function getPaletteByColor(color?: string | null) {

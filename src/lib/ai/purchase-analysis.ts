@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { buildTaxonomyPromptBlock } from "@/lib/ai/taxonomy";
+import { classifyGarmentCategory } from "@/lib/garment/category";
 import type {
   CandidateCategoryGroup,
   CandidateWearRole,
@@ -261,18 +262,9 @@ function normalizeCategoryGroup(
   value: CandidateCategoryGroup | undefined,
   category: string,
 ): CandidateCategoryGroup {
-  if (value && value !== "unknown") return value;
-  if (/西装|外套|开衫|夹克|大衣|风衣|马甲|防晒衣|冲锋衣|软壳|硬壳|抓绒|雨衣|雨壳|棒球|工装外套|牛仔外套|皮衣|羽绒|棉服|小香风/.test(category)) {
-    return "outerwear";
-  }
-  if (/衬衫|上衣|T恤|针织|卫衣|毛衣|背心|吊带|短上衣|Polo|POLO|polo|打底|防晒衫|雪纺|羊毛衫|羊绒|运动内衣/.test(category)) {
-    return "top";
-  }
-  if (/裤|半身裙|短裙|长裙|牛仔裤|长裤|短裤|直筒|阔腿|西装裤|休闲裤|工装裤|户外裤|运动裤|卫裤|瑜伽裤|鲨鱼裤|打底裤|皮裤|裙裤|百褶裙|铅笔裙|A字裙/.test(category)) {
-    return "bottom";
-  }
-  if (/连衣裙|套装|连体裤|旗袍/.test(category)) return "onepiece";
-  return "unknown";
+  const categoryGroup = classifyGarmentCategory(category);
+  if (categoryGroup !== "unknown") return categoryGroup;
+  return value ?? "unknown";
 }
 
 function normalizeWearRole(

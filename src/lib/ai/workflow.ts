@@ -17,6 +17,7 @@ import type {
 import { retrieveFashionKnowledge } from "@/lib/ai/knowledge";
 import { buildPurchaseEmbeddingText } from "@/lib/ai/purchase-analysis";
 import { withStableOutfitIds } from "@/lib/ai/outfit-try-on";
+import { classifyGarmentCategory, getGarmentEvidenceRole } from "@/lib/garment/category";
 import {
   buildDecisionImageEvidence,
   DECISION_OUTFIT_SELECTION_RULES,
@@ -1359,20 +1360,7 @@ function slotMatchesItem(slot: RetrievalSlotDefinition, item: ClothingItem) {
 }
 
 function getSlotRoleForItem(slot: RetrievalSlotDefinition, item: ClothingItem) {
-  if (slot.slot === "bottom") {
-    if (isSkirtCategory(item.category)) return "可搭裙装";
-    if (isPantsCategory(item.category)) return "可搭裤装";
-  }
-
-  return slot.role;
-}
-
-function isSkirtCategory(category: string) {
-  return /半身裙|短裙|长裙|A字裙|铅笔裙|百褶裙|伞裙|包臀裙|裙装/.test(category);
-}
-
-function isPantsCategory(category: string) {
-  return /裤|长裤|短裤|牛仔裤|直筒|阔腿|西装裤|休闲裤|工装裤|户外裤|运动裤|卫裤|瑜伽裤|鲨鱼裤|打底裤|皮裤|裙裤/.test(category);
+  return getGarmentEvidenceRole(item.category, undefined, slot.slot);
 }
 
 function normalizeCandidateGroup(candidate: PurchaseCandidateAIProfile): InternalCategoryGroup {
@@ -1435,11 +1423,8 @@ function buildMatchReason(
 }
 
 function classifyCategory(category: string) {
-  if (/西装|外套|开衫|夹克|大衣|风衣|马甲|防晒衣|冲锋衣|软壳|硬壳|抓绒|雨衣|雨壳|棒球|工装外套|牛仔外套|皮衣|羽绒|棉服|小香风/.test(category)) return "outer";
-  if (/衬衫|上衣|T恤|针织|卫衣|毛衣|背心|吊带|短上衣|Polo|POLO|polo|打底|防晒衫|雪纺|羊毛衫|羊绒|运动内衣/.test(category)) return "top";
-  if (/裤|半身裙|短裙|长裙|牛仔裤|长裤|短裤|直筒|阔腿|西装裤|休闲裤|工装裤|户外裤|运动裤|卫裤|瑜伽裤|鲨鱼裤|打底裤|皮裤|裙裤|百褶裙|铅笔裙|A字裙/.test(category)) return "bottom";
-  if (/连衣裙|套装|连体裤|旗袍/.test(category)) return "onepiece";
-  return "unknown";
+  const group = classifyGarmentCategory(category);
+  return group === "outerwear" ? "outer" : group;
 }
 
 function categoryComplementScore(candidateGroup: string, itemGroup: string) {

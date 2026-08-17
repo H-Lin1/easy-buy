@@ -143,6 +143,11 @@ test("keeps rule drafts out of the independent Terra prompt", () => {
   assert.match(String(payload.outfitBoardRules), /美观、协调和可穿性为首要目标/);
   assert.match(String(payload.outfitBoardRules), /不强制凑满/);
   assert.match(String(payload.outfitBoardRules), /效果不佳的方案必须舍弃/);
+  assert.match(String(payload.outfitBoardRules), /不是每套都需要内搭；可单穿上衣优先搭配下装/);
+  assert.match(String(payload.outfitBoardRules), /完整性要求：除待买商品本身是连衣裙、连体裤或完整套装外/);
+  assert.match(String(payload.outfitBoardRules), /完整的“主要上装 \+ 下装”结构/);
+  assert.match(String(payload.outfitBoardRules), /待买商品本身可以计入对应的上装或下装/);
+  assert.match(String(payload.outfitBoardRules), /外套、开衫等叠穿单品不能代替主要上装或下装/);
 });
 
 test("does not treat an optional outerwear-only change as a distinct core outfit", () => {
