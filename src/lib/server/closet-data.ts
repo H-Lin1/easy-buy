@@ -22,13 +22,19 @@ type ClosetRetrievalRow = {
   user_corrected: boolean | null;
 };
 
-export async function loadRealClosetItems(supabase: SupabaseClient): Promise<ClothingItem[]> {
-  const { data, error } = await supabase
+export async function loadRealClosetItems(
+  supabase: SupabaseClient,
+  userId?: string,
+): Promise<ClothingItem[]> {
+  let query = supabase
     .from("closet_items")
     .select(
       "id,image_path,display_image_path,category,color,fit,style_tags,season,scenario_tags,wear_frequency,status,summary,embedding_text,embedding,ai_confidence,user_corrected",
     )
-    .neq("status", "archived")
+    .neq("status", "archived");
+  if (userId) query = query.eq("user_id", userId);
+
+  const { data, error } = await query
     .order("updated_at", { ascending: false })
     .limit(120);
 

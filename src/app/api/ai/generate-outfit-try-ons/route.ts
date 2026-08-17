@@ -35,6 +35,7 @@ import type {
   PurchaseCandidateAIProfile,
 } from "@/lib/ai/types";
 import { appEnv } from "@/lib/env";
+import { readPersistedDecisionRunTryOnBatch } from "@/lib/decision-runs/try-on-runner";
 
 export const runtime = "nodejs";
 
@@ -46,6 +47,7 @@ type AssessmentReportRow = {
   id: string;
   user_id: string;
   candidate_id: string;
+  decision_run_id: string | null;
   outfit_combinations: unknown;
   retrieved_context: unknown;
 };
@@ -119,6 +121,11 @@ export async function POST(request: NextRequest) {
     const report = await loadOwnedReport(supabase, parsed.data.reportId, userData.user.id);
     if (!report) {
       return NextResponse.json({ message: "Assessment report not found." }, { status: 404 });
+    }
+    if (report.decision_run_id) {
+      return NextResponse.json(
+        await readPersistedDecisionRunTryOnBatch(supabase, report),
+      );
     }
 
     const candidate = await loadCandidate(supabase, report.candidate_id);
@@ -213,7 +220,7 @@ async function loadOwnedReport(
 ) {
   const { data, error } = await supabase
     .from("assessment_reports")
-    .select("id,user_id,candidate_id,outfit_combinations,retrieved_context")
+    .select("id,user_id,candidate_id,decision_run_id,outfit_combinations,retrieved_context")
     .eq("id", reportId)
     .eq("user_id", userId)
     .maybeSingle();

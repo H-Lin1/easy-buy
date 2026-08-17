@@ -68,6 +68,19 @@ import {
   type ClosetUploadTaskProgress,
 } from "@/lib/closet/upload-progress";
 import { normalizeClosetSeasons } from "@/lib/closet/season";
+import {
+  DECISION_RUN_POLL_INTERVAL_MS,
+  getStableDecisionSubmission,
+  indexLatestDecisionRuns,
+  isDecisionRunActive,
+  isDecisionRunTerminal,
+  mapDecisionRunRow,
+  mergeDecisionRun,
+  mergeDecisionRuns,
+  type DecisionRun,
+  type DecisionRunRow,
+  type PendingDecisionSubmission,
+} from "@/lib/decision-runs";
 import { getGarmentEvidenceRole } from "@/lib/garment/category";
 import {
   createTimingTrace,
@@ -320,6 +333,7 @@ type ChatMessageRow = {
   image_path: string | null;
   candidate_id: string | null;
   report_id: string | null;
+  decision_run_id?: string | null;
   metadata: Record<string, unknown> | null;
   created_at: string;
 };
@@ -394,6 +408,7 @@ type DecisionChatState = {
   selectedDecisionStatus?: DecisionStatus;
   candidateId?: string;
   reportId?: string;
+  decisionRunId?: string;
   error: string;
   notice: string;
 };
@@ -727,6 +742,22 @@ function createEmptyChatState(): DecisionChatState {
   };
 }
 
+function getPersistedDecisionProgressIndex(run?: DecisionRun) {
+  if (!run || run.stage === "queued") return 0;
+  if (run.stage === "analyzing_candidate") return 0;
+  if (run.stage === "retrieving_context") return 2;
+  return decisionProgressSteps.length - 1;
+}
+
+function getDecisionRunElapsedSeconds(run?: DecisionRun) {
+  if (!run?.startedAt) return undefined;
+  const end = run.decisionReadyAt ?? run.finishedAt;
+  if (!end) return undefined;
+  const elapsedMs = new Date(end).getTime() - new Date(run.startedAt).getTime();
+  if (!Number.isFinite(elapsedMs) || elapsedMs <= 0) return undefined;
+  return Math.max(1, Math.round(elapsedMs / 1000));
+}
+
 function createChatTitle(message: string, hasImage?: boolean) {
   const normalized = message.replace(/\s+/g, " ").trim();
   if (!normalized) return hasImage ? "图片购买决策" : "新的决策对话";
@@ -932,6 +963,9 @@ export default function Home() {
   const [chatSessions, setChatSessions] = useState<ChatSession[]>([]);
   const [activeChatId, setActiveChatId] = useState<string | undefined>();
   const [chatState, setChatState] = useState<DecisionChatState>(() => createEmptyChatState());
+  const [decisionRunsBySessionId, setDecisionRunsBySessionId] = useState<
+    Record<string, DecisionRun>
+  >({});
   const [userClosetItems, setUserClosetItems] = useState<ClothingItem[]>([]);
   const [closetLoading, setClosetLoading] = useState(false);
   const [closetUploadBusy, setClosetUploadBusy] = useState(false);
@@ -963,10 +997,26 @@ export default function Home() {
   const activeUserIdRef = useRef<string | null>(null);
   const closetSessionEpochRef = useRef(0);
   const closetLoadRequestRef = useRef(0);
+  const chatHydrationRequestRef = useRef(0);
+  const chatNavigationEpochRef = useRef(0);
+  const hydratedDecisionRunFingerprintRef = useRef<string | null>(null);
+  const openChatSessionRef = useRef<
+    (sessionId: string, options?: { navigate?: boolean }) => Promise<void>
+  >(async () => undefined);
+  const activeChatIdRef = useRef<string | undefined>(undefined);
   const displayCompletionSummary = useMemo(
     () => formatDisplayCompletionNoticeSummary(displayCompletionNotices, userClosetItems),
     [displayCompletionNotices, userClosetItems],
   );
+
+  const resetActiveChatState = useCallback(() => {
+    chatNavigationEpochRef.current += 1;
+    chatHydrationRequestRef.current += 1;
+    hydratedDecisionRunFingerprintRef.current = null;
+    activeChatIdRef.current = undefined;
+    setActiveChatId(undefined);
+    setChatState(createEmptyChatState());
+  }, []);
 
   const flushClosetUploadTraces = useCallback(() => {
     activeClosetUploadTracesRef.current.forEach((context) => {
@@ -1206,6 +1256,28 @@ export default function Home() {
     [supabase],
   );
 
+  const loadDecisionRuns = useCallback(
+    async (userId: string) => {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+      if (!token || activeUserIdRef.current !== userId) return;
+
+      const response = await fetch("/api/ai/decision-runs", {
+        headers: { Authorization: `Bearer ${token}` },
+        cache: "no-store",
+      });
+      if (!response.ok) {
+        throw new Error("决策任务状态读取失败。");
+      }
+
+      const result = (await response.json()) as { runs?: DecisionRun[] };
+      if (activeUserIdRef.current !== userId) return;
+      const latestRuns = Object.values(indexLatestDecisionRuns(result.runs ?? []));
+      setDecisionRunsBySessionId((current) => mergeDecisionRuns(current, latestRuns));
+    },
+    [supabase],
+  );
+
   const loadDecisionItems = useCallback(
     async (userId: string) => {
       const { data, error } = await supabase
@@ -1374,15 +1446,18 @@ export default function Home() {
         const sessionUser = data.session?.user ?? null;
         const userChanged = updateAuthenticatedUser(sessionUser);
         if (sessionUser && userChanged) {
+          resetActiveChatState();
           setProfile(null);
           setUserClosetItems([]);
           setChatSessions([]);
           setDecisionItems([]);
+          setDecisionRunsBySessionId({});
           const results = await Promise.allSettled([
             withTimeout(loadProfile(sessionUser.id), 8000, "profile load"),
             withTimeout(loadClosetItems(sessionUser.id), 8000, "closet load"),
             withTimeout(loadChatSessions(sessionUser.id), 8000, "chat sessions load"),
             withTimeout(loadDecisionItems(sessionUser.id), 8000, "decision items load"),
+            withTimeout(loadDecisionRuns(sessionUser.id), 8000, "decision runs load"),
           ]);
 
           if (activeUserIdRef.current !== sessionUser.id) return;
@@ -1397,8 +1472,9 @@ export default function Home() {
               }
               if (index === 2) setChatSessions([]);
               if (index === 3) setDecisionItems([]);
+              if (index === 4) setDecisionRunsBySessionId({});
               console.error(
-                ["profile", "closet", "chats", "decisions"][index],
+                ["profile", "closet", "chats", "decisions", "decision runs"][index],
                 result.reason,
               );
             }
@@ -1422,21 +1498,24 @@ export default function Home() {
       setAuthLoading(false);
       if (sessionUser) {
         if (!userChanged) return;
+        resetActiveChatState();
         setProfile(null);
         setUserClosetItems([]);
         setChatSessions([]);
         setDecisionItems([]);
+        setDecisionRunsBySessionId({});
         loadProfile(sessionUser.id);
         loadClosetItems(sessionUser.id);
         loadChatSessions(sessionUser.id);
         loadDecisionItems(sessionUser.id);
+        loadDecisionRuns(sessionUser.id);
       } else {
+        resetActiveChatState();
         setProfile(null);
         setUserClosetItems([]);
         setChatSessions([]);
         setDecisionItems([]);
-        setActiveChatId(undefined);
-        setChatState(createEmptyChatState());
+        setDecisionRunsBySessionId({});
       }
     });
 
@@ -1452,15 +1531,102 @@ export default function Home() {
     loadChatSessions,
     loadClosetItems,
     loadDecisionItems,
+    loadDecisionRuns,
     loadProfile,
+    resetActiveChatState,
     supabase,
     updateAuthenticatedUser,
   ]);
+
+  useEffect(() => {
+    activeChatIdRef.current = activeChatId;
+  }, [activeChatId]);
+
+  useEffect(() => {
+    if (!user) return;
+
+    const userId = user.id;
+    const channel = supabase
+      .channel(`decision-runs:${userId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "decision_runs",
+          filter: `user_id=eq.${userId}`,
+        },
+        (payload) => {
+          const nextRow = payload.new as DecisionRunRow;
+          if (!nextRow?.id || nextRow.user_id !== userId) return;
+          const nextRun = mapDecisionRunRow(nextRow);
+          setDecisionRunsBySessionId((current) => mergeDecisionRun(current, nextRun));
+        },
+      )
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") {
+          void loadDecisionRuns(userId).catch(console.error);
+        }
+      });
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void loadDecisionRuns(userId).catch(console.error);
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      void supabase.removeChannel(channel);
+    };
+  }, [loadDecisionRuns, supabase, user]);
+
+  const hasActiveDecisionRuns = useMemo(
+    () => Object.values(decisionRunsBySessionId).some((run) => isDecisionRunActive(run.status)),
+    [decisionRunsBySessionId],
+  );
+
+  useEffect(() => {
+    if (!user || !hasActiveDecisionRuns) return;
+
+    const intervalId = window.setInterval(() => {
+      void loadDecisionRuns(user.id).catch(console.error);
+    }, DECISION_RUN_POLL_INTERVAL_MS);
+
+    return () => window.clearInterval(intervalId);
+  }, [hasActiveDecisionRuns, loadDecisionRuns, user]);
 
   const filteredDecisions = useMemo(() => {
     if (filter === "all") return decisionItems;
     return decisionItems.filter((item) => item.status === filter);
   }, [decisionItems, filter]);
+  const activeDecisionRun = activeChatId
+    ? decisionRunsBySessionId[activeChatId]
+    : undefined;
+
+  useEffect(() => {
+    openChatSessionRef.current = openChatSession;
+  });
+
+  useEffect(() => {
+    if (!activeChatId || !activeDecisionRun) return;
+    if (!activeDecisionRun.reportId && !isDecisionRunTerminal(activeDecisionRun.status)) {
+      return;
+    }
+
+    const fingerprint = [
+      activeDecisionRun.sessionId,
+      activeDecisionRun.id,
+      activeDecisionRun.reportId ?? "",
+      activeDecisionRun.assistantMessageId ?? "",
+      activeDecisionRun.status,
+      activeDecisionRun.updatedAt,
+    ].join(":");
+    if (hydratedDecisionRunFingerprintRef.current === fingerprint) return;
+    hydratedDecisionRunFingerprintRef.current = fingerprint;
+    void openChatSessionRef.current(activeChatId, { navigate: false });
+  }, [activeChatId, activeDecisionRun]);
 
   async function saveProfile(nextProfile: UserProfile) {
     const { data, error } = await supabase
@@ -1494,8 +1660,8 @@ export default function Home() {
     setUserClosetItems([]);
     setChatSessions([]);
     setDecisionItems([]);
-    setActiveChatId(undefined);
-    setChatState(createEmptyChatState());
+    setDecisionRunsBySessionId({});
+    resetActiveChatState();
     clearClosetTransientState();
     setView("chat");
   }
@@ -2817,14 +2983,36 @@ export default function Home() {
   }
 
   async function startNewChat() {
-    setActiveChatId(undefined);
-    setChatState(createEmptyChatState());
+    resetActiveChatState();
     setView("chat");
   }
 
+  async function handleDecisionRunCreated(run: DecisionRun) {
+    setDecisionRunsBySessionId((current) => mergeDecisionRun(current, run));
+    if (activeChatIdRef.current === run.sessionId) {
+      setChatState((current) => ({
+        ...current,
+        message: "",
+        decisionRunId: run.id,
+        error: "",
+        notice: "",
+      }));
+    }
+    if (user) await loadChatSessions(user.id);
+  }
+
+  function applyChatStateForSession(
+    sessionId: string,
+    patch: Partial<DecisionChatState>,
+  ) {
+    if (activeChatIdRef.current !== sessionId) return;
+    setChatState((current) => ({ ...current, ...patch }));
+  }
+
   async function ensureChatSession(title: string) {
-    if (activeChatId) return activeChatId;
+    if (activeChatIdRef.current) return activeChatIdRef.current;
     if (!user) throw new Error("登录状态已过期，请重新登录。");
+    const navigationEpoch = chatNavigationEpochRef.current;
 
     const { data, error } = await supabase
       .from("chat_sessions")
@@ -2838,73 +3026,15 @@ export default function Home() {
 
     if (error) throw error;
     const session = data as ChatSessionRow;
-    setActiveChatId(session.id);
+    if (
+      chatNavigationEpochRef.current === navigationEpoch &&
+      activeChatIdRef.current === undefined
+    ) {
+      activeChatIdRef.current = session.id;
+      setActiveChatId(session.id);
+    }
     await loadChatSessions(user.id);
     return session.id;
-  }
-
-  async function saveChatTurn({
-    sessionId,
-    userMessage,
-    imagePath,
-    imageName,
-    report,
-    candidateId,
-    reportId,
-    decisionElapsedSeconds,
-  }: {
-    sessionId: string;
-    userMessage: string;
-    imagePath?: string;
-    imageName?: string;
-    report: PurchaseDecisionReport;
-    candidateId?: string;
-    reportId?: string;
-    decisionElapsedSeconds: number;
-  }) {
-    if (!user) throw new Error("登录状态已过期，请重新登录。");
-
-    const { error: messageError } = await supabase.from("chat_messages").insert([
-      {
-        session_id: sessionId,
-        user_id: user.id,
-        role: "user",
-        content: userMessage || "我想判断这件衣服是否值得买。",
-        image_path: imagePath ?? null,
-        candidate_id: candidateId ?? null,
-        report_id: reportId ?? null,
-        metadata: {
-          imageName,
-        },
-      },
-      {
-        session_id: sessionId,
-        user_id: user.id,
-        role: "assistant",
-        content: report.summary,
-        image_path: null,
-        candidate_id: candidateId ?? null,
-        report_id: reportId ?? null,
-        metadata: {
-          report,
-          decisionElapsedSeconds,
-        },
-      },
-    ]);
-
-    if (messageError) throw messageError;
-
-    const { error: sessionError } = await supabase
-      .from("chat_sessions")
-      .update({
-        last_candidate_id: candidateId ?? null,
-        last_report_id: reportId ?? null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", sessionId);
-
-    if (sessionError) throw sessionError;
-    await loadChatSessions(user.id);
   }
 
   async function saveImageRequiredTurn({
@@ -2958,14 +3088,49 @@ export default function Home() {
     await loadChatSessions(user.id);
   }
 
-  async function openChatSession(sessionId: string) {
+  async function openChatSession(
+    sessionId: string,
+    options: { navigate?: boolean } = {},
+  ) {
     if (!user) return;
+    const navigate = options.navigate ?? true;
+    const requestId = chatHydrationRequestRef.current + 1;
+    chatHydrationRequestRef.current = requestId;
 
-    const { data, error } = await supabase
-      .from("chat_messages")
-      .select("id,session_id,role,content,image_path,candidate_id,report_id,metadata,created_at")
-      .eq("session_id", sessionId)
-      .order("created_at", { ascending: true });
+    if (navigate) {
+      chatNavigationEpochRef.current += 1;
+      hydratedDecisionRunFingerprintRef.current = null;
+      activeChatIdRef.current = sessionId;
+      setActiveChatId(sessionId);
+      setChatState(createEmptyChatState());
+      setView("chat");
+    } else if (activeChatIdRef.current !== sessionId) {
+      return;
+    }
+
+    const [{ data, error }, { data: runData, error: runError }] = await Promise.all([
+      supabase
+        .from("chat_messages")
+        .select(
+          "id,session_id,role,content,image_path,candidate_id,report_id,decision_run_id,metadata,created_at",
+        )
+        .eq("session_id", sessionId)
+        .order("created_at", { ascending: true }),
+      supabase
+        .from("decision_runs")
+        .select("*")
+        .eq("session_id", sessionId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    ]);
+
+    if (
+      requestId !== chatHydrationRequestRef.current ||
+      activeChatIdRef.current !== sessionId
+    ) {
+      return;
+    }
 
     if (error) {
       console.error(error);
@@ -2973,13 +3138,34 @@ export default function Home() {
         ...current,
         error: "聊天记录读取失败，请稍后再试。",
       }));
-      setView("chat");
       return;
     }
 
+    if (runError) console.error(runError);
+    const persistedRun = runData ? mapDecisionRunRow(runData as DecisionRunRow) : undefined;
+    if (persistedRun) {
+      setDecisionRunsBySessionId((current) => mergeDecisionRun(current, persistedRun));
+    }
+
     const messages = (data ?? []) as ChatMessageRow[];
-    const latestUserMessage = [...messages].reverse().find((message) => message.role === "user");
-    const latestAssistantMessage = [...messages].reverse().find((message) => message.role === "assistant");
+    const latestMessage = messages.at(-1);
+    const persistedRunIsLatestTurn = Boolean(
+      persistedRun &&
+        (!latestMessage ||
+          latestMessage.decision_run_id === persistedRun.id ||
+          new Date(persistedRun.createdAt).getTime() >=
+            new Date(latestMessage.created_at).getTime()),
+    );
+    const visibleMessages = persistedRunIsLatestTurn
+      ? messages.filter((message) => message.decision_run_id === persistedRun?.id)
+      : messages.filter((message) => !message.decision_run_id);
+    const latestUserMessage = [...visibleMessages]
+      .reverse()
+      .find((message) => message.role === "user");
+    const latestAssistantMessage = [...visibleMessages]
+      .reverse()
+      .find((message) => message.role === "assistant");
+    const visibleRun = persistedRunIsLatestTurn ? persistedRun : undefined;
     const restoredReport = latestAssistantMessage?.metadata?.report as
       | PurchaseDecisionReport
       | undefined;
@@ -2996,8 +3182,15 @@ export default function Home() {
       signedImageUrl,
     );
     const restoredCandidateId =
-      latestAssistantMessage?.candidate_id ?? latestUserMessage?.candidate_id ?? undefined;
-    const restoredReportId = latestAssistantMessage?.report_id ?? latestUserMessage?.report_id ?? undefined;
+      latestAssistantMessage?.candidate_id ??
+      latestUserMessage?.candidate_id ??
+      visibleRun?.candidateId ??
+      undefined;
+    const restoredReportId =
+      latestAssistantMessage?.report_id ??
+      latestUserMessage?.report_id ??
+      visibleRun?.reportId ??
+      undefined;
     const savedDecisionResult = await (
       restoredCandidateId
         ? supabase
@@ -3011,9 +3204,15 @@ export default function Home() {
     const savedDecisionStatus = savedDecisionResult.data?.status as DecisionStatus | undefined;
     const restoredElapsedSeconds = readDecisionElapsedSeconds(
       latestAssistantMessage?.metadata?.decisionElapsedSeconds,
-    );
+    ) ?? getDecisionRunElapsedSeconds(visibleRun);
 
-    setActiveChatId(sessionId);
+    if (
+      requestId !== chatHydrationRequestRef.current ||
+      activeChatIdRef.current !== sessionId
+    ) {
+      return;
+    }
+
     setChatState({
       message: "",
       lastUserMessage: latestUserMessage?.content ?? "",
@@ -3028,45 +3227,67 @@ export default function Home() {
       selectedDecisionStatus: hydratedReport ? savedDecisionStatus : undefined,
       candidateId: restoredCandidateId,
       reportId: restoredReportId,
-      error: "",
+      decisionRunId:
+        latestAssistantMessage?.decision_run_id ??
+        latestUserMessage?.decision_run_id ??
+        visibleRun?.id,
+      error:
+        visibleRun?.status === "failed"
+          ? (visibleRun.errorMessage ?? "这次决策没有完成，请稍后重试。")
+          : visibleRun?.status === "cancelled"
+            ? "这次决策已取消。"
+            : "",
       notice: "",
     });
-    setView("chat");
   }
 
   async function deleteChatSession(sessionId: string) {
     if (!user) return;
 
-    setChatSessions((sessions) => sessions.filter((session) => session.id !== sessionId));
-    setDecisionItems((items) => items.filter((item) => item.sessionId !== sessionId));
-    if (activeChatId === sessionId) {
-      setActiveChatId(undefined);
-      setChatState(createEmptyChatState());
+    try {
+      await archiveChatSessionOnServer(sessionId);
+    } catch (currentError) {
+      if (activeChatIdRef.current === sessionId) {
+        setChatState((current) => ({
+          ...current,
+          error:
+            currentError instanceof Error
+              ? currentError.message
+              : "删除对话失败，请稍后再试。",
+          notice: "",
+        }));
+      }
+      return;
     }
 
-    const { error: decisionDeleteError } = await supabase
-      .from("decision_items")
-      .delete()
-      .eq("session_id", sessionId)
-      .eq("user_id", user.id);
+    setChatSessions((sessions) => sessions.filter((session) => session.id !== sessionId));
+    setDecisionItems((items) => items.filter((item) => item.sessionId !== sessionId));
+    setDecisionRunsBySessionId((current) => {
+      const next = { ...current };
+      delete next[sessionId];
+      return next;
+    });
+    if (activeChatId === sessionId) {
+      resetActiveChatState();
+    }
+  }
 
-    const { error } = await supabase
-      .from("chat_sessions")
-      .update({
-        status: "archived",
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", sessionId)
-      .eq("user_id", user.id);
+  async function archiveChatSessionOnServer(sessionId: string) {
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+    if (!token) throw new Error("登录状态已过期，请重新登录。");
 
-    if (decisionDeleteError || error) {
-      setChatState((current) => ({
-        ...current,
-        error: `删除对话失败：${decisionDeleteError?.message ?? error?.message}`,
-        notice: "",
-      }));
-      await loadChatSessions(user.id);
-      await loadDecisionItems(user.id);
+    const response = await fetch("/api/chat-sessions/archive", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ sessionId }),
+    });
+    if (!response.ok) {
+      const result = (await response.json().catch(() => null)) as { message?: string } | null;
+      throw new Error(result?.message ?? "删除对话失败，请稍后再试。");
     }
   }
 
@@ -3168,15 +3389,39 @@ export default function Home() {
     const targetIdSet = new Set(ids);
     const sessionIdSet = new Set(sessionIds);
 
+    try {
+      await Promise.all(sessionIds.map((sessionId) => archiveChatSessionOnServer(sessionId)));
+    } catch (currentError) {
+      if (activeChatIdRef.current && sessionIdSet.has(activeChatIdRef.current)) {
+        setChatState((current) => ({
+          ...current,
+          error:
+            currentError instanceof Error
+              ? currentError.message
+              : "删除关联对话失败，请稍后再试。",
+          notice: "",
+        }));
+      }
+      await Promise.allSettled([
+        loadChatSessions(user.id),
+        loadDecisionItems(user.id),
+      ]);
+      return;
+    }
+
     setDecisionItems((items) =>
       items.filter((item) => !targetIdSet.has(item.id) && !(item.sessionId && sessionIdSet.has(item.sessionId))),
     );
     if (sessionIds.length) {
       setChatSessions((sessions) => sessions.filter((session) => !sessionIdSet.has(session.id)));
+      setDecisionRunsBySessionId((current) => {
+        const next = { ...current };
+        sessionIds.forEach((sessionId) => delete next[sessionId]);
+        return next;
+      });
     }
     if (activeChatId && sessionIdSet.has(activeChatId)) {
-      setActiveChatId(undefined);
-      setChatState(createEmptyChatState());
+      resetActiveChatState();
     }
 
     const errors: string[] = [];
@@ -3188,31 +3433,14 @@ export default function Home() {
       .eq("user_id", user.id);
     if (selectedDeleteError) errors.push(selectedDeleteError.message);
 
-    if (sessionIds.length) {
-      const { error: sessionDecisionDeleteError } = await supabase
-        .from("decision_items")
-        .delete()
-        .in("session_id", sessionIds)
-        .eq("user_id", user.id);
-      if (sessionDecisionDeleteError) errors.push(sessionDecisionDeleteError.message);
-
-      const { error: sessionArchiveError } = await supabase
-        .from("chat_sessions")
-        .update({
-          status: "archived",
-          updated_at: new Date().toISOString(),
-        })
-        .in("id", sessionIds)
-        .eq("user_id", user.id);
-      if (sessionArchiveError) errors.push(sessionArchiveError.message);
-    }
-
     if (errors.length) {
-      setChatState((current) => ({
-        ...current,
-        error: `删除清单失败：${errors[0]}`,
-        notice: "",
-      }));
+      if (activeChatIdRef.current && sessionIdSet.has(activeChatIdRef.current)) {
+        setChatState((current) => ({
+          ...current,
+          error: `删除清单失败：${errors[0]}`,
+          notice: "",
+        }));
+      }
       await loadDecisionItems(user.id);
       await loadChatSessions(user.id);
     }
@@ -3344,9 +3572,11 @@ export default function Home() {
               profile={profile ?? createEmptyProfile(user.id)}
               chatState={chatState}
               activeChatId={activeChatId}
+              activeDecisionRun={activeDecisionRun}
               onChatStateChange={setChatState}
               onEnsureChatSession={ensureChatSession}
-              onSaveChatTurn={saveChatTurn}
+              onRunCreated={handleDecisionRunCreated}
+              onApplySessionPatch={applyChatStateForSession}
               onSaveImageRequiredTurn={saveImageRequiredTurn}
               onOpenDecisions={() => setView("decisions")}
               onDecision={saveCurrentDecision}
@@ -3844,9 +4074,11 @@ function ChatView({
   profile,
   chatState,
   activeChatId,
+  activeDecisionRun,
   onChatStateChange,
   onEnsureChatSession,
-  onSaveChatTurn,
+  onRunCreated,
+  onApplySessionPatch,
   onSaveImageRequiredTurn,
   onOpenDecisions,
   onDecision,
@@ -3854,20 +4086,16 @@ function ChatView({
   profile: UserProfile;
   chatState: DecisionChatState;
   activeChatId?: string;
+  activeDecisionRun?: DecisionRun;
   onChatStateChange: (
     updater: DecisionChatState | ((current: DecisionChatState) => DecisionChatState),
   ) => void;
   onEnsureChatSession: (title: string) => Promise<string>;
-  onSaveChatTurn: (payload: {
-    sessionId: string;
-    userMessage: string;
-    imagePath?: string;
-    imageName?: string;
-    report: PurchaseDecisionReport;
-    candidateId?: string;
-    reportId?: string;
-    decisionElapsedSeconds: number;
-  }) => Promise<void>;
+  onRunCreated: (run: DecisionRun) => Promise<void>;
+  onApplySessionPatch: (
+    sessionId: string,
+    patch: Partial<DecisionChatState>,
+  ) => void;
   onSaveImageRequiredTurn: (payload: {
     sessionId: string;
     userMessage: string;
@@ -3877,9 +4105,8 @@ function ChatView({
   onDecision: (status: DecisionStatus) => Promise<void>;
 }) {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
-  const [isAssessing, setIsAssessing] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isRequestingImageGuidance, setIsRequestingImageGuidance] = useState(false);
-  const [decisionProgressIndex, setDecisionProgressIndex] = useState(0);
   const [expandedDecisionProgressSessionId, setExpandedDecisionProgressSessionId] = useState<
     string | null
   >(null);
@@ -3892,6 +4119,8 @@ function ChatView({
   const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
   const decisionStartedAtRef = useRef<number | null>(null);
   const decisionProgressScrollerRef = useRef<HTMLDivElement | null>(null);
+  const submissionInFlightRef = useRef(false);
+  const pendingDecisionSubmissionRef = useRef<PendingDecisionSubmission | null>(null);
   const {
     message,
     lastUserMessage,
@@ -3902,6 +4131,14 @@ function ChatView({
     error,
     notice,
   } = chatState;
+  const isPersistedRunActive = Boolean(
+    activeDecisionRun && isDecisionRunActive(activeDecisionRun.status),
+  );
+  const isAwaitingPersistedDecision = Boolean(
+    isPersistedRunActive && (!activeDecisionRun?.reportId || !assessment),
+  );
+  const isAssessing = isSubmitting || isAwaitingPersistedDecision;
+  const isComposerBusy = isSubmitting || isPersistedRunActive;
   const hasUserTurn = Boolean(lastUserMessage.trim() || purchaseImageDataUrl);
   const isConversationEmpty =
     !lastUserMessage.trim() && !assistantMessage && !assessment && !isAssessing && !error && !notice;
@@ -3919,16 +4156,16 @@ function ChatView({
   const isDecisionProgressExpanded = Boolean(
     activeChatId && expandedDecisionProgressSessionId === activeChatId,
   );
-
-  useEffect(() => {
-    if (!isAssessing || isRequestingImageGuidance) return;
-
-    const interval = window.setInterval(() => {
-      setDecisionProgressIndex((index) => Math.min(index + 1, progressSteps.length - 1));
-    }, 4500);
-
-    return () => window.clearInterval(interval);
-  }, [isAssessing, isRequestingImageGuidance, progressSteps.length]);
+  const activeDecisionStatusLabel =
+    activeDecisionRun?.status === "queued" ? "排队中" : "思考中";
+  const showActiveDecisionSteps = Boolean(
+    isAssessing && activeDecisionRun?.status !== "queued",
+  );
+  const decisionProgressIndex = getPersistedDecisionProgressIndex(activeDecisionRun);
+  const persistedTryOnRefreshKey =
+    activeDecisionRun && activeDecisionRun.id === chatState.decisionRunId
+      ? `${activeDecisionRun.stage}:${activeDecisionRun.status}:${activeDecisionRun.updatedAt}`
+      : "legacy";
 
   useEffect(() => {
     if (!isAssessing || isRequestingImageGuidance) return;
@@ -4015,7 +4252,13 @@ function ChatView({
 
     void loadTryOns();
     return () => controller.abort();
-  }, [assessment, chatState.reportId, supabase, tryOnRequestVersion]);
+  }, [
+    assessment,
+    chatState.reportId,
+    persistedTryOnRefreshKey,
+    supabase,
+    tryOnRequestVersion,
+  ]);
 
   function updateChatState(patch: Partial<DecisionChatState>) {
     onChatStateChange((current) => ({ ...current, ...patch }));
@@ -4023,9 +4266,17 @@ function ChatView({
 
   async function handleSubmit() {
     const trimmedMessage = message.trim();
-    if ((!trimmedMessage && !purchaseImageDataUrl) || isAssessing) return;
+    if (
+      (!trimmedMessage && !purchaseImageDataUrl) ||
+      isComposerBusy ||
+      submissionInFlightRef.current
+    ) {
+      return;
+    }
     const isImageRequiredRequest = !purchaseImageDataUrl;
+    let targetSessionId: string | undefined;
 
+    submissionInFlightRef.current = true;
     updateChatState({
       lastUserMessage: trimmedMessage,
       assistantMessage: undefined,
@@ -4035,9 +4286,8 @@ function ChatView({
       error: "",
       notice: "",
     });
-    setIsAssessing(true);
+    setIsSubmitting(true);
     setIsRequestingImageGuidance(isImageRequiredRequest);
-    setDecisionProgressIndex(0);
     setExpandedDecisionProgressSessionId(null);
     setTryOnBatch({ status: "idle", outfits: [] });
     decisionStartedAtRef.current = Date.now();
@@ -4047,9 +4297,58 @@ function ChatView({
       const sessionId =
         activeChatId ??
         (await onEnsureChatSession(createChatTitle(trimmedMessage, Boolean(purchaseImageDataUrl))));
+      targetSessionId = sessionId;
       const { data } = await supabase.auth.getSession();
       const token = data.session?.access_token;
       if (!token) throw new Error("登录状态已过期，请重新登录。");
+
+      if (purchaseImageDataUrl) {
+        const submission = getStableDecisionSubmission(
+          pendingDecisionSubmissionRef.current,
+          {
+            sessionId,
+            message: trimmedMessage,
+            imageDataUrl: purchaseImageDataUrl,
+            imageName: purchaseImageName,
+          },
+        );
+        pendingDecisionSubmissionRef.current = submission;
+        const clientRequestId = submission.clientRequestId;
+        const response = await fetch("/api/ai/decision-runs", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            sessionId,
+            clientRequestId,
+            message: trimmedMessage,
+            imageDataUrl: purchaseImageDataUrl,
+            imageName: purchaseImageName,
+            userProfile: {
+              heightCm: profile.heightCm ?? undefined,
+              weightKg: profile.weightKg ?? undefined,
+              bmi: profile.bmi ?? undefined,
+              stylePreferences: profile.stylePreferences,
+              commonScenarios: profile.commonScenarios,
+              budgetSensitivity: profile.budgetSensitivity,
+            },
+          }),
+        });
+
+        if (!response.ok) {
+          const errorData = (await response.json().catch(() => null)) as {
+            message?: string;
+          } | null;
+          throw new Error(errorData?.message ?? "创建决策任务失败，请稍后再试。");
+        }
+
+        const result = (await response.json()) as { run: DecisionRun };
+        pendingDecisionSubmissionRef.current = null;
+        await onRunCreated(result.run);
+        return;
+      }
 
       const response = await fetch("/api/ai/assess-purchase", {
         method: "POST",
@@ -4085,20 +4384,13 @@ function ChatView({
         throw new Error(errorMessage);
       }
 
-      const responseData = (await response.json()) as
-        | {
-            mode: "image_required";
-            message: string;
-          }
-        | {
-            mode: "assessment";
-            report: PurchaseDecisionReport;
-            candidateId?: string;
-            reportId?: string;
-          };
+      const responseData = (await response.json()) as {
+        mode: "image_required";
+        message: string;
+      };
 
       if (responseData.mode === "image_required") {
-        updateChatState({
+        onApplySessionPatch(sessionId, {
           message: "",
           assistantMessage: responseData.message,
           assessment: null,
@@ -4117,36 +4409,9 @@ function ChatView({
         return;
       }
 
-      const assessmentData = responseData;
-      const elapsedSeconds = Math.max(
-        1,
-        Math.round((Date.now() - (decisionStartedAtRef.current ?? Date.now())) / 1000),
-      );
-      setDecisionProgressIndex(progressSteps.length - 1);
-      setExpandedDecisionProgressSessionId(null);
-      updateChatState({
-        message: "",
-        assistantMessage: undefined,
-        assessment: assessmentData.report,
-        decisionElapsedSeconds: elapsedSeconds,
-        selectedDecisionStatus: undefined,
-        candidateId: assessmentData.candidateId,
-        reportId: assessmentData.reportId,
-        error: "",
-        notice: "",
-      });
-      await onSaveChatTurn({
-        sessionId,
-        userMessage: trimmedMessage,
-        imagePath: assessmentData.report.candidate.screenshotPath,
-        imageName: purchaseImageName,
-        report: assessmentData.report,
-        candidateId: assessmentData.candidateId,
-        reportId: assessmentData.reportId,
-        decisionElapsedSeconds: elapsedSeconds,
-      });
+      throw new Error("回复格式无效，请稍后再试。");
     } catch (currentError) {
-      updateChatState({
+      const patch = {
         error:
           currentError instanceof Error
             ? currentError.message
@@ -4154,10 +4419,16 @@ function ChatView({
               ? "回复失败，请稍后再试。"
               : "生成报告失败",
         notice: "",
-      });
+      };
+      if (targetSessionId) {
+        onApplySessionPatch(targetSessionId, patch);
+      } else {
+        updateChatState(patch);
+      }
     } finally {
+      submissionInFlightRef.current = false;
       decisionStartedAtRef.current = null;
-      setIsAssessing(false);
+      setIsSubmitting(false);
       setIsRequestingImageGuidance(false);
     }
   }
@@ -4188,7 +4459,7 @@ function ChatView({
 
             <Composer
               variant="starter"
-              isAssessing={isAssessing}
+              isAssessing={isComposerBusy}
               value={message}
               imageDataUrl={purchaseImageDataUrl}
               imageName={purchaseImageName}
@@ -4241,7 +4512,9 @@ function ChatView({
               <section className="mt-8" aria-live="polite">
                 <div className="flex flex-col gap-3">
                   {isAssessing ? (
-                    <span className="w-fit text-sm text-[#9a9398]">思考中</span>
+                    <span className="w-fit text-sm text-[#9a9398]">
+                      {activeDecisionStatusLabel}
+                    </span>
                   ) : (
                     <button
                       type="button"
@@ -4265,7 +4538,7 @@ function ChatView({
                   <span className="h-px w-full bg-[#e4dedb]" aria-hidden="true" />
                 </div>
 
-                {(isAssessing || isDecisionProgressExpanded) && (
+                {(showActiveDecisionSteps || isDecisionProgressExpanded) && (
                   <div
                     ref={decisionProgressScrollerRef}
                     className="view-scroll mt-4 max-w-full overflow-x-auto pb-1"
@@ -4275,9 +4548,15 @@ function ChatView({
                       aria-label="决策分析进度"
                     >
                       {progressSteps
-                        .slice(0, isAssessing ? decisionProgressIndex + 1 : progressSteps.length)
+                        .slice(
+                          0,
+                          showActiveDecisionSteps
+                            ? decisionProgressIndex + 1
+                            : progressSteps.length,
+                        )
                         .map((item, index) => {
-                          const isActive = isAssessing && index === decisionProgressIndex;
+                          const isActive =
+                            showActiveDecisionSteps && index === decisionProgressIndex;
                           return (
                             <li key={item} className="flex shrink-0 items-center text-sm">
                               {index > 0 && (
@@ -4350,6 +4629,7 @@ function ChatView({
                 activeOutfitIndex={activeOutfitIndex}
                 candidateImageDataUrl={purchaseImageDataUrl}
                 selectedDecisionStatus={chatState.selectedDecisionStatus}
+                canRetryTryOns={!chatState.decisionRunId}
                 onActiveOutfitIndexChange={setActiveOutfitIndex}
                 onPreviewImage={setPreviewImageUrl}
                 onRetryTryOns={() => setTryOnRequestVersion((version) => version + 1)}
@@ -4360,7 +4640,7 @@ function ChatView({
           </div>
 
           <Composer
-            isAssessing={isAssessing}
+            isAssessing={isComposerBusy}
             value={message}
             imageDataUrl={purchaseImageDataUrl}
             imageName={purchaseImageName}
@@ -4419,6 +4699,7 @@ function DecisionReportCard({
   activeOutfitIndex,
   candidateImageDataUrl,
   selectedDecisionStatus,
+  canRetryTryOns,
   onActiveOutfitIndexChange,
   onPreviewImage,
   onRetryTryOns,
@@ -4430,6 +4711,7 @@ function DecisionReportCard({
   activeOutfitIndex: number;
   candidateImageDataUrl?: string;
   selectedDecisionStatus?: DecisionStatus;
+  canRetryTryOns: boolean;
   onActiveOutfitIndexChange: (index: number) => void;
   onPreviewImage: (imageUrl: string) => void;
   onRetryTryOns: () => void;
@@ -4459,6 +4741,9 @@ function DecisionReportCard({
     assessment.decision === "buy" ? assessment.reasonsToBuy : assessment.reasonsToSave
   ).slice(0, 3);
   const cautions = assessment.risks.slice(0, 2);
+  const hasReadyTryOns = tryOnBatch.outfits.some(
+    (outfit) => outfit.status === "ready" && Boolean(outfit.imageUrl),
+  );
 
   return (
     <article className="mt-4 w-full pb-4">
@@ -4528,16 +4813,29 @@ function DecisionReportCard({
                   {tryOnBatch.message ?? "生成过程出现中断，可以重试未完成的方案。"}
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={onRetryTryOns}
-                className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#b2605e] px-4 text-sm font-medium text-white transition hover:bg-[#9e4f4d]"
-              >
-                <RefreshCw className="size-4" />
-                重新生成
-              </button>
+              {canRetryTryOns ? (
+                <button
+                  type="button"
+                  onClick={onRetryTryOns}
+                  className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#b2605e] px-4 text-sm font-medium text-white transition hover:bg-[#9e4f4d]"
+                >
+                  <RefreshCw className="size-4" />
+                  重新生成
+                </button>
+              ) : null}
             </div>
-            {eligibleOutfits[0] ? (
+            {hasReadyTryOns ? (
+              <OutfitTryOnViewer
+                reportOutfits={reportOutfits}
+                tryOnBatch={tryOnBatch}
+                activeIndex={activeOutfitIndex}
+                candidateName={candidateTitle}
+                candidateCategory={candidate.category || "待买商品"}
+                candidateImageUrl={candidateImageDataUrl ?? candidate.screenshotUrl}
+                onActiveIndexChange={onActiveOutfitIndexChange}
+                onPreviewImage={onPreviewImage}
+              />
+            ) : eligibleOutfits[0] ? (
               <OutfitSourceList
                 outfit={eligibleOutfits[0]}
                 candidateName={candidateTitle}

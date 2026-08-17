@@ -36,6 +36,7 @@ export function createAppEnv(env: AppEnvSource = process.env) {
     supabaseUrl: readEnv(env, "NEXT_PUBLIC_SUPABASE_URL"),
     supabaseAnonKey: readEnv(env, "NEXT_PUBLIC_SUPABASE_ANON_KEY"),
     supabaseServiceRoleKey: readEnv(env, "SUPABASE_SERVICE_ROLE_KEY"),
+    decisionRunRecoverySecret: readEnv(env, "DECISION_RUN_RECOVERY_SECRET"),
     databaseUrl: readEnv(env, "DATABASE_URL") ?? readEnv(env, "DATABASE_URL3"),
     ai: createAiProviderConfig(env),
   };
