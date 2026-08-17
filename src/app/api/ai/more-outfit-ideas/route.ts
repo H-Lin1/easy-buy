@@ -11,7 +11,7 @@ import type {
 } from "@/lib/ai/types";
 import { runPurchaseAssessment } from "@/lib/ai/workflow";
 import { appEnv } from "@/lib/env";
-import { loadRealClosetItems } from "@/lib/server/closet-data";
+import { createSignedImageUrl, loadRealClosetItems } from "@/lib/server/closet-data";
 
 export const runtime = "nodejs";
 
@@ -93,9 +93,12 @@ export async function POST(request: NextRequest) {
     const candidate = parsed.data.candidate as PurchaseCandidateAIProfile;
     const previousOutfitCombinations = parsed.data.previousOutfitCombinations;
     const candidateEmbeddingText = candidate.embeddingText ?? buildPurchaseEmbeddingText(candidate);
-    const [candidateEmbedding, closetItems] = await Promise.all([
+    const [candidateEmbedding, closetItems, refreshedScreenshotUrl] = await Promise.all([
       embedText(candidateEmbeddingText),
       loadRealClosetItems(supabase),
+      candidate.screenshotPath
+        ? createSignedImageUrl(supabase, "purchase-screenshots", candidate.screenshotPath)
+        : Promise.resolve(candidate.screenshotUrl),
     ]);
 
     const report = await runPurchaseAssessment({
@@ -105,6 +108,7 @@ export async function POST(request: NextRequest) {
       candidate: {
         ...candidate,
         embeddingText: candidateEmbeddingText,
+        screenshotUrl: refreshedScreenshotUrl ?? candidate.screenshotUrl,
       },
       candidateEmbedding,
       closetItems,

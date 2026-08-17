@@ -31,7 +31,7 @@ assertRequiredEnv([
   "NEXT_PUBLIC_SUPABASE_ANON_KEY",
   "SUPABASE_SERVICE_ROLE_KEY",
   "AI_VISION_API_KEY",
-  "AI_DECISION_API_KEY",
+  "AI_DECISION2_API_KEY",
   "AI_EMBEDDING_API_KEY",
   "AI_IMAGE_EDIT_API_KEY",
 ]);
@@ -95,7 +95,7 @@ try {
 } catch (error) {
   report.error = sanitizeAiScriptError(error, [
     env.AI_VISION_API_KEY,
-    env.AI_DECISION_API_KEY,
+    env.AI_DECISION2_API_KEY,
     env.AI_EMBEDDING_API_KEY,
     env.AI_IMAGE_EDIT_API_KEY,
   ]);

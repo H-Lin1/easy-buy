@@ -5,6 +5,7 @@ import { createTimingTrace } from "../performance/timing.ts";
 
 import {
   createImageBlobFromDataUrl,
+  createImageDataUrlFromBytes,
   createImageEditHeaders,
   createImageEditRequestForConfig,
   createImageEditRequestInit,
@@ -59,10 +60,13 @@ test("keeps SiliconFlow image editing on its JSON protocol", () => {
   });
 });
 
-test("builds the Tripo multipart edit contract without a manual content type", async () => {
+test("builds the Tripo native multi-image edit contract in source order", async () => {
   const request = createImageEditRequestForConfig(
     createImageConfig(),
-    `data:image/png;base64,${pngBase64}`,
+    [
+      `data:image/png;base64,${pngBase64}`,
+      `data:image/jpeg;base64,${jpegBase64}`,
+    ],
     "main prompt",
     "do not add a model",
   );
@@ -83,11 +87,40 @@ test("builds the Tripo multipart edit contract without a manual content type", a
   assert.match(prompt, /main prompt/);
   assert.match(prompt, /do not add a model/);
 
-  const image = request.formData.get("image[]");
-  assert.ok(image instanceof Blob);
-  assert.equal(image.type, "image/png");
-  assert.equal(image.name, "closet-input.png");
-  assert.deepEqual(Buffer.from(await image.arrayBuffer()), pngBytes);
+  const images = request.formData.getAll("image[]");
+  assert.equal(images.length, 2);
+  assert.ok(images[0] instanceof Blob);
+  assert.ok(images[1] instanceof Blob);
+  assert.equal(images[0].type, "image/png");
+  assert.equal(images[0].name, "input-1.png");
+  assert.equal(images[1].type, "image/jpeg");
+  assert.equal(images[1].name, "input-2.jpg");
+  assert.deepEqual(Buffer.from(await images[0].arrayBuffer()), pngBytes);
+  assert.deepEqual(Buffer.from(await images[1].arrayBuffer()), jpegBytes);
+});
+
+test("wraps original image bytes in data URLs without re-encoding them", () => {
+  const pngDataUrl = createImageDataUrlFromBytes(pngBytes);
+  const jpegDataUrl = createImageDataUrlFromBytes(jpegBytes);
+
+  assert.equal(pngDataUrl, `data:image/png;base64,${pngBase64}`);
+  assert.equal(jpegDataUrl, `data:image/jpeg;base64,${jpegBase64}`);
+});
+
+test("rejects native multi-image input for the legacy SiliconFlow contract", () => {
+  assert.throws(
+    () =>
+      createImageEditRequestForConfig(
+        createImageConfig({ provider: "siliconflow" }),
+        [
+          `data:image/png;base64,${pngBase64}`,
+          `data:image/jpeg;base64,${jpegBase64}`,
+        ],
+        "prompt",
+        "negative",
+      ),
+    /does not support native multi-image input/i,
+  );
 });
 
 test("accepts only supported input image data URLs before any provider request", () => {

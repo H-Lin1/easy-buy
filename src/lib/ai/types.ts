@@ -84,6 +84,7 @@ export type FashionKnowledgeSnippet = {
 };
 
 export type OutfitCombination = {
+  outfitId?: string;
   title: string;
   scenario: string;
   items: string[];
@@ -92,6 +93,23 @@ export type OutfitCombination = {
   visualIntent?: "outfit" | "alternative";
   visualType?: "evidence_board";
   visualItems?: OutfitEvidenceItem[];
+};
+
+export type OutfitTryOnStatus = "idle" | "generating" | "ready" | "failed" | "unavailable";
+
+export type OutfitTryOnResult = {
+  outfitId: string;
+  position: number;
+  closetItemIds: string[];
+  status: "ready" | "failed";
+  imageUrl?: string;
+  failureKind?: string;
+};
+
+export type OutfitTryOnBatch = {
+  status: OutfitTryOnStatus;
+  outfits: OutfitTryOnResult[];
+  message?: string;
 };
 
 export type OutfitEvidenceItem = {

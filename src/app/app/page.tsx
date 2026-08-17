@@ -14,6 +14,7 @@ import {
   MoreHorizontal,
   Pencil,
   Plus,
+  RefreshCw,
   Search,
   Send,
   Settings,
@@ -34,7 +35,8 @@ import type { DragEvent, ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ThinkingOrb, type OrbState } from "thinking-orbs";
 
-import type { PurchaseDecisionReport } from "@/lib/ai/types";
+import { getEligibleTryOnOutfits, withStableOutfitIds } from "@/lib/ai/outfit-try-on";
+import type { OutfitTryOnBatch, PurchaseDecisionReport } from "@/lib/ai/types";
 import { runWithConcurrency } from "@/lib/closet/concurrency";
 import {
   createEmptyClosetFilters,
@@ -66,6 +68,7 @@ import {
   type ClosetUploadTaskProgress,
 } from "@/lib/closet/upload-progress";
 import { normalizeClosetSeasons } from "@/lib/closet/season";
+import { getGarmentEvidenceRole } from "@/lib/garment/category";
 import {
   createTimingTrace,
   emitTimingSummary,
@@ -383,9 +386,11 @@ type DecisionClosetImageInfo = {
 type DecisionChatState = {
   message: string;
   lastUserMessage: string;
+  assistantMessage?: string;
   purchaseImageDataUrl?: string;
   purchaseImageName?: string;
   assessment: PurchaseDecisionReport | null;
+  decisionElapsedSeconds?: number;
   selectedDecisionStatus?: DecisionStatus;
   candidateId?: string;
   reportId?: string;
@@ -437,6 +442,15 @@ const decisionProgressSteps = [
   "筛选真实搭配组合",
   "补充穿搭知识",
   "长期主义决策思考",
+];
+
+const decisionProgressOrbStates: OrbState[] = [
+  "searching",
+  "connecting",
+  "weaving",
+  "solving",
+  "composing",
+  "working",
 ];
 
 function createEmptyProfile(userId: string): UserProfile {
@@ -657,8 +671,8 @@ function hydrateReportForDisplay(
             category: existing?.category ?? closetItem.category,
             imageUrl: closetItem.displayImageUrl ?? closetItem.imageUrl ?? closetItem.originalImageUrl ?? existing?.imageUrl,
             matchType: existing?.matchType ?? "outfit",
-            role: existing?.role ?? getClosetEvidenceRole(closetItem.category, report.candidate.category),
-            badge: existing?.badge ?? getClosetEvidenceRole(closetItem.category, report.candidate.category),
+            role: existing?.role ?? getGarmentEvidenceRole(closetItem.category, report.candidate.category),
+            badge: existing?.badge ?? getGarmentEvidenceRole(closetItem.category, report.candidate.category),
             reason:
               existing?.reason ??
               `可用于${combination.scenario || "日常"}搭配，和待买衣服在风格或场景上能自然衔接。`,
@@ -677,33 +691,6 @@ function hydrateReportForDisplay(
       };
     }),
   };
-}
-
-function getClosetEvidenceRole(category: string, candidateCategory?: string) {
-  const itemIsTop = /背心|吊带|T恤|衬衫|针织|卫衣|上衣|Polo/i.test(category);
-  const candidateIsOuter = /外套|西装|风衣|大衣|夹克|防晒衣|冲锋衣|马甲/i.test(candidateCategory ?? "");
-  const candidateCanLayerAsOuter = /衬衫|开衫|马甲|防晒衫|针织开衫/i.test(candidateCategory ?? "");
-
-  if (itemIsTop) return candidateIsOuter || candidateCanLayerAsOuter ? "可搭内搭" : "可搭上衣";
-  if (/外套|西装|风衣|大衣|夹克|防晒衣|冲锋衣|马甲/i.test(category)) return "可搭外套";
-  if (/半身裙|短裙|长裙|A字裙|铅笔裙|百褶裙|伞裙|包臀裙|裙装/i.test(category)) {
-    return "可搭裙装";
-  }
-  if (/裤|长裤|短裤|牛仔裤|直筒|阔腿|西装裤|休闲裤|工装裤|户外裤|运动裤|卫裤|瑜伽裤|鲨鱼裤|打底裤|皮裤|裙裤|下装/i.test(category)) {
-    return "可搭裤装";
-  }
-  if (/连衣裙|套装/i.test(category)) return "可搭套装";
-  return "可搭单品";
-}
-
-function formatCandidatePrice(candidate: PurchaseDecisionReport["candidate"]) {
-  if (!candidate.estimatedPrice) return "";
-  const evidenceText = candidate.detectedText ?? "";
-  const hasExplicitPrice = /(?:[¥￥]\s*\d{2,5}|\d{2,5}\s*元|价格\s*[:：]?\s*\d{2,5}|售价\s*[:：]?\s*\d{2,5}|到手\s*[:：]?\s*\d{2,5}|券后\s*[:：]?\s*\d{2,5})/.test(
-    evidenceText,
-  );
-
-  return hasExplicitPrice ? `¥${candidate.estimatedPrice}` : "";
 }
 
 function getPaletteByColor(color?: string | null) {
@@ -769,6 +756,19 @@ function formatRelativeTime(value?: string | null) {
     month: "numeric",
     day: "numeric",
   });
+}
+
+function formatDecisionElapsedTime(totalSeconds: number) {
+  if (totalSeconds < 60) return `耗时 ${totalSeconds} 秒`;
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `耗时 ${minutes} 分 ${seconds} 秒`;
+}
+
+function readDecisionElapsedSeconds(value: unknown) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return undefined;
+  const rounded = Math.round(value);
+  return rounded > 0 ? rounded : undefined;
 }
 
 function formatReminderLabel(value?: string | null) {
@@ -1214,6 +1214,7 @@ export default function Home() {
           "id,status,report_id,session_id,size_label,snapshot_summary,snapshot_outfit_tips,snapshot_risks,reminder_at,created_at,updated_at,candidate:purchase_candidates(id,product_name,summary,category,color,estimated_price,screenshot_path),report:assessment_reports(id,summary,outfit_combinations)",
         )
         .eq("user_id", userId)
+        .neq("status", "not_considering")
         .order("updated_at", { ascending: false })
         .limit(80);
 
@@ -2850,6 +2851,7 @@ export default function Home() {
     report,
     candidateId,
     reportId,
+    decisionElapsedSeconds,
   }: {
     sessionId: string;
     userMessage: string;
@@ -2858,6 +2860,7 @@ export default function Home() {
     report: PurchaseDecisionReport;
     candidateId?: string;
     reportId?: string;
+    decisionElapsedSeconds: number;
   }) {
     if (!user) throw new Error("登录状态已过期，请重新登录。");
 
@@ -2884,6 +2887,7 @@ export default function Home() {
         report_id: reportId ?? null,
         metadata: {
           report,
+          decisionElapsedSeconds,
         },
       },
     ]);
@@ -2895,6 +2899,57 @@ export default function Home() {
       .update({
         last_candidate_id: candidateId ?? null,
         last_report_id: reportId ?? null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", sessionId);
+
+    if (sessionError) throw sessionError;
+    await loadChatSessions(user.id);
+  }
+
+  async function saveImageRequiredTurn({
+    sessionId,
+    userMessage,
+    assistantMessage,
+  }: {
+    sessionId: string;
+    userMessage: string;
+    assistantMessage: string;
+  }) {
+    if (!user) throw new Error("登录状态已过期，请重新登录。");
+
+    const { error: messageError } = await supabase.from("chat_messages").insert([
+      {
+        session_id: sessionId,
+        user_id: user.id,
+        role: "user",
+        content: userMessage,
+        image_path: null,
+        candidate_id: null,
+        report_id: null,
+        metadata: {},
+      },
+      {
+        session_id: sessionId,
+        user_id: user.id,
+        role: "assistant",
+        content: assistantMessage,
+        image_path: null,
+        candidate_id: null,
+        report_id: null,
+        metadata: {
+          responseMode: "image_required",
+        },
+      },
+    ]);
+
+    if (messageError) throw messageError;
+
+    const { error: sessionError } = await supabase
+      .from("chat_sessions")
+      .update({
+        last_candidate_id: null,
+        last_report_id: null,
         updated_at: new Date().toISOString(),
       })
       .eq("id", sessionId);
@@ -2928,6 +2983,7 @@ export default function Home() {
     const restoredReport = latestAssistantMessage?.metadata?.report as
       | PurchaseDecisionReport
       | undefined;
+    const restoredResponseMode = latestAssistantMessage?.metadata?.responseMode;
     const signedImageUrl = await createStorageSignedUrl(
       supabase,
       "purchase-screenshots",
@@ -2942,18 +2998,34 @@ export default function Home() {
     const restoredCandidateId =
       latestAssistantMessage?.candidate_id ?? latestUserMessage?.candidate_id ?? undefined;
     const restoredReportId = latestAssistantMessage?.report_id ?? latestUserMessage?.report_id ?? undefined;
-    const savedDecisionStatus = restoredCandidateId
-      ? decisionItems.find((item) => item.candidateId === restoredCandidateId)?.status
-      : undefined;
+    const savedDecisionResult = await (
+      restoredCandidateId
+        ? supabase
+            .from("decision_items")
+            .select("status")
+            .eq("user_id", user.id)
+            .eq("candidate_id", restoredCandidateId)
+            .maybeSingle()
+        : Promise.resolve({ data: null })
+    );
+    const savedDecisionStatus = savedDecisionResult.data?.status as DecisionStatus | undefined;
+    const restoredElapsedSeconds = readDecisionElapsedSeconds(
+      latestAssistantMessage?.metadata?.decisionElapsedSeconds,
+    );
 
     setActiveChatId(sessionId);
     setChatState({
       message: "",
       lastUserMessage: latestUserMessage?.content ?? "",
+      assistantMessage:
+        restoredResponseMode === "image_required"
+          ? (latestAssistantMessage?.content ?? undefined)
+          : undefined,
       purchaseImageDataUrl: signedImageUrl,
       purchaseImageName: latestUserMessage?.metadata?.imageName as string | undefined,
       assessment: hydratedReport ?? null,
-      selectedDecisionStatus: hydratedReport ? (savedDecisionStatus ?? "saved_for_later") : undefined,
+      decisionElapsedSeconds: hydratedReport ? restoredElapsedSeconds : undefined,
+      selectedDecisionStatus: hydratedReport ? savedDecisionStatus : undefined,
       candidateId: restoredCandidateId,
       reportId: restoredReportId,
       error: "",
@@ -3046,7 +3118,7 @@ export default function Home() {
       ...current,
       selectedDecisionStatus: status,
       error: "",
-      notice: `已加入决策清单：${statusConfig[status].label}`,
+      notice: "",
     }));
   }
 
@@ -3055,15 +3127,17 @@ export default function Home() {
       status === "saved_for_later" ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() : null;
 
     setDecisionItems((items) =>
-      items.map((item) =>
-        item.id === id
-          ? {
-              ...item,
-              status,
-              reminderAt: reminderAt ? formatReminderLabel(reminderAt) : undefined,
-            }
-          : item,
-      ),
+      status === "not_considering"
+        ? items.filter((item) => item.id !== id)
+        : items.map((item) =>
+            item.id === id
+              ? {
+                  ...item,
+                  status,
+                  reminderAt: reminderAt ? formatReminderLabel(reminderAt) : undefined,
+                }
+              : item,
+          ),
     );
 
     if (!user) return;
@@ -3273,10 +3347,7 @@ export default function Home() {
               onChatStateChange={setChatState}
               onEnsureChatSession={ensureChatSession}
               onSaveChatTurn={saveChatTurn}
-              onClearConversation={() => {
-                setActiveChatId(undefined);
-                setChatState(createEmptyChatState());
-              }}
+              onSaveImageRequiredTurn={saveImageRequiredTurn}
               onOpenDecisions={() => setView("decisions")}
               onDecision={saveCurrentDecision}
             />
@@ -3776,7 +3847,7 @@ function ChatView({
   onChatStateChange,
   onEnsureChatSession,
   onSaveChatTurn,
-  onClearConversation,
+  onSaveImageRequiredTurn,
   onOpenDecisions,
   onDecision,
 }: {
@@ -3795,20 +3866,36 @@ function ChatView({
     report: PurchaseDecisionReport;
     candidateId?: string;
     reportId?: string;
+    decisionElapsedSeconds: number;
   }) => Promise<void>;
-  onClearConversation: () => void;
+  onSaveImageRequiredTurn: (payload: {
+    sessionId: string;
+    userMessage: string;
+    assistantMessage: string;
+  }) => Promise<void>;
   onOpenDecisions: () => void;
   onDecision: (status: DecisionStatus) => Promise<void>;
 }) {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const [isAssessing, setIsAssessing] = useState(false);
-  const [isRequestingMoreOutfits, setIsRequestingMoreOutfits] = useState(false);
+  const [isRequestingImageGuidance, setIsRequestingImageGuidance] = useState(false);
   const [decisionProgressIndex, setDecisionProgressIndex] = useState(0);
+  const [expandedDecisionProgressSessionId, setExpandedDecisionProgressSessionId] = useState<
+    string | null
+  >(null);
   const [activeOutfitIndex, setActiveOutfitIndex] = useState(0);
+  const [tryOnBatch, setTryOnBatch] = useState<OutfitTryOnBatch>({
+    status: "idle",
+    outfits: [],
+  });
+  const [tryOnRequestVersion, setTryOnRequestVersion] = useState(0);
   const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
+  const decisionStartedAtRef = useRef<number | null>(null);
+  const decisionProgressScrollerRef = useRef<HTMLDivElement | null>(null);
   const {
     message,
     lastUserMessage,
+    assistantMessage,
     purchaseImageDataUrl,
     purchaseImageName,
     assessment,
@@ -3816,6 +3903,8 @@ function ChatView({
     notice,
   } = chatState;
   const hasUserTurn = Boolean(lastUserMessage.trim() || purchaseImageDataUrl);
+  const isConversationEmpty =
+    !lastUserMessage.trim() && !assistantMessage && !assessment && !isAssessing && !error && !notice;
   const progressSteps = useMemo(
     () => [
       purchaseImageDataUrl ? "识别待买商品截图" : "整理待买商品信息",
@@ -3823,16 +3912,110 @@ function ChatView({
     ],
     [purchaseImageDataUrl],
   );
+  const completedDecisionElapsedLabel =
+    assessment && chatState.decisionElapsedSeconds
+      ? formatDecisionElapsedTime(chatState.decisionElapsedSeconds)
+      : null;
+  const isDecisionProgressExpanded = Boolean(
+    activeChatId && expandedDecisionProgressSessionId === activeChatId,
+  );
 
   useEffect(() => {
-    if (!isAssessing) return;
+    if (!isAssessing || isRequestingImageGuidance) return;
 
     const interval = window.setInterval(() => {
       setDecisionProgressIndex((index) => Math.min(index + 1, progressSteps.length - 1));
     }, 4500);
 
     return () => window.clearInterval(interval);
-  }, [isAssessing, progressSteps.length]);
+  }, [isAssessing, isRequestingImageGuidance, progressSteps.length]);
+
+  useEffect(() => {
+    if (!isAssessing || isRequestingImageGuidance) return;
+
+    const scroller = decisionProgressScrollerRef.current;
+    if (!scroller) return;
+
+    scroller.scrollTo({ left: scroller.scrollWidth, behavior: "smooth" });
+  }, [decisionProgressIndex, isAssessing, isRequestingImageGuidance]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    async function loadTryOns() {
+      await Promise.resolve();
+      if (controller.signal.aborted) return;
+      if (!assessment) {
+        setTryOnBatch({ status: "idle", outfits: [] });
+        return;
+      }
+
+      const eligibleOutfits = getEligibleTryOnOutfits(
+        assessment,
+        Boolean(assessment.candidate.screenshotPath || assessment.candidate.screenshotUrl),
+      );
+      if (!eligibleOutfits.length) {
+        setTryOnBatch({
+          status: "unavailable",
+          outfits: [],
+          message: "当前没有足够可靠的真实搭配依据。",
+        });
+        return;
+      }
+      if (!chatState.reportId) {
+        setTryOnBatch({
+          status: "unavailable",
+          outfits: [],
+          message: "本次报告未能保存，暂时无法生成真人搭配。",
+        });
+        return;
+      }
+
+      setTryOnBatch({ status: "generating", outfits: [] });
+      setActiveOutfitIndex(0);
+
+      try {
+        const { data } = await supabase.auth.getSession();
+        const token = data.session?.access_token;
+        if (!token) throw new Error("登录状态已过期，请重新登录。");
+
+        const response = await fetch("/api/ai/generate-outfit-try-ons", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ reportId: chatState.reportId }),
+          signal: controller.signal,
+        });
+        if (!response.ok) {
+          const result = (await response.json().catch(() => null)) as { message?: string } | null;
+          throw new Error(result?.message ?? "真人搭配生成暂时不可用。");
+        }
+
+        const result = (await response.json()) as OutfitTryOnBatch;
+        if (!controller.signal.aborted) setTryOnBatch(result);
+      } catch (currentError) {
+        if (controller.signal.aborted) return;
+        setTryOnBatch({
+          status: "failed",
+          outfits: eligibleOutfits.map((outfit, position) => ({
+            outfitId: outfit.outfitId as string,
+            position,
+            closetItemIds: outfit.closetItemIds ?? [],
+            status: "failed",
+          })),
+          message:
+            currentError instanceof Error
+              ? currentError.message
+              : "真人搭配生成失败，请稍后重试。",
+        });
+      }
+    }
+
+    void loadTryOns();
+    return () => controller.abort();
+  }, [assessment, chatState.reportId, supabase, tryOnRequestVersion]);
 
   function updateChatState(patch: Partial<DecisionChatState>) {
     onChatStateChange((current) => ({ ...current, ...patch }));
@@ -3841,16 +4024,23 @@ function ChatView({
   async function handleSubmit() {
     const trimmedMessage = message.trim();
     if ((!trimmedMessage && !purchaseImageDataUrl) || isAssessing) return;
+    const isImageRequiredRequest = !purchaseImageDataUrl;
 
     updateChatState({
       lastUserMessage: trimmedMessage,
+      assistantMessage: undefined,
       assessment: null,
+      decisionElapsedSeconds: undefined,
       selectedDecisionStatus: undefined,
       error: "",
       notice: "",
     });
     setIsAssessing(true);
+    setIsRequestingImageGuidance(isImageRequiredRequest);
     setDecisionProgressIndex(0);
+    setExpandedDecisionProgressSessionId(null);
+    setTryOnBatch({ status: "idle", outfits: [] });
+    decisionStartedAtRef.current = Date.now();
     setActiveOutfitIndex(0);
 
     try {
@@ -3895,19 +4085,55 @@ function ChatView({
         throw new Error(errorMessage);
       }
 
-      const assessmentData = (await response.json()) as {
-        report: PurchaseDecisionReport;
-        candidateId?: string;
-        reportId?: string;
-      };
+      const responseData = (await response.json()) as
+        | {
+            mode: "image_required";
+            message: string;
+          }
+        | {
+            mode: "assessment";
+            report: PurchaseDecisionReport;
+            candidateId?: string;
+            reportId?: string;
+          };
+
+      if (responseData.mode === "image_required") {
+        updateChatState({
+          message: "",
+          assistantMessage: responseData.message,
+          assessment: null,
+          decisionElapsedSeconds: undefined,
+          selectedDecisionStatus: undefined,
+          candidateId: undefined,
+          reportId: undefined,
+          error: "",
+          notice: "",
+        });
+        await onSaveImageRequiredTurn({
+          sessionId,
+          userMessage: trimmedMessage,
+          assistantMessage: responseData.message,
+        });
+        return;
+      }
+
+      const assessmentData = responseData;
+      const elapsedSeconds = Math.max(
+        1,
+        Math.round((Date.now() - (decisionStartedAtRef.current ?? Date.now())) / 1000),
+      );
+      setDecisionProgressIndex(progressSteps.length - 1);
+      setExpandedDecisionProgressSessionId(null);
       updateChatState({
         message: "",
+        assistantMessage: undefined,
         assessment: assessmentData.report,
-        selectedDecisionStatus: "saved_for_later",
+        decisionElapsedSeconds: elapsedSeconds,
+        selectedDecisionStatus: undefined,
         candidateId: assessmentData.candidateId,
         reportId: assessmentData.reportId,
         error: "",
-        notice: "已保存到最近对话，可从左侧继续打开。",
+        notice: "",
       });
       await onSaveChatTurn({
         sessionId,
@@ -3917,240 +4143,246 @@ function ChatView({
         report: assessmentData.report,
         candidateId: assessmentData.candidateId,
         reportId: assessmentData.reportId,
+        decisionElapsedSeconds: elapsedSeconds,
       });
     } catch (currentError) {
       updateChatState({
-        error: currentError instanceof Error ? currentError.message : "生成报告失败",
+        error:
+          currentError instanceof Error
+            ? currentError.message
+            : isImageRequiredRequest
+              ? "回复失败，请稍后再试。"
+              : "生成报告失败",
         notice: "",
       });
     } finally {
+      decisionStartedAtRef.current = null;
       setIsAssessing(false);
+      setIsRequestingImageGuidance(false);
     }
-  }
-
-  async function handleRequestMoreOutfits() {
-    if (!assessment || isAssessing || isRequestingMoreOutfits) return;
-
-    setIsRequestingMoreOutfits(true);
-    updateChatState({
-      error: "",
-      notice: "正在重新检索衣橱，寻找更多真实搭配灵感...",
-    });
-
-    try {
-      const { data } = await supabase.auth.getSession();
-      const token = data.session?.access_token;
-      if (!token) throw new Error("登录状态已过期，请重新登录。");
-
-      const response = await fetch("/api/ai/more-outfit-ideas", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          candidate: assessment.candidate,
-          previousOutfitCombinations: assessment.outfitCombinations,
-          userProfile: {
-            heightCm: profile.heightCm ?? undefined,
-            weightKg: profile.weightKg ?? undefined,
-            bmi: profile.bmi ?? undefined,
-            stylePreferences: profile.stylePreferences,
-            commonScenarios: profile.commonScenarios,
-            budgetSensitivity: profile.budgetSensitivity,
-          },
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = (await response.json().catch(() => null)) as { message?: string } | null;
-        throw new Error(errorData?.message ?? "更多灵感接口暂时不可用，请稍后再试。");
-      }
-
-      const result = (await response.json()) as {
-        outfitCombinations?: PurchaseDecisionReport["outfitCombinations"];
-        message?: string;
-        usedModel?: boolean;
-      };
-      const newOutfits = result.outfitCombinations ?? [];
-
-      if (!newOutfits.length) {
-        updateChatState({
-          notice: result.message ?? "暂时没有新的可靠搭配灵感。",
-          error: "",
-        });
-        return;
-      }
-
-      onChatStateChange((current) => {
-        if (!current.assessment) return current;
-        return {
-          ...current,
-          assessment: {
-            ...current.assessment,
-            outfitCombinations: [
-              ...newOutfits,
-              ...current.assessment.outfitCombinations,
-            ],
-          },
-          notice: result.message ?? "已找到新的搭配灵感，并放到顶层卡片。",
-          error: "",
-        };
-      });
-      setActiveOutfitIndex(0);
-    } catch (currentError) {
-      updateChatState({
-        error: currentError instanceof Error ? currentError.message : "生成更多灵感失败",
-        notice: "",
-      });
-    } finally {
-      setIsRequestingMoreOutfits(false);
-    }
-  }
-
-  function handleClearConversation() {
-    if (isAssessing) return;
-    onClearConversation();
-    setDecisionProgressIndex(0);
-    setActiveOutfitIndex(0);
   }
 
   return (
     <div className="flex min-h-0 w-full flex-col">
-      <Header
-        title="决策聊天"
-        subtitle="结合你的衣橱和偏好，给出理性的购买建议"
-        action={
-          <button
-            type="button"
-            disabled={isAssessing || (!hasUserTurn && !assessment && !error)}
-            onClick={handleClearConversation}
-            className="inline-flex h-11 shrink-0 items-center gap-2 whitespace-nowrap rounded-[10px] border border-[#ead9d0] px-3 text-sm text-[#8b6258] transition hover:bg-[#fbf3ef] disabled:cursor-not-allowed disabled:opacity-50 sm:px-4"
-          >
-            <Trash2 className="size-4" />
-            <span className="hidden sm:inline">清空对话</span>
-            <span className="sm:hidden">清空</span>
-          </button>
-        }
-      />
-
-      <div className="view-scroll flex-1 overflow-y-auto px-4 pb-6 sm:px-6 lg:px-7">
-        {hasUserTurn ? (
-          <div className="ml-auto mt-2 flex max-w-[520px] items-start gap-3">
-            <div className="rounded-[14px] bg-[#f2dfd8] px-5 py-3 text-[#4c342d]">
-              {lastUserMessage || "我想判断这件衣服是否值得买。"}
-              {purchaseImageDataUrl && (
-                <button
-                  type="button"
-                  onClick={() => setPreviewImageUrl(purchaseImageDataUrl)}
-                  className="relative mt-3 h-28 w-24 overflow-hidden rounded-[10px] bg-cover bg-center text-left shadow-inner transition hover:scale-[1.02] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#cf6f70]"
-                  style={{ backgroundImage: `url(${purchaseImageDataUrl})` }}
-                  aria-label="查看上传图片大图"
-                >
-                  <span className="absolute bottom-1.5 right-1.5 rounded-full bg-[#3d281f]/75 px-2 py-0.5 text-[10px] text-white">
-                    查看
-                  </span>
-                </button>
-              )}
-            </div>
-            <Avatar />
-          </div>
-        ) : null}
-
-        <div className="mt-8 flex items-center gap-3">
-          <div className="flex size-11 items-center justify-center rounded-[12px] bg-[#76576f] text-xl font-semibold text-white">
-            A
-          </div>
-          <div>
-            <p className="font-medium text-[#50382f]">衣服购买决策助手 AI</p>
-            <p className="text-xs text-[#a08278]">10:23</p>
-          </div>
-        </div>
-
-        <div className="mt-5 rounded-[14px] border border-[#ead9d0] bg-[#fffaf7] p-4 shadow-[0_8px_24px_rgba(45,43,50,0.04)]">
-          <div className="flex flex-wrap gap-3">
-            {progressSteps.map((item, index) => {
-              const completed = assessment && !isAssessing ? true : index < decisionProgressIndex;
-              const active = isAssessing && index === decisionProgressIndex;
-              return (
-                <span
-                  key={item}
-                  className={cn(
-                    "inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm transition",
-                    completed
-                      ? "border-emerald-100 bg-emerald-50 text-emerald-700"
-                      : active
-                        ? "border-[#e9beb6] bg-[#fff0ec] text-[#a9514f]"
-                        : "border-[#ead9d0] bg-white text-[#a08278]",
-                  )}
-                >
-                  {completed ? (
-                    <Check className="size-4" />
-                  ) : active ? (
-                    <Sparkles className="size-4" />
-                  ) : (
-                    <span className="size-2 rounded-full bg-[#d9c7bf]" />
-                  )}
-                  {item}
-                </span>
-              );
-            })}
-          </div>
-          {isAssessing && (
-            <p className="mt-3 text-sm leading-6 text-[#8b6258]">
-              决策模型会结合衣橱证据做更完整的推理，最后一步可能需要几十秒，请稍等。
+      {!isConversationEmpty && (
+        <header className="px-4 pt-5 sm:px-6 sm:pt-6 lg:px-7">
+          <div className="border-b border-[#f0e1da] pb-2.5 sm:pb-3">
+            <p className="text-sm font-medium leading-6 text-[#60483f] sm:text-base">
+              结合你的衣橱和偏好，给出可视化的搭配和购买建议
             </p>
-          )}
+          </div>
+        </header>
+      )}
+
+      {isConversationEmpty ? (
+        <div className="view-scroll flex min-h-0 flex-1 overflow-y-auto px-4 py-8 sm:px-6 sm:py-12 lg:px-10">
+          <div className="m-auto w-full max-w-3xl">
+            <div className="text-center">
+              <h2 className="text-2xl font-semibold text-[#3d281f] sm:text-3xl">
+                今天想买哪件衣服？
+              </h2>
+              <p className="mx-auto mt-2 whitespace-nowrap text-xs leading-6 text-[#8b6258] sm:text-base">
+                上传商品截图，我会结合你的云端衣橱给出搭配组合和建议
+              </p>
+            </div>
+
+            <Composer
+              variant="starter"
+              isAssessing={isAssessing}
+              value={message}
+              imageDataUrl={purchaseImageDataUrl}
+              imageName={purchaseImageName}
+              placeholder="上传截图并描述衣服相关信息"
+              onChange={(nextMessage) => updateChatState({ message: nextMessage, notice: "" })}
+              onImageSelect={async (file) => {
+                updateChatState({
+                  purchaseImageDataUrl: await fileToDataUrl(file),
+                  purchaseImageName: file.name,
+                  notice: "",
+                });
+              }}
+              onClearImage={() => {
+                updateChatState({
+                  purchaseImageDataUrl: undefined,
+                  purchaseImageName: undefined,
+                  notice: "",
+                });
+              }}
+              onSubmit={handleSubmit}
+            />
+          </div>
         </div>
+      ) : (
+        <>
+          <div className="view-scroll flex-1 overflow-y-auto px-4 pb-6 sm:px-6 lg:px-7">
+            {hasUserTurn ? (
+              <div className="ml-auto mt-6 flex w-full max-w-[460px] flex-col items-end">
+                {purchaseImageDataUrl && (
+                  <button
+                    type="button"
+                    onClick={() => setPreviewImageUrl(purchaseImageDataUrl)}
+                    className="relative aspect-[4/5] w-full max-w-[140px] overflow-hidden rounded-[12px] bg-[#f6f3f0] bg-contain bg-center bg-no-repeat text-left transition hover:opacity-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#76576f]"
+                    style={{ backgroundImage: `url(${purchaseImageDataUrl})` }}
+                    aria-label="查看上传图片大图"
+                  />
+                )}
+                <p
+                  className={cn(
+                    "w-fit max-w-[420px] rounded-[14px] bg-[#f2dfd8] px-4 py-2.5 text-left text-base leading-7 text-[#4c342d]",
+                    purchaseImageDataUrl && "mt-2.5",
+                  )}
+                >
+                  {lastUserMessage || "我想判断这件衣服是否值得买。"}
+                </p>
+              </div>
+            ) : null}
 
-        {error && (
-          <div className="mt-5 rounded-[12px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            {error}
+            {((isAssessing && !isRequestingImageGuidance) || completedDecisionElapsedLabel) && (
+              <section className="mt-8" aria-live="polite">
+                <div className="flex flex-col gap-3">
+                  {isAssessing ? (
+                    <span className="w-fit text-sm text-[#9a9398]">思考中</span>
+                  ) : (
+                    <button
+                      type="button"
+                      aria-expanded={isDecisionProgressExpanded}
+                      onClick={() =>
+                        setExpandedDecisionProgressSessionId((expandedSessionId) =>
+                          expandedSessionId === activeChatId ? null : (activeChatId ?? null),
+                        )
+                      }
+                      className="inline-flex w-fit items-center gap-1 text-sm text-[#777078] transition hover:text-[#50382f]"
+                    >
+                      {completedDecisionElapsedLabel}
+                      <ChevronRight
+                        className={cn(
+                          "size-4 transition-transform",
+                          isDecisionProgressExpanded && "rotate-90",
+                        )}
+                      />
+                    </button>
+                  )}
+                  <span className="h-px w-full bg-[#e4dedb]" aria-hidden="true" />
+                </div>
+
+                {(isAssessing || isDecisionProgressExpanded) && (
+                  <div
+                    ref={decisionProgressScrollerRef}
+                    className="view-scroll mt-4 max-w-full overflow-x-auto pb-1"
+                  >
+                    <ol
+                      className="flex w-max min-w-full items-center whitespace-nowrap"
+                      aria-label="决策分析进度"
+                    >
+                      {progressSteps
+                        .slice(0, isAssessing ? decisionProgressIndex + 1 : progressSteps.length)
+                        .map((item, index) => {
+                          const isActive = isAssessing && index === decisionProgressIndex;
+                          return (
+                            <li key={item} className="flex shrink-0 items-center text-sm">
+                              {index > 0 && (
+                                <ChevronRight
+                                  className="mx-2 size-4 shrink-0 text-[#b2a9ad]"
+                                  strokeWidth={1.5}
+                                  aria-hidden="true"
+                                />
+                              )}
+                              <div
+                                className={cn(
+                                  "flex min-h-9 items-center gap-2 transition",
+                                  isActive
+                                    ? "rounded-[8px] border border-[#ded7db] bg-[#faf8f9] px-3 text-[#50382f]"
+                                    : "px-1 text-[#777078]",
+                                )}
+                              >
+                                {isActive && (
+                                  <ThinkingOrb
+                                    state={decisionProgressOrbStates[index] ?? "working"}
+                                    size={20}
+                                    theme="light"
+                                    speed={0.9}
+                                    aria-hidden="true"
+                                    className="shrink-0 opacity-75"
+                                  />
+                                )}
+                                <span>{item}</span>
+                              </div>
+                            </li>
+                          );
+                        })}
+                    </ol>
+                  </div>
+                )}
+              </section>
+            )}
+
+            {isAssessing && isRequestingImageGuidance && (
+              <p className="mt-8 text-sm text-[#9a9398]" role="status" aria-live="polite">
+                正在确认需要的信息…
+              </p>
+            )}
+
+            {error && (
+              <div className="mt-5 rounded-[12px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {error}
+              </div>
+            )}
+
+            {notice && notice !== "已保存到最近对话，可从左侧继续打开。" && (
+              <div className="mt-5 rounded-[12px] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                {notice}
+              </div>
+            )}
+
+            {assistantMessage && !assessment && (
+              <section
+                aria-label="图片补充引导"
+                className="mt-8 max-w-3xl text-[15px] leading-8 text-[#60483f] sm:text-base"
+              >
+                <p>{assistantMessage}</p>
+              </section>
+            )}
+
+            {assessment && (
+              <DecisionReportCard
+                assessment={assessment}
+                tryOnBatch={tryOnBatch}
+                activeOutfitIndex={activeOutfitIndex}
+                candidateImageDataUrl={purchaseImageDataUrl}
+                selectedDecisionStatus={chatState.selectedDecisionStatus}
+                onActiveOutfitIndexChange={setActiveOutfitIndex}
+                onPreviewImage={setPreviewImageUrl}
+                onRetryTryOns={() => setTryOnRequestVersion((version) => version + 1)}
+                onDecision={onDecision}
+                onOpenDecisions={onOpenDecisions}
+              />
+            )}
           </div>
-        )}
 
-        {notice && (
-          <div className="mt-5 rounded-[12px] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-            {notice}
-          </div>
-        )}
-
-        <DecisionReportCard
-          assessment={assessment}
-          isAssessing={isAssessing}
-          isRequestingMoreOutfits={isRequestingMoreOutfits}
-          activeOutfitIndex={activeOutfitIndex}
-          candidateImageDataUrl={purchaseImageDataUrl}
-          selectedDecisionStatus={chatState.selectedDecisionStatus}
-          onActiveOutfitIndexChange={setActiveOutfitIndex}
-          onRequestMoreOutfits={handleRequestMoreOutfits}
-          onDecision={onDecision}
-          onOpenDecisions={onOpenDecisions}
-        />
-      </div>
-
-      <Composer
-        isAssessing={isAssessing}
-        value={message}
-        imageDataUrl={purchaseImageDataUrl}
-        imageName={purchaseImageName}
-        onChange={(nextMessage) => updateChatState({ message: nextMessage, notice: "" })}
-        onImageSelect={async (file) => {
-          updateChatState({
-            purchaseImageDataUrl: await fileToDataUrl(file),
-            purchaseImageName: file.name,
-            notice: "",
-          });
-        }}
-        onClearImage={() => {
-          updateChatState({
-            purchaseImageDataUrl: undefined,
-            purchaseImageName: undefined,
-            notice: "",
-          });
-        }}
-        onSubmit={handleSubmit}
-      />
+          <Composer
+            isAssessing={isAssessing}
+            value={message}
+            imageDataUrl={purchaseImageDataUrl}
+            imageName={purchaseImageName}
+            onChange={(nextMessage) => updateChatState({ message: nextMessage, notice: "" })}
+            onImageSelect={async (file) => {
+              updateChatState({
+                purchaseImageDataUrl: await fileToDataUrl(file),
+                purchaseImageName: file.name,
+                notice: "",
+              });
+            }}
+            onClearImage={() => {
+              updateChatState({
+                purchaseImageDataUrl: undefined,
+                purchaseImageName: undefined,
+                notice: "",
+              });
+            }}
+            onSubmit={handleSubmit}
+          />
+        </>
+      )}
 
       {previewImageUrl && (
         <div
@@ -4183,24 +4415,24 @@ function ChatView({
 
 function DecisionReportCard({
   assessment,
-  isAssessing,
-  isRequestingMoreOutfits,
+  tryOnBatch,
   activeOutfitIndex,
   candidateImageDataUrl,
   selectedDecisionStatus,
   onActiveOutfitIndexChange,
-  onRequestMoreOutfits,
+  onPreviewImage,
+  onRetryTryOns,
   onDecision,
   onOpenDecisions,
 }: {
-  assessment: PurchaseDecisionReport | null;
-  isAssessing: boolean;
-  isRequestingMoreOutfits: boolean;
+  assessment: PurchaseDecisionReport;
+  tryOnBatch: OutfitTryOnBatch;
   activeOutfitIndex: number;
   candidateImageDataUrl?: string;
   selectedDecisionStatus?: DecisionStatus;
   onActiveOutfitIndexChange: (index: number) => void;
-  onRequestMoreOutfits: () => Promise<void>;
+  onPreviewImage: (imageUrl: string) => void;
+  onRetryTryOns: () => void;
   onDecision: (status: DecisionStatus) => Promise<void>;
   onOpenDecisions: () => void;
 }) {
@@ -4216,287 +4448,275 @@ function DecisionReportCard({
     }
   }
 
-  if (!assessment) {
-    return (
-      <article className="mt-5 rounded-[16px] border border-dashed border-[#ead9d0] bg-[#fffaf7] p-8 text-center">
-        <div className="mx-auto flex size-14 items-center justify-center rounded-full bg-[#fbf0ec] text-[#b2605e]">
-          {isAssessing ? <Sparkles className="size-6" /> : <MessageCircle className="size-6" />}
-        </div>
-        <h3 className="mt-4 text-xl font-semibold text-[#3d281f]">
-          {isAssessing ? "正在生成购买决策" : "等待你的购买决策问题"}
-        </h3>
-        <p className="mx-auto mt-2 max-w-xl leading-7 text-[#8b6258]">
-          {isAssessing
-            ? "AI 正在识别商品、检索衣橱并组合搭配证据。完成后这里会展示真实决策报告。"
-            : "上传一张想买衣服的截图，或者直接描述商品、价格和使用场景，我会结合你的衣橱给出判断。"}
-        </p>
-      </article>
-    );
-  }
-
-  const reportScoreItems = [
-    { label: "衣橱适配度", value: assessment.scores.wardrobeFit },
-    { label: "搭配潜力", value: assessment.scores.outfitPotential },
-    { label: "风格一致性", value: assessment.scores.styleConsistency },
-    { label: "价格与使用频率", value: assessment.scores.priceValue },
-    { label: "体型/版型友好度", value: assessment.scores.fitComfort },
-    { label: "舒适与维护成本", value: assessment.scores.careCost },
-  ];
-  const decisionLabel = assessment.decisionLabel;
-  const reportSummary = assessment.summary;
-  const highReuseBoards = assessment.outfitCombinations.filter(
-    (idea) => idea.visualIntent === "outfit" || idea.title.includes("高复用"),
-  );
-  const dynamicOutfits = highReuseBoards.length ? highReuseBoards : assessment.outfitCombinations.slice(0, 1);
   const candidate = assessment.candidate;
-  const candidateTitle = candidate.productName ?? "待买商品";
-  const candidateSubtitle = candidate.summary ?? "AI 已根据截图和描述生成候选商品信息";
-  const candidatePrice = formatCandidatePrice(candidate);
-  const candidateTags = [
-    candidate.color,
-    candidate.category,
-    ...candidate.styleTags.slice(0, 2),
-    ...candidate.possibleScenarios.slice(0, 2),
-  ].filter((tag): tag is string => Boolean(tag));
+  const candidateTitle = candidate.productName || "待买商品";
+  const reportOutfits = withStableOutfitIds(assessment.outfitCombinations);
+  const eligibleOutfits = getEligibleTryOnOutfits(
+    { ...assessment, outfitCombinations: reportOutfits },
+    Boolean(candidate.screenshotPath || candidate.screenshotUrl || candidateImageDataUrl),
+  );
+  const primaryReasons = (
+    assessment.decision === "buy" ? assessment.reasonsToBuy : assessment.reasonsToSave
+  ).slice(0, 3);
+  const cautions = assessment.risks.slice(0, 2);
 
   return (
-    <article className={cn("mt-5 rounded-[16px] border border-[#ead9d0] bg-white p-4 shadow-[0_12px_32px_rgba(45,43,50,0.05)]", isAssessing && "opacity-75")}>
-      <p className="px-1 text-[16px] leading-8 text-[#5e473e]">
-        {assessment
-          ? "我已经结合你的衣橱、穿搭知识和长期主义消费框架，生成了这次购买决策报告："
-          : ""}
-      </p>
+    <article className="mt-4 w-full pb-4">
+      <section aria-label="购买建议">
+        <p className="w-full text-[15px] leading-8 text-[#60483f] sm:text-base">
+          {assessment.summary}
+        </p>
 
-      <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(380px,0.85fr)]">
-        <div className="space-y-4">
-          <section className="rounded-[14px] border border-[#ead9d0] p-4">
-            <div className="grid gap-5 lg:grid-cols-[180px_1fr]">
-              {candidateImageDataUrl ? (
-                <div
-                  className="h-56 rounded-[12px] bg-[#f8f3ef] bg-cover bg-center"
-                  style={{ backgroundImage: `url(${candidateImageDataUrl})` }}
-                />
-              ) : (
-                <MockProductImage palette="from-[#c9a58e] to-[#f4ded4]" className="h-56 w-full" />
-              )}
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <h3 className="text-2xl font-semibold text-[#3d281f]">{candidateTitle}</h3>
-                    <p className="mt-2 line-clamp-2 text-sm leading-6 text-[#8b6258]">{candidateSubtitle}</p>
-                  </div>
-                  <span className="rounded-full bg-[#f8efea] px-4 py-2 text-sm font-medium text-[#b2605e]">
-                    {decisionLabel}
-                  </span>
-                </div>
-                {candidatePrice ? (
-                  <p className="mt-4 text-3xl font-semibold text-[#3d281f]">{candidatePrice}</p>
-                ) : null}
-                <div className={cn("flex flex-wrap gap-2", candidatePrice ? "mt-3" : "mt-4")}>
-                  {candidateTags.slice(0, 7).map((tag, index) => (
-                    <span key={`${tag}-${index}`} className="rounded-full bg-[#f8efea] px-3 py-1 text-xs text-[#8b6258]">
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            </div>
-            <div className="mt-5 rounded-[12px] bg-gradient-to-br from-[#fbf5f1] to-[#f2e2db] p-5">
-              <div className="flex items-center justify-between gap-4">
-                <span className="text-lg font-semibold text-[#3d281f]">综合结论</span>
-                {!assessment.usedModel ? (
-                  <span className="rounded-full bg-white/70 px-3 py-1 text-xs text-[#8b6258]">规则兜底版</span>
-                ) : null}
-              </div>
-              <p className="mt-3 leading-7 text-[#7b5b51]">{reportSummary}</p>
-            </div>
-          </section>
-
-          <section className="rounded-[14px] border border-[#ead9d0] p-4">
-            <div className="flex items-center justify-between gap-3">
-              <h3 className="font-semibold text-[#3d281f]">评分拆解</h3>
-              <button className="inline-flex items-center gap-2 text-sm text-[#8b6258]">
-                评分说明
-                <Info className="size-4" />
-              </button>
-            </div>
-            <div className="mt-4 grid gap-3 md:grid-cols-2">
-              {reportScoreItems.map((item) => (
-                <div key={item.label} className="rounded-[12px] bg-[#fffaf7] px-4 py-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-sm text-[#6e5148]">{item.label}</span>
-                    <ScoreStars value={item.value} />
-                  </div>
-                </div>
+        <div className="mt-3 grid gap-6 border-b border-[#eee5e1] py-5 md:grid-cols-2">
+          <div>
+            <p className="text-sm font-medium text-[#50382f]">主要依据</p>
+            <ul className="mt-3 space-y-2.5">
+              {primaryReasons.map((reason) => (
+                <li key={reason} className="flex gap-3 text-sm leading-6 text-[#765b52]">
+                  <span className="mt-2 size-1.5 shrink-0 rounded-full bg-[#b2605e]" />
+                  <span>{reason}</span>
+                </li>
               ))}
-            </div>
-          </section>
+            </ul>
+          </div>
+          <div>
+            <p className="text-sm font-medium text-[#50382f]">购买前留意</p>
+            <ul className="mt-3 space-y-2.5">
+              {cautions.map((risk) => (
+                <li key={risk} className="flex gap-3 text-sm leading-6 text-[#765b52]">
+                  <span className="mt-2 size-1.5 shrink-0 rounded-full bg-[#9a8780]" />
+                  <span>{risk}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      </section>
 
+      <section aria-labelledby="decision-outfits-title" className="mt-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h3 id="decision-outfits-title" className="text-lg font-semibold text-[#2d2928] sm:text-xl">
+            穿搭效果
+          </h3>
+          {eligibleOutfits.length ? (
+            <span className="text-sm text-[#9a7d73]">共 {eligibleOutfits.length} 套</span>
+          ) : null}
         </div>
 
-        <aside className="space-y-4 self-start xl:sticky xl:top-4">
-          <section className="rounded-[14px] border border-[#ead9d0] bg-white p-4">
-            <div className="flex items-center justify-between gap-3">
+        {tryOnBatch.status === "generating" ? (
+          <div className="mt-3 flex min-h-40 items-center justify-center gap-3 border-y border-[#eee5e1] text-sm text-[#8b7b75]" aria-live="polite">
+            <ThinkingOrb state="working" size={20} theme="light" speed={0.8} aria-hidden="true" />
+            <span>真实搭配生成中</span>
+          </div>
+        ) : tryOnBatch.status === "ready" ? (
+          <OutfitTryOnViewer
+            reportOutfits={reportOutfits}
+            tryOnBatch={tryOnBatch}
+            activeIndex={activeOutfitIndex}
+            candidateName={candidateTitle}
+            candidateCategory={candidate.category || "待买商品"}
+            candidateImageUrl={candidateImageDataUrl ?? candidate.screenshotUrl}
+            onActiveIndexChange={onActiveOutfitIndexChange}
+            onPreviewImage={onPreviewImage}
+          />
+        ) : tryOnBatch.status === "failed" ? (
+          <div className="mt-3 border-y border-[#eee5e1] py-6">
+            <div className="flex flex-wrap items-center justify-between gap-4">
               <div>
-                <h3 className="font-semibold text-[#3d281f]">真实搭配证据</h3>
-                <p className="mt-1 text-xs text-[#a08278]">基于真实衣橱图片，非 AI 重绘</p>
+                <p className="font-medium text-[#50382f]">真人搭配暂未全部生成</p>
+                <p className="mt-1 text-sm leading-6 text-[#8b7168]">
+                  {tryOnBatch.message ?? "生成过程出现中断，可以重试未完成的方案。"}
+                </p>
               </div>
+              <button
+                type="button"
+                onClick={onRetryTryOns}
+                className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#b2605e] px-4 text-sm font-medium text-white transition hover:bg-[#9e4f4d]"
+              >
+                <RefreshCw className="size-4" />
+                重新生成
+              </button>
             </div>
-            <StackedOutfitCards
-              outfits={dynamicOutfits}
-              activeIndex={activeOutfitIndex}
-              isRequestingMore={isRequestingMoreOutfits}
-              candidateName={candidateTitle}
-              candidateCategory={candidate.category ?? "待买商品"}
-              candidateImageUrl={candidateImageDataUrl ?? candidate.screenshotUrl}
-              candidateTags={candidateTags.slice(0, 4)}
-              onActiveIndexChange={onActiveOutfitIndexChange}
-              onRequestMoreOutfits={onRequestMoreOutfits}
-            />
-          </section>
-        </aside>
-      </div>
+            {eligibleOutfits[0] ? (
+              <OutfitSourceList
+                outfit={eligibleOutfits[0]}
+                candidateName={candidateTitle}
+                candidateCategory={candidate.category || "待买商品"}
+                candidateImageUrl={candidateImageDataUrl ?? candidate.screenshotUrl}
+              />
+            ) : null}
+          </div>
+        ) : (
+          <div className="mt-3 border-y border-[#eee5e1] py-8 text-sm leading-6 text-[#8b7168]">
+            {tryOnBatch.message ?? "当前没有可生成的真人搭配。"}
+          </div>
+        )}
+      </section>
 
-      <div className="mt-4 grid gap-4 lg:grid-cols-3">
-        {(
-          [
-            { status: "decided_to_buy", icon: ShoppingCart },
-            { status: "saved_for_later", icon: Bookmark },
-            { status: "not_considering", icon: XCircle },
-          ] satisfies Array<{ status: DecisionStatus; icon: LucideIcon }>
-        ).map(({ status, icon: ActionIcon }) => {
-          const isSelected = selectedDecisionStatus === status;
-          const isSaving = savingStatus === status;
-          const LabelIcon = isSelected ? CheckCircle2 : ActionIcon;
+      <footer className="mt-4 border-t border-[#eee5e1] pt-3">
+        <div className="rounded-[12px] border border-[#eadeda] bg-[#fcf8f6] p-3 sm:p-4">
+          <div
+            className={cn(
+              "mb-3 flex items-center gap-2 text-sm font-medium",
+              selectedDecisionStatus === "not_considering"
+                ? "text-[#777078]"
+                : selectedDecisionStatus
+                  ? "text-[#617066]"
+                  : "text-[#76576f]",
+            )}
+            aria-live="polite"
+          >
+            {selectedDecisionStatus === "not_considering" ? (
+              <XCircle className="size-4" />
+            ) : selectedDecisionStatus ? (
+              <CheckCircle2 className="size-4" />
+            ) : (
+              <Sparkles className="size-4" />
+            )}
+            <span>
+              {selectedDecisionStatus === "not_considering"
+                ? "未进入决策清单"
+                : selectedDecisionStatus
+                  ? "已保存到决策清单"
+                  : "为这件衣服选择一个决策状态"}
+            </span>
+          </div>
 
-          return (
-            <button
-              key={status}
-              type="button"
-              onClick={() => void handleDecisionClick(status)}
-              disabled={Boolean(savingStatus)}
-              className={cn(
-                "inline-flex h-14 items-center justify-center gap-3 rounded-[10px] border text-lg font-medium transition disabled:cursor-wait disabled:opacity-70",
-                isSelected
-                  ? `${statusConfig[status].tone} border-current shadow-sm`
-                  : "border-[#e5b9b0] bg-white text-[#b2605e] hover:bg-[#fbf3ef]",
-              )}
-            >
-              <LabelIcon className="size-5" />
-              {isSaving
-                ? "保存中..."
-                : isSelected
-                  ? `已选择：${statusConfig[status].label}`
-                  : statusConfig[status].label}
-            </button>
-          );
-        })}
-      </div>
+          <div
+            className={cn(
+              "grid gap-3 sm:grid-cols-3",
+              selectedDecisionStatus && "lg:grid-cols-[repeat(3,minmax(0,1fr))_auto]",
+            )}
+          >
+            {(
+              [
+                { status: "decided_to_buy", icon: ShoppingCart },
+                { status: "saved_for_later", icon: Bookmark },
+                { status: "not_considering", icon: XCircle },
+              ] satisfies Array<{ status: DecisionStatus; icon: LucideIcon }>
+            ).map(({ status, icon: ActionIcon }) => {
+              const isSelected = selectedDecisionStatus === status;
+              const isSaving = savingStatus === status;
+              const LabelIcon = isSelected ? CheckCircle2 : ActionIcon;
 
-      <div className="mt-4 flex justify-end">
-        <button onClick={onOpenDecisions} className="text-sm text-[#8b6258] hover:text-[#b2605e]">
-          查看决策清单
-        </button>
-      </div>
+              return (
+                <button
+                  key={status}
+                  type="button"
+                  onClick={() => void handleDecisionClick(status)}
+                  disabled={Boolean(savingStatus)}
+                  className={cn(
+                    "inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border text-sm font-medium transition disabled:cursor-wait disabled:opacity-70",
+                    isSelected
+                      ? `${statusConfig[status].tone} border-current shadow-sm`
+                      : "border-[#d7c1ca] bg-white text-[#76576f] hover:border-[#b998aa] hover:bg-[#fbf3f7]",
+                  )}
+                >
+                  <LabelIcon className="size-4" />
+                  {isSaving ? "保存中..." : statusConfig[status].label}
+                </button>
+              );
+            })}
+
+            {selectedDecisionStatus ? (
+              <button
+                type="button"
+                onClick={onOpenDecisions}
+                className="inline-flex h-11 items-center justify-center gap-1 px-2 text-sm text-[#76576f] transition hover:text-[#b2605e] sm:col-span-3 lg:col-span-1"
+              >
+                查看决策清单
+                <ChevronRight className="size-4" />
+              </button>
+            ) : null}
+          </div>
+        </div>
+      </footer>
     </article>
   );
 }
 
-function StackedOutfitCards({
-  outfits,
+function OutfitTryOnViewer({
+  reportOutfits,
+  tryOnBatch,
   activeIndex,
-  isRequestingMore,
   candidateName,
   candidateCategory,
   candidateImageUrl,
-  candidateTags,
   onActiveIndexChange,
-  onRequestMoreOutfits,
+  onPreviewImage,
 }: {
-  outfits: PurchaseDecisionReport["outfitCombinations"];
+  reportOutfits: PurchaseDecisionReport["outfitCombinations"];
+  tryOnBatch: OutfitTryOnBatch;
   activeIndex: number;
-  isRequestingMore: boolean;
   candidateName: string;
   candidateCategory: string;
   candidateImageUrl?: string;
-  candidateTags: string[];
   onActiveIndexChange: (index: number) => void;
-  onRequestMoreOutfits: () => Promise<void>;
+  onPreviewImage: (imageUrl: string) => void;
 }) {
-  const safeIndex = outfits.length ? Math.min(activeIndex, outfits.length - 1) : 0;
-  const currentOutfit = outfits[safeIndex];
-  const hasMultipleOutfits = outfits.length > 1;
+  const reportByOutfitId = new Map(
+    reportOutfits.flatMap((outfit) => (outfit.outfitId ? [[outfit.outfitId, outfit]] : [])),
+  );
+  const readyOutfits = tryOnBatch.outfits.flatMap((result) => {
+    const outfit = reportByOutfitId.get(result.outfitId);
+    return result.status === "ready" && result.imageUrl && outfit
+      ? [{ result, outfit }]
+      : [];
+  });
+  const safeIndex = readyOutfits.length ? Math.min(activeIndex, readyOutfits.length - 1) : 0;
+  const current = readyOutfits[safeIndex];
 
-  function goToNext() {
-    if (!outfits.length) return;
-    onActiveIndexChange((safeIndex + 1) % outfits.length);
-  }
-
-  function goToPrevious() {
-    if (!outfits.length) return;
-    onActiveIndexChange((safeIndex - 1 + outfits.length) % outfits.length);
-  }
-
-  if (!currentOutfit) {
+  if (!current) {
     return (
-      <div className="mt-4 rounded-[12px] border border-dashed border-[#ead9d0] bg-[#fffaf7] px-4 py-8 text-center text-sm leading-6 text-[#8b6258]">
-        衣橱证据还不够稳定，建议先确认更多衣服标签后再生成搭配板。
+      <div className="mt-3 border-y border-[#eee5e1] py-8 text-sm text-[#8b7168]">
+        真人搭配图片暂时无法读取，请重新生成。
       </div>
     );
   }
 
   return (
-    <div className="mt-4">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <span className="rounded-full bg-[#fbf3ef] px-3 py-1 text-xs text-[#8b6258]">
-          第 {safeIndex + 1} / {outfits.length} 套
-        </span>
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={goToPrevious}
-            disabled={!hasMultipleOutfits}
-            className="inline-flex items-center gap-1 rounded-full border border-[#ead9d0] bg-white px-3 py-1.5 text-xs text-[#8b6258] transition hover:bg-[#fffaf7] disabled:cursor-not-allowed disabled:opacity-45"
-          >
-            <ChevronRight className="size-3.5 rotate-180" />
-            上一套
-          </button>
-          <button
-            type="button"
-            onClick={goToNext}
-            disabled={!hasMultipleOutfits}
-            className="inline-flex items-center gap-1 rounded-full border border-[#ead9d0] bg-white px-3 py-1.5 text-xs text-[#8b6258] transition hover:bg-[#fffaf7] disabled:cursor-not-allowed disabled:opacity-45"
-          >
-            下一套
-            <ChevronRight className="size-3.5" />
-          </button>
-          <button
-            type="button"
-            onClick={() => void onRequestMoreOutfits()}
-            disabled={isRequestingMore}
-            className="inline-flex items-center gap-1 rounded-full bg-[#b2605e] px-3 py-1.5 text-xs font-medium text-white shadow-sm transition hover:bg-[#9e4f4d] disabled:cursor-wait disabled:opacity-70"
-          >
-            <Sparkles className={cn("size-3.5", isRequestingMore && "animate-pulse")} />
-            {isRequestingMore ? "寻找中" : "更多灵感"}
-          </button>
+    <div className="mt-3">
+      {readyOutfits.length > 1 ? (
+        <div className="mb-3 inline-flex max-w-full gap-1 overflow-x-auto rounded-[8px] bg-[#f4efec] p-1" role="tablist" aria-label="选择穿搭方案">
+          {readyOutfits.map(({ outfit }, index) => (
+            <button
+              key={outfit.outfitId}
+              type="button"
+              role="tab"
+              aria-selected={index === safeIndex}
+              onClick={() => onActiveIndexChange(index)}
+              className={cn(
+                "h-9 shrink-0 rounded-[6px] px-4 text-sm transition",
+                index === safeIndex
+                  ? "bg-white font-medium text-[#50382f] shadow-sm"
+                  : "text-[#8b7168] hover:text-[#50382f]",
+              )}
+            >
+              方案 {index + 1}
+            </button>
+          ))}
         </div>
-      </div>
+      ) : null}
 
-      <div className="relative pb-5">
-        {outfits.length > 2 ? (
-          <div className="absolute inset-x-5 bottom-0 top-8 rounded-[14px] border border-[#ead9d0] bg-[#f7ebe5]" />
-        ) : null}
-        {outfits.length > 1 ? (
-          <div className="absolute inset-x-3 bottom-2 top-4 rounded-[14px] border border-[#ead9d0] bg-[#fbf3ef]" />
-        ) : null}
-        <div className="relative">
-          <OutfitEvidenceBoard
-            key={`${currentOutfit.title}-${safeIndex}`}
-            idea={currentOutfit}
+      <div className="grid items-stretch gap-x-6 gap-y-2 lg:grid-cols-[minmax(0,1.05fr)_minmax(300px,0.95fr)] lg:gap-x-8">
+        <button
+          type="button"
+          onClick={() => onPreviewImage(current.result.imageUrl as string)}
+          className="aspect-square w-full overflow-hidden rounded-[8px] bg-[#f2efec] bg-cover bg-center bg-no-repeat text-left transition hover:opacity-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#b2605e] lg:col-start-1 lg:row-start-1"
+          style={{ backgroundImage: `url(${current.result.imageUrl})` }}
+          aria-label={`查看方案 ${safeIndex + 1} 真人搭配大图`}
+        />
+        <p className="text-xs leading-5 text-[#9a8178] lg:col-start-1 lg:row-start-2">
+          AI 搭配示意用于核对组合，不代表实际尺码和上身效果。
+        </p>
+
+        <div className="mt-4 min-w-0 lg:col-start-2 lg:row-start-1 lg:mt-0">
+          <OutfitSourceList
+            outfit={current.outfit}
             candidateName={candidateName}
             candidateCategory={candidateCategory}
             candidateImageUrl={candidateImageUrl}
-            candidateTags={candidateTags}
+            className="mt-0 h-full"
           />
         </div>
       </div>
@@ -4504,111 +4724,105 @@ function StackedOutfitCards({
   );
 }
 
-function OutfitEvidenceBoard({
-  idea,
+function OutfitSourceList({
+  outfit,
   candidateName,
   candidateCategory,
   candidateImageUrl,
-  candidateTags,
+  className,
 }: {
-  idea: PurchaseDecisionReport["outfitCombinations"][number];
+  outfit: PurchaseDecisionReport["outfitCombinations"][number];
   candidateName: string;
   candidateCategory: string;
   candidateImageUrl?: string;
-  candidateTags: string[];
+  className?: string;
 }) {
-  const evidenceItems = idea.visualItems ?? [];
-  const boardLabel = "高复用搭配";
-  const candidateReason = "作为本次待判断的核心单品，先验证它能否被真实衣橱里的互补单品承接。";
+  const evidenceItems = outfit.visualItems ?? [];
 
   return (
-    <div className="overflow-hidden rounded-[12px] border border-[#ead9d0] bg-[#fffaf7]">
-      <div className="flex items-center justify-between border-b border-[#f0e1da] px-3 py-2">
-        <div className="min-w-0">
-          <p className="truncate font-medium text-[#50382f]">{idea.title}</p>
-          <p className="mt-0.5 text-xs text-[#a08278]">{idea.scenario}</p>
+    <div
+      className={cn(
+        "mt-5 flex overflow-hidden rounded-[14px] border border-[#ded3cf] bg-[#fffdfb]",
+        className,
+      )}
+    >
+      <div className="flex min-h-0 w-full flex-col">
+        <div className="flex items-start justify-between gap-4 border-b border-[#e7ddda] px-5 py-3">
+          <div className="min-w-0">
+            <p className="truncate text-base font-semibold text-[#2f2927]">{outfit.title}</p>
+            <p className="mt-1 text-sm text-[#9a8983]">{outfit.scenario}</p>
+          </div>
         </div>
-        <span className="rounded-full bg-white px-2.5 py-1 text-[11px] text-[#8b6258]">
-          {boardLabel}
-        </span>
-      </div>
 
-      <div className="space-y-3 p-3">
-        <div className="rounded-[10px] bg-white p-3">
-          <div className="flex gap-3">
+        <div className="flex-1 px-5 py-2">
+          <div className="flex gap-4 py-3">
             {candidateImageUrl ? (
               <div
-                className="h-24 w-20 shrink-0 rounded-[9px] bg-[#f8f3ef] bg-cover bg-center"
+                className="h-24 w-20 shrink-0 rounded-[10px] bg-[#f8f3ef] bg-contain bg-center bg-no-repeat"
                 style={{ backgroundImage: `url(${candidateImageUrl})` }}
               />
             ) : (
               <MockProductImage palette="from-[#c9a58e] to-[#f4ded4]" className="h-24 w-20 shrink-0" />
             )}
             <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
-                <span className="rounded-full bg-[#3d281f] px-2.5 py-1 text-[11px] text-white">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="inline-flex rounded-full bg-[#4b2c21] px-3 py-1 text-xs font-medium text-white">
                   待买衣服
                 </span>
-                <span className="truncate text-xs text-[#8b6258]">{candidateCategory}</span>
+                <span className="text-xs text-[#9a8983]">{candidateCategory}</span>
               </div>
-              <p className="mt-2 line-clamp-1 text-sm font-medium text-[#3d281f]">{candidateName}</p>
-              <p className="mt-1 line-clamp-2 text-xs leading-5 text-[#8b6258]">{candidateReason}</p>
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {candidateTags.slice(0, 3).map((tag, index) => (
-                  <span key={`${tag}-${index}`} className="rounded-full bg-[#f8efea] px-2 py-1 text-[11px] text-[#8b6258]">
-                    {tag}
-                  </span>
-                ))}
-              </div>
+              <p className="mt-2 text-base font-semibold text-[#2f2927]">{candidateName}</p>
+              <p className="mt-2 text-sm leading-6 text-[#7f706b]">
+                作为本次待判断的核心单品，用来核对它与衣橱现有单品的搭配关系。
+              </p>
             </div>
           </div>
+
+          {evidenceItems.map((item) => (
+            <div key={item.id} className="flex gap-4 border-t border-[#eee5e1] py-3">
+              {item.imageUrl ? (
+                <div
+                  className="h-24 w-20 shrink-0 rounded-[10px] bg-[#f8f3ef] bg-contain bg-center bg-no-repeat"
+                  style={{ backgroundImage: `url(${item.imageUrl})` }}
+                />
+              ) : (
+                <MockThumb palette="from-[#f2eee7] to-[#d7c4ad]" className="h-24 w-20 shrink-0" />
+              )}
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="inline-flex rounded-full bg-[#ece4e8] px-3 py-1 text-xs font-medium text-[#7d6874]">
+                    {item.role ?? item.badge ?? "衣橱单品"}
+                  </span>
+                  <span className="text-xs text-[#9a8983]">{item.category}</span>
+                </div>
+                <p className="mt-2 text-base font-semibold text-[#2f2927]">{item.name}</p>
+                {item.reason ? (
+                  <p className="mt-2 text-sm leading-6 text-[#7f706b]">{item.reason}</p>
+                ) : null}
+                {item.tags?.length ? (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {item.tags.slice(0, 3).map((tag) => (
+                      <span key={tag} className="rounded-full bg-[#f1eaee] px-2.5 py-1 text-xs text-[#8b7b84]">
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          ))}
         </div>
 
-        {evidenceItems.length ? (
-          evidenceItems.slice(0, 4).map((item) => (
-            <div key={item.id} className="rounded-[10px] bg-white p-3">
-              <div className="flex gap-3">
-                {item.imageUrl ? (
-                  <div
-                    className="h-20 w-[72px] shrink-0 rounded-[8px] bg-[#f8f3ef] bg-cover bg-center"
-                    style={{ backgroundImage: `url(${item.imageUrl})` }}
-                  />
-                ) : (
-                  <MockThumb palette="from-[#f2eee7] to-[#d7c4ad]" className="h-20 w-[72px] shrink-0" />
-                )}
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="rounded-full bg-[#f8efea] px-2.5 py-1 text-[11px] font-medium text-[#8b6258]">
-                      {item.role ?? item.badge}
-                    </span>
-                    <span className="truncate text-xs text-[#a08278]">{item.category}</span>
-                  </div>
-                  <p className="mt-1.5 line-clamp-1 text-sm font-medium text-[#3d281f]">{item.name}</p>
-                  <p className="mt-1 line-clamp-2 text-xs leading-5 text-[#8b6258]">{item.reason}</p>
-                </div>
-              </div>
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {item.tags.slice(0, 3).map((tag, index) => (
-                  <span key={`${tag}-${index}`} className="rounded-full bg-[#fbf3ef] px-2 py-1 text-[11px] text-[#a08278]">
-                    {tag}
-                  </span>
-                ))}
-              </div>
-            </div>
-          ))
-        ) : (
-          <div className="rounded-[10px] border border-dashed border-[#ead9d0] bg-white px-3 py-6 text-center text-sm leading-6 text-[#8b6258]">
-            当前衣橱证据不足，建议先确认更多衣服标签，避免为了凑数量强行生成搭配。
-          </div>
-        )}
-      </div>
-
-      <div className="border-t border-[#f0e1da] px-3 py-3">
-        <p className="text-sm leading-6 text-[#7b5b51]">{idea.summary}</p>
+        {outfit.summary ? (
+          <p className="border-t border-[#ded3cf] px-5 py-4 text-sm leading-7 text-[#766762]">
+            {outfit.summary}
+          </p>
+        ) : null}
       </div>
     </div>
   );
 }
+
 function ClosetView({
   items,
   isLoading,
@@ -5729,7 +5943,6 @@ function DecisionListView({
     all: allItems.length,
     decided_to_buy: allItems.filter((item) => item.status === "decided_to_buy").length,
     saved_for_later: allItems.filter((item) => item.status === "saved_for_later").length,
-    not_considering: allItems.filter((item) => item.status === "not_considering").length,
   };
 
   async function handleDeleteSelected() {
@@ -5791,7 +6004,6 @@ function DecisionListView({
           ["all", "全部", counts.all],
           ["decided_to_buy", "决定买", counts.decided_to_buy],
           ["saved_for_later", "先收藏", counts.saved_for_later],
-          ["not_considering", "暂不考虑", counts.not_considering],
         ].map(([id, label, count]) => (
           <button
             key={id}
@@ -5830,7 +6042,7 @@ function DecisionListView({
             </div>
             <h3 className="mt-4 text-xl font-semibold text-[#3d281f]">暂无决策记录</h3>
             <p className="mx-auto mt-2 max-w-md leading-7 text-[#8b6258]">
-              在决策报告中选择“决定买 / 先收藏 / 暂不考虑”后，商品会出现在这里。
+              在决策报告中选择“决定买”或“先收藏”后，商品会出现在这里。
             </p>
           </div>
         )}
@@ -6395,26 +6607,6 @@ function SettingsView({
   );
 }
 
-function Header({
-  title,
-  subtitle,
-  action,
-}: {
-  title: string;
-  subtitle: string;
-  action?: ReactNode;
-}) {
-  return (
-    <header className="flex items-start justify-between border-b border-[#f0e1da] px-4 py-5 sm:px-6 sm:py-6 lg:px-7">
-      <div>
-        <h2 className="text-3xl font-semibold tracking-[-0.04em] text-[#3d281f] sm:text-4xl">{title}</h2>
-        <p className="mt-2 text-sm leading-6 text-[#8b6258] sm:text-base">{subtitle}</p>
-      </div>
-      {action}
-    </header>
-  );
-}
-
 function HeaderInline({
   title,
   subtitle,
@@ -6440,6 +6632,8 @@ function Composer({
   isAssessing,
   imageDataUrl,
   imageName,
+  placeholder = composerPlaceholder,
+  variant = "dock",
   onChange,
   onImageSelect,
   onClearImage,
@@ -6449,6 +6643,8 @@ function Composer({
   isAssessing: boolean;
   imageDataUrl?: string;
   imageName?: string;
+  placeholder?: string;
+  variant?: "dock" | "starter";
   onChange: (value: string) => void;
   onImageSelect: (file: File) => Promise<void>;
   onClearImage: () => void;
@@ -6499,7 +6695,11 @@ function Composer({
 
   return (
     <form
-      className="border-t border-[#f0e1da] px-4 py-4 sm:px-6 lg:px-7"
+      className={cn(
+        variant === "dock"
+          ? "border-t border-[#f0e1da] px-4 py-4 sm:px-6 lg:px-7"
+          : "mt-7",
+      )}
       onSubmit={(event) => {
         event.preventDefault();
         onSubmit();
@@ -6512,6 +6712,8 @@ function Composer({
         onDrop={handleDrop}
         className={cn(
           "relative rounded-[16px] border bg-[#fffaf7] p-4 transition",
+          variant === "starter" &&
+            "bg-white shadow-[0_16px_44px_rgba(45,43,50,0.09)]",
           isDragOver
             ? "border-[#cf6f70] bg-[#fff4f1] shadow-[0_0_0_4px_rgba(207,111,112,0.12)]"
             : "border-[#ead9d0]",
@@ -6546,8 +6748,13 @@ function Composer({
         <textarea
           value={value}
           onChange={(event) => onChange(event.target.value)}
-          className="h-14 w-full resize-none bg-transparent text-[#3d281f] outline-none placeholder:text-[#b99a91]"
-          placeholder={composerPlaceholder}
+          className={cn(
+            "w-full resize-none bg-transparent text-[#3d281f] outline-none placeholder:text-[#b99a91]",
+            variant === "starter"
+              ? "decision-starter-textarea h-16 border-0 text-base"
+              : "h-14",
+          )}
+          placeholder={placeholder}
           disabled={isAssessing}
         />
         <div className="mt-3 flex flex-wrap items-center gap-2 sm:flex-nowrap sm:gap-3">
@@ -6580,23 +6787,6 @@ function Composer({
         </div>
       </div>
     </form>
-  );
-}
-
-function ScoreStars({ value }: { value: number }) {
-  const stars = Math.round(value / 20);
-  return (
-    <div className="flex items-center gap-1">
-      {Array.from({ length: 5 }).map((_, index) => (
-        <Star
-          key={index}
-          className={cn(
-            "size-4",
-            index < stars ? "fill-[#6a4a35] text-[#6a4a35]" : "text-[#d8c6bd]",
-          )}
-        />
-      ))}
-    </div>
   );
 }
 

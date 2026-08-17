@@ -71,9 +71,11 @@ export type DecisionOutfitItem = {
 };
 
 export type DecisionOutfitCombination = {
+  outfitId?: string;
   title: string;
   scenario: string;
   summary: string;
+  closetItemIds?: string[];
   visualItems?: DecisionOutfitItem[];
 };
 

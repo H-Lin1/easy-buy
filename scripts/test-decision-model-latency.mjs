@@ -13,17 +13,17 @@ const env = {
   ...process.env,
 };
 
-if (!env.AI_DECISION_API_KEY) throw new Error("AI_DECISION_API_KEY is missing.");
+if (!env.AI_DECISION2_API_KEY) throw new Error("AI_DECISION2_API_KEY is missing.");
 const provider = requireSupportedAiScriptProvider(
   "decision",
-  env.AI_DECISION_PROVIDER ?? "autodl",
-  ["autodl"],
+  env.AI_DECISION2_PROVIDER ?? "tripo",
+  ["tripo"],
 );
 
 const client = new OpenAI({
-  apiKey: env.AI_DECISION_API_KEY,
-  baseURL: env.AI_DECISION_BASE_URL ?? "https://www.autodl.art/api/v1",
-  timeout: Number(env.AI_DECISION_TIMEOUT_MS ?? 60000),
+  apiKey: env.AI_DECISION2_API_KEY,
+  baseURL: env.AI_DECISION2_BASE_URL ?? "https://lumina.tripo3d.com/v1",
+  timeout: Number(env.AI_DECISION2_TIMEOUT_MS ?? 60000),
   maxRetries: 0,
 });
 
@@ -31,7 +31,7 @@ const startedAt = Date.now();
 
 try {
   const response = await client.chat.completions.create({
-    model: env.AI_DECISION_MODEL ?? "qwen3.6-plus",
+    model: env.AI_DECISION2_MODEL ?? "gpt-5.6-terra",
     messages: [
       { role: "system", content: "只输出严格 JSON，不要输出 Markdown。" },
       {
@@ -50,7 +50,7 @@ try {
       {
         elapsedMs: Date.now() - startedAt,
         provider,
-        model: env.AI_DECISION_MODEL ?? "qwen3.6-plus",
+        model: env.AI_DECISION2_MODEL ?? "gpt-5.6-terra",
         content: response.choices[0]?.message?.content,
       },
       null,
@@ -62,8 +62,8 @@ try {
     JSON.stringify(
       {
         elapsedMs: Date.now() - startedAt,
-        model: env.AI_DECISION_MODEL ?? "qwen3.6-plus",
-        error: sanitizeAiScriptError(error, [env.AI_DECISION_API_KEY]),
+        model: env.AI_DECISION2_MODEL ?? "gpt-5.6-terra",
+        error: sanitizeAiScriptError(error, [env.AI_DECISION2_API_KEY]),
       },
       null,
       2,

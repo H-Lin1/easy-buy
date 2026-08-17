@@ -94,7 +94,7 @@ export function parseImageEditResponseJson(
 
 export function createImageEditRequestForConfig(
   config: AiCapabilityConfig,
-  imageDataUrl: string,
+  imageDataUrls: string | string[],
   prompt: string,
   negativePrompt: string,
 ): ImageEditRequest {
@@ -110,12 +110,19 @@ export function createImageEditRequestForConfig(
   const apiKey = config.apiKey;
   const baseUrl = config.baseUrl;
   const model = config.model;
+  const normalizedImageDataUrls = Array.isArray(imageDataUrls) ? imageDataUrls : [imageDataUrls];
 
   if (!apiKey || !baseUrl || !model) {
     throw new Error("AI image-edit capability is not configured.");
   }
+  if (!normalizedImageDataUrls.length) {
+    throw new Error("AI image-edit requires at least one input image.");
+  }
 
   if (provider === "siliconflow") {
+    if (normalizedImageDataUrls.length !== 1) {
+      throw new Error("SiliconFlow image editing does not support native multi-image input.");
+    }
     return {
       protocol: "json",
       endpoint: `${baseUrl.replace(/\/$/, "")}/images/generations`,
@@ -126,16 +133,18 @@ export function createImageEditRequestForConfig(
         model,
         prompt,
         negative_prompt: negativePrompt,
-        image: imageDataUrl,
+        image: normalizedImageDataUrls[0],
       },
     };
   }
 
-  const inputImage = createImageBlobFromDataUrl(imageDataUrl);
   const formData = new FormData();
   formData.append("model", model);
   formData.append("prompt", appendNegativeConstraints(prompt, negativePrompt));
-  formData.append("image[]", inputImage.blob, `closet-input${inputImage.extension}`);
+  normalizedImageDataUrls.forEach((imageDataUrl, index) => {
+    const inputImage = createImageBlobFromDataUrl(imageDataUrl);
+    formData.append("image[]", inputImage.blob, `input-${index + 1}${inputImage.extension}`);
+  });
 
   return {
     protocol: "multipart",
@@ -213,6 +222,14 @@ export function createImageBlobFromDataUrl(imageDataUrl: string) {
     contentType,
     extension: extensionFromContentType(contentType),
   };
+}
+
+export function createImageDataUrlFromBytes(bytes: Buffer) {
+  const contentType = getImageContentType(bytes);
+  if (!contentType) {
+    throw new Error("AI image-edit input bytes do not contain a supported image.");
+  }
+  return `data:${contentType};base64,${bytes.toString("base64")}`;
 }
 
 export function decodeImageEditBase64(value: string) {
