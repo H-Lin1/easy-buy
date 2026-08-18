@@ -3,17 +3,20 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 
 import {
-  buildPurchaseAnalysisPrompt,
   buildPurchaseEmbeddingText,
-  parsePurchaseAnalysisJson,
 } from "@/lib/ai/purchase-analysis";
 import {
   embedText,
   generateImageRequiredGuidance,
-  generateVisionJson,
   sanitizeAiErrorMessage,
   toPgVector,
 } from "@/lib/ai/providers";
+import {
+  analyzePurchaseCandidateSafely,
+  getDataUrlByteLength,
+  stripUnsupportedPrice,
+  uploadPurchaseScreenshot,
+} from "@/lib/ai/purchase-candidate-server";
 import {
   hasPurchaseImage,
   IMAGE_REQUIRED_FALLBACK_MESSAGE,
@@ -119,7 +122,11 @@ export async function POST(request: NextRequest) {
           hasImage: true,
           imageBytesApprox: getDataUrlByteLength(imageDataUrl),
         }, async () => {
-          const path = await uploadPurchaseScreenshot(supabase, userData.user.id, imageDataUrl);
+          const { path } = await uploadPurchaseScreenshot(
+            supabase,
+            userData.user.id,
+            imageDataUrl,
+          );
           return {
             value: path,
             output: {
@@ -376,75 +383,6 @@ function sanitizeCandidateForTrace(candidate: ReturnType<typeof parseCandidateFr
   };
 }
 
-async function analyzePurchaseCandidateSafely(
-  message: string,
-  imageDataUrl: string,
-  screenshotPath?: string,
-  screenshotUrl?: string,
-) {
-  try {
-    return {
-      ...parsePurchaseAnalysisJson(
-        await generateVisionJson(
-          buildPurchaseAnalysisPrompt({ userIntent: message }),
-          [imageDataUrl],
-        ),
-      ),
-      screenshotPath,
-      screenshotUrl,
-    };
-  } catch (error) {
-    console.warn("[purchase-assessment] vision analysis skipped", {
-      message: sanitizeAiErrorMessage(error),
-    });
-
-    const fallbackCandidate = parseCandidateFromMessage(message || "待买商品");
-    return {
-      ...fallbackCandidate,
-      screenshotPath,
-      screenshotUrl,
-      summary: `${fallbackCandidate.summary} 商品截图识别暂时失败，本次先根据文字描述和衣橱信息做保守判断。`,
-      aiConfidence: 0.45,
-    };
-  }
-}
-
-function stripUnsupportedPrice<T extends { estimatedPrice?: number; detectedText?: string }>(
-  candidate: T,
-  message: string,
-) {
-  if (!candidate.estimatedPrice) return candidate;
-  const evidenceText = [message, candidate.detectedText].filter(Boolean).join(" ");
-  const hasExplicitPrice = /(?:[¥￥]\s*\d{2,5}|\d{2,5}\s*元|价格\s*[:：]?\s*\d{2,5}|售价\s*[:：]?\s*\d{2,5}|到手\s*[:：]?\s*\d{2,5}|券后\s*[:：]?\s*\d{2,5})/.test(
-    evidenceText,
-  );
-
-  if (hasExplicitPrice) return candidate;
-
-  return {
-    ...candidate,
-    estimatedPrice: undefined,
-  };
-}
-
-async function uploadPurchaseScreenshot(
-  supabase: SupabaseClient,
-  userId: string,
-  imageDataUrl: string,
-) {
-  const image = parseImageDataUrl(imageDataUrl);
-  const extension = image.mimeType === "image/png" ? "png" : image.mimeType === "image/webp" ? "webp" : "jpg";
-  const path = `${userId}/${crypto.randomUUID()}.${extension}`;
-  const { error } = await supabase.storage.from("purchase-screenshots").upload(path, image.buffer, {
-    cacheControl: "3600",
-    contentType: image.mimeType,
-    upsert: false,
-  });
-
-  if (error) throw error;
-  return path;
-}
-
 function normalizeUserProfile(profile: z.infer<typeof profileSchema>): UserStyleProfile | undefined {
   if (!profile) return undefined;
 
@@ -456,21 +394,4 @@ function normalizeUserProfile(profile: z.infer<typeof profileSchema>): UserStyle
     commonScenarios: profile.commonScenarios,
     budgetSensitivity: profile.budgetSensitivity,
   };
-}
-
-function parseImageDataUrl(imageDataUrl: string) {
-  const match = imageDataUrl.match(/^data:(image\/(?:jpeg|jpg|png|webp));base64,(.+)$/);
-  if (!match) {
-    throw new Error("商品截图格式不支持，请上传 JPG、PNG 或 WebP。");
-  }
-
-  return {
-    mimeType: match[1] === "image/jpg" ? "image/jpeg" : match[1],
-    buffer: Buffer.from(match[2], "base64"),
-  };
-}
-
-function getDataUrlByteLength(imageDataUrl: string) {
-  const base64 = imageDataUrl.split(",", 2)[1] ?? "";
-  return Math.round((base64.length * 3) / 4);
 }

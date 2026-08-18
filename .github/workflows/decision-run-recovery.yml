@@ -1,0 +1,36 @@
+name: Recover decision runs
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: decision-run-recovery
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  recover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Invoke protected recovery endpoint
+        env:
+          RECOVERY_URL: ${{ vars.DECISION_RUN_RECOVERY_URL }}
+          RECOVERY_SECRET: ${{ secrets.DECISION_RUN_RECOVERY_SECRET }}
+        run: |
+          test -n "$RECOVERY_URL"
+          test -n "$RECOVERY_SECRET"
+          curl --silent --show-error --fail-with-body \
+            --retry 2 \
+            --retry-all-errors \
+            --connect-timeout 10 \
+            --max-time 60 \
+            --request POST \
+            --header "Authorization: Bearer $RECOVERY_SECRET" \
+            --header "Content-Type: application/json" \
+            --data '{"limit":100}' \
+            "$RECOVERY_URL"
