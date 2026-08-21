@@ -3298,8 +3298,37 @@ export default function Home() {
     });
   }
 
-  async function deleteChatSession(sessionId: string) {
+  async function renameChatSession(sessionId: string, title: string) {
     if (!user) return;
+    const nextTitle = title.trim();
+    if (!nextTitle) return;
+
+    const { error } = await supabase
+      .from("chat_sessions")
+      .update({ title: nextTitle })
+      .eq("id", sessionId)
+      .eq("user_id", user.id);
+    if (error) {
+      if (activeChatIdRef.current === sessionId) {
+        setChatState((current) => ({
+          ...current,
+          error: "重命名对话失败，请稍后再试。",
+          notice: "",
+        }));
+      }
+      return;
+    }
+
+    setChatSessions((sessions) =>
+      sessions.map((session) => (session.id === sessionId ? { ...session, title: nextTitle } : session)),
+    );
+  }
+
+  async function deleteChatSession(chat: ChatSession) {
+    if (!user) return;
+    const confirmed = window.confirm(`确定删除「${chat.title}」吗？删除后无法恢复。`);
+    if (!confirmed) return;
+    const sessionId = chat.id;
 
     try {
       await archiveChatSessionOnServer(sessionId);
@@ -3611,7 +3640,8 @@ export default function Home() {
           onViewChange={setView}
           onNewChat={() => void startNewChat()}
           onOpenChat={(sessionId) => void openChatSession(sessionId)}
-          onDeleteChat={(sessionId) => void deleteChatSession(sessionId)}
+          onRenameChat={(sessionId, title) => void renameChatSession(sessionId, title)}
+          onDeleteChat={(chat) => void deleteChatSession(chat)}
         />
         <MobileNavigation
           currentView={activeView}
@@ -3994,6 +4024,7 @@ function Sidebar({
   onViewChange,
   onNewChat,
   onOpenChat,
+  onRenameChat,
   onDeleteChat,
 }: {
   currentView: AppView;
@@ -4007,43 +4038,29 @@ function Sidebar({
   onViewChange: (view: AppView) => void;
   onNewChat: () => void;
   onOpenChat: (sessionId: string) => void;
-  onDeleteChat: (sessionId: string) => void;
+  onRenameChat: (sessionId: string, title: string) => void;
+  onDeleteChat: (chat: ChatSession) => void;
 }) {
+  const [menuOpenForId, setMenuOpenForId] = useState<string | null>(null);
   const navItems = [
-    { id: "chat" as const, label: "决策聊天", count: counts.chats, icon: MessageCircle },
-    { id: "closet" as const, label: "衣橱", count: counts.closet, icon: Shirt },
+    { id: "chat" as const, label: "新聊天", count: counts.chats, icon: MessageCircle },
+    { id: "closet" as const, label: "云端衣橱", count: counts.closet, icon: Shirt },
     { id: "decisions" as const, label: "决策清单", count: counts.decisions, icon: ClipboardList },
-    { id: "settings" as const, label: "设置", icon: Settings },
+    { id: "settings" as const, label: "个人设置", icon: Settings },
   ];
 
   return (
     <aside className="desktop-sidebar hidden w-[268px] shrink-0 flex-col rounded-[18px] border border-[#ead9d0] bg-[#fffdfb]/92 p-5 lg:flex">
-      <div className="flex items-center gap-3 px-1">
-        <div className="flex size-12 items-center justify-center rounded-[13px] bg-[#76576f] text-white shadow-[0_10px_24px_rgba(45,43,50,0.12)]">
-          <Shirt className="size-6" />
-        </div>
-        <div>
-          <h1 className="text-lg font-semibold tracking-[-0.02em] text-[#3d281f]">买对衣</h1>
-          <p className="mt-1 text-xs text-[#9a7468]">认真买，长久穿</p>
-        </div>
-      </div>
+      <h1 className="px-1 text-lg font-semibold tracking-[-0.02em] text-[#3d281f]">长期主义购衣助手</h1>
 
-      <button
-        onClick={onNewChat}
-        className="mt-6 flex h-12 items-center justify-center gap-2 rounded-[12px] bg-[#76576f] text-sm font-medium text-white shadow-[0_10px_24px_rgba(45,43,50,0.10)] transition hover:bg-[#62465c]"
-      >
-        <Sparkles className="size-4" />
-        新建决策对话
-      </button>
-
-      <nav className="mt-6 space-y-1.5">
+      <nav className="mt-4 space-y-1.5">
         {navItems.map((item) => {
           const Icon = item.icon;
           const active = currentView === item.id;
           return (
             <button
               key={item.id}
-              onClick={() => onViewChange(item.id)}
+              onClick={() => (item.id === "chat" ? onNewChat() : onViewChange(item.id))}
               className={cn(
                 "flex h-12 w-full items-center gap-3 rounded-[10px] px-3 text-left text-sm transition",
                 active
@@ -4063,7 +4080,7 @@ function Sidebar({
         })}
       </nav>
 
-      <div className="mt-6 min-h-0 flex-1 border-t border-[#ead9d0] pt-5">
+      <div className="mt-4 min-h-0 flex-1 border-t border-[#ead9d0] pt-4">
         <p className="mb-3 px-1 text-xs font-medium tracking-[0.08em] text-[#a08278]">最近对话</p>
         <div className="view-scroll max-h-[calc(100vh-500px)] space-y-2 overflow-y-auto pr-1">
           {chats.length ? (
@@ -4091,18 +4108,48 @@ function Sidebar({
                   </div>
                   {chat.favorite && <Star className="size-4 fill-[#d58883] text-[#d58883]" />}
                 </button>
-                <button
-                  type="button"
-                  aria-label={`删除对话：${chat.title}`}
-                  title="删除对话"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onDeleteChat(chat.id);
-                  }}
-                  className="flex size-8 shrink-0 items-center justify-center rounded-full text-[#c28b82] opacity-0 transition hover:bg-[#f1ded8] hover:text-[#a9514f] group-hover:opacity-100"
-                >
-                  <Trash2 className="size-4" />
-                </button>
+                <div className="relative shrink-0">
+                  <button
+                    type="button"
+                    aria-label={`更多操作：${chat.title}`}
+                    title="更多操作"
+                    aria-expanded={menuOpenForId === chat.id}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setMenuOpenForId((current) => (current === chat.id ? null : chat.id));
+                    }}
+                    className="flex size-8 items-center justify-center rounded-full text-[#9a7468] opacity-0 transition hover:bg-[#f1ded8] hover:text-[#76576f] focus-visible:opacity-100 group-hover:opacity-100"
+                  >
+                    <MoreHorizontal className="size-4" />
+                  </button>
+                  {menuOpenForId === chat.id && (
+                    <div className="absolute right-0 top-9 z-10 w-28 rounded-[10px] border border-[#ead9d0] bg-white p-1 shadow-[0_10px_24px_rgba(61,40,31,0.12)]">
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setMenuOpenForId(null);
+                          const title = window.prompt("重命名对话", chat.title);
+                          if (title !== null) onRenameChat(chat.id, title);
+                        }}
+                        className="flex w-full items-center rounded-[7px] px-2.5 py-2 text-left text-xs text-[#6e5148] transition hover:bg-[#f8efea]"
+                      >
+                        重命名
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setMenuOpenForId(null);
+                          onDeleteChat(chat);
+                        }}
+                        className="flex w-full items-center rounded-[7px] px-2.5 py-2 text-left text-xs text-[#a9514f] transition hover:bg-[#fbeceb]"
+                      >
+                        删除
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             ))
           ) : (
@@ -5303,14 +5350,6 @@ function ClosetView({
               <Plus className="size-4" />
               {uploadDisabled ? "上传中" : "上传衣服"}
             </button>
-            <button
-              disabled={uploadDisabled}
-              onClick={() => fileInputRef.current?.click()}
-              className="inline-flex h-11 items-center gap-2 rounded-[10px] border border-[#ead9d0] px-5 text-[#8b6258] disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              <Upload className="size-4" />
-              批量上传
-            </button>
           </>
         }
       />
@@ -5442,9 +5481,9 @@ function ClosetView({
             <div className="mx-auto flex size-16 items-center justify-center rounded-full bg-[#fbf0ec] text-[#b2605e]">
               <Shirt className="size-7" />
             </div>
-            <h3 className="mt-4 text-xl font-semibold text-[#3d281f]">还没有衣橱单品</h3>
+            <h3 className="mt-4 text-xl font-semibold text-[#3d281f]">云端衣橱暂时为空</h3>
             <p className="mx-auto mt-2 max-w-md leading-7 text-[#8b6258]">
-              先上传几件常穿衣服。后续 AI 会自动识别品类、颜色、版型和风格，并用于购买决策时的搭配检索。
+              先上传几件常穿衣服，AI 会自动识别品类、颜色、版型和风格，并用于购买决策时的搭配检索。
             </p>
             <button
               disabled={uploadDisabled}
