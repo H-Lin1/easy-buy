@@ -6518,43 +6518,43 @@ function DecisionCard({
         </button>
       )}
       <div className="grid gap-5 lg:grid-cols-[293px_minmax(0,1fr)]">
-        <div className="flex gap-4 xl:block">
+        <div className="flex min-w-0 flex-col">
+          <div className="flex min-h-24 flex-col justify-between lg:min-h-[126px]">
+            <h3 className="line-clamp-2 text-lg font-semibold leading-7 text-[#3d281f]">
+              {item.productName}
+            </h3>
+          </div>
           {item.imageUrl ? (
             <button
               type="button"
               onClick={() => onPreviewImage(item.imageUrl as string)}
-              className="h-56 w-48 rounded-[12px] bg-white bg-contain bg-center bg-no-repeat text-left transition hover:scale-[1.01] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#cf6f70] xl:h-[277px] xl:w-full"
+              className="mt-3 h-56 w-48 rounded-[12px] bg-white bg-contain bg-center bg-no-repeat text-left transition hover:scale-[1.01] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#cf6f70] lg:mt-0 lg:h-[277px] lg:w-full"
               style={{ backgroundImage: `url(${item.imageUrl})` }}
               aria-label="查看商品图片大图"
             />
           ) : (
-            <MockProductImage palette={item.palette} className="h-56 w-48 xl:h-[277px] xl:w-full" />
+            <MockProductImage palette={item.palette} className="mt-3 h-56 w-48 lg:mt-0 lg:h-[277px] lg:w-full" />
           )}
-          <div className="min-w-0 flex-1 xl:mt-4">
-            <h3 className="line-clamp-2 text-lg font-semibold leading-7 text-[#3d281f]">
-              {item.productName}
-            </h3>
-            <div className="mt-4 space-y-3">
-              <EditableDecisionField
-                label="价格"
-                prefix="¥"
-                value={item.priceKnown ? String(item.price) : ""}
-                placeholder="价格"
-                inputMode="decimal"
-                muted={!item.priceKnown}
-                size="price"
-                onCommit={(value) =>
-                  onDetailsChange(item.id, { price: parseDecisionPriceInput(value) })
-                }
-              />
-              <button
-                onClick={() => onOpenReport(item)}
-                className="inline-flex items-center gap-1 text-sm font-medium text-[#b2605e] transition hover:text-[#8f4748]"
-              >
-                查看完整分析
-                <ChevronRight className="size-4" />
-              </button>
-            </div>
+          <div className="mt-4 space-y-3">
+            <EditableDecisionField
+              label="价格"
+              prefix="¥"
+              value={item.priceKnown ? String(item.price) : ""}
+              placeholder="价格"
+              inputMode="decimal"
+              muted={!item.priceKnown}
+              size="price"
+              onCommit={(value) =>
+                onDetailsChange(item.id, { price: parseDecisionPriceInput(value) })
+              }
+            />
+            <button
+              onClick={() => onOpenReport(item)}
+              className="inline-flex items-center gap-1 text-sm font-medium text-[#b2605e] transition hover:text-[#8f4748]"
+            >
+              查看完整分析
+              <ChevronRight className="size-4" />
+            </button>
           </div>
         </div>
         <div className="border-t border-[#f0e1da] pt-5 lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0">
@@ -6568,12 +6568,6 @@ function DecisionCard({
           <StatusIcon className="size-4" />
           {statusConfig[item.status].label}
         </span>
-        {item.reminderAt && (
-          <span className="inline-flex h-10 items-center gap-2 rounded-[10px] bg-[#fbf0ec] px-4 text-sm text-[#8b6258]">
-            <CalendarClock className="size-4" />
-            {item.reminderAt}提醒复盘
-          </span>
-        )}
         <span className="ml-auto text-sm text-[#8b6258]">最近一次咨询时间：{item.lastAskedAt}</span>
         <div className="flex gap-2">
           {(Object.keys(statusConfig) as DecisionStatus[]).map((status) => (
