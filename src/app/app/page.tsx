@@ -37,6 +37,7 @@ import { ThinkingOrb, type OrbState } from "thinking-orbs";
 
 import { getEligibleTryOnOutfits, withStableOutfitIds } from "@/lib/ai/outfit-try-on";
 import type { OutfitTryOnBatch, PurchaseDecisionReport } from "@/lib/ai/types";
+import { hasDecisionTryOnImage, selectDecisionTryOnResult } from "@/lib/decision-list/preview";
 import { runWithConcurrency } from "@/lib/closet/concurrency";
 import {
   createEmptyClosetFilters,
@@ -376,6 +377,14 @@ type DecisionReportMessageRow = {
   role: "assistant";
   metadata: Record<string, unknown> | null;
   created_at: string;
+};
+
+type DecisionTryOnImageRow = {
+  report_id: string;
+  outfit_id: string;
+  position: number;
+  image_path: string | null;
+  status: "pending" | "processing" | "ready" | "failed" | "cancelled";
 };
 
 type DecisionClosetImageRow = {
@@ -1305,6 +1314,10 @@ export default function Home() {
       const reportNamesByReportId = new Map<string, string>();
       const reportNamesBySessionId = new Map<string, string>();
       const closetImagesById = new Map<string, DecisionClosetImageInfo>();
+      const tryOnResultsByReportId = new Map<
+        string,
+        NonNullable<DecisionItem["tryOnResults"]>
+      >();
 
       if (sessionIds.length) {
         const { data: messageData, error: messageError } = await supabase
@@ -1327,6 +1340,38 @@ export default function Home() {
               reportNamesBySessionId.set(message.session_id, productName);
             }
           });
+        }
+      }
+
+      const reportIds = Array.from(
+        new Set(rows.map((item) => item.report_id ?? item.report?.id).filter((id): id is string => Boolean(id))),
+      );
+      if (reportIds.length) {
+        const { data: tryOnData, error: tryOnError } = await supabase
+          .from("outfit_try_on_images")
+          .select("report_id,outfit_id,position,image_path,status")
+          .in("report_id", reportIds)
+          .order("position", { ascending: true });
+
+        if (tryOnError) {
+          console.error(tryOnError);
+        } else {
+          await Promise.all(
+            ((tryOnData ?? []) as unknown as DecisionTryOnImageRow[]).map(async (tryOn) => {
+              const imageUrl =
+                tryOn.status === "ready"
+                  ? await createStorageSignedUrl(supabase, "purchase-screenshots", tryOn.image_path)
+                  : undefined;
+              const existing = tryOnResultsByReportId.get(tryOn.report_id) ?? [];
+              existing.push({
+                outfitId: tryOn.outfit_id,
+                position: tryOn.position,
+                status: tryOn.status === "ready" && imageUrl ? "ready" : "failed",
+                imageUrl,
+              });
+              tryOnResultsByReportId.set(tryOn.report_id, existing);
+            }),
+          );
         }
       }
 
@@ -1386,7 +1431,14 @@ export default function Home() {
             candidate?.category,
           );
           const outfitCombinations = Array.isArray(item.report?.outfit_combinations)
-            ? hydrateDecisionOutfitImages(item.report.outfit_combinations, closetImagesById)
+            ? hydrateDecisionOutfitImages(
+                withStableOutfitIds(
+                  item.report.outfit_combinations as unknown as Parameters<
+                    typeof withStableOutfitIds
+                  >[0],
+                ),
+                closetImagesById,
+              )
             : [];
 
           return {
@@ -1406,6 +1458,11 @@ export default function Home() {
               ? item.snapshot_outfit_tips
               : ["回看当时的搭配证据", "结合已有衣橱判断复用率"],
             outfitCombinations,
+            tryOnResults: item.report_id
+              ? tryOnResultsByReportId.get(item.report_id)
+              : item.report?.id
+                ? tryOnResultsByReportId.get(item.report.id)
+                : undefined,
             risks: item.snapshot_risks?.length
               ? item.snapshot_risks
               : ["信息不足时建议先收藏观察"],
@@ -6225,7 +6282,7 @@ function DecisionListView({
   items: DecisionItem[];
   allItems: DecisionItem[];
   onFilterChange: (filter: DecisionStatus | "all") => void;
-  onStatusChange: (id: string, status: DecisionStatus) => void;
+  onStatusChange: (id: string, status: DecisionStatus) => Promise<void>;
   onDetailsChange: (
     id: string,
     patch: Partial<{ price: number | null; color: string; size: string }>,
@@ -6237,6 +6294,8 @@ function DecisionListView({
   const [isManageMode, setIsManageMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [dismissalCandidateId, setDismissalCandidateId] = useState<string | null>(null);
+  const [isDismissing, setIsDismissing] = useState(false);
   const counts = {
     all: allItems.length,
     decided_to_buy: allItems.filter((item) => item.status === "decided_to_buy").length,
@@ -6256,6 +6315,14 @@ function DecisionListView({
     setSelectedIds((current) =>
       current.includes(id) ? current.filter((itemId) => itemId !== id) : [...current, id],
     );
+  }
+
+  async function confirmDismissal() {
+    if (!dismissalCandidateId || isDismissing) return;
+    setIsDismissing(true);
+    await onStatusChange(dismissalCandidateId, "not_considering");
+    setIsDismissing(false);
+    setDismissalCandidateId(null);
   }
 
   return (
@@ -6324,7 +6391,13 @@ function DecisionListView({
             <DecisionCard
               key={item.id}
               item={item}
-              onStatusChange={onStatusChange}
+              onStatusChange={(id, status) => {
+                if (status === "not_considering") {
+                  setDismissalCandidateId(id);
+                  return;
+                }
+                void onStatusChange(id, status);
+              }}
               onDetailsChange={onDetailsChange}
               onOpenReport={onOpenReport}
               onPreviewImage={setPreviewImageUrl}
@@ -6352,6 +6425,47 @@ function DecisionListView({
 
       {previewImageUrl && (
         <ImagePreviewDialog imageUrl={previewImageUrl} onClose={() => setPreviewImageUrl(null)} />
+      )}
+      {dismissalCandidateId && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-[#241813]/45 px-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="dismiss-decision-title"
+          onClick={() => {
+            if (!isDismissing) setDismissalCandidateId(null);
+          }}
+        >
+          <div
+            className="w-full max-w-md rounded-[16px] border border-[#ead9d0] bg-white p-6 shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h2 id="dismiss-decision-title" className="text-xl font-semibold text-[#3d281f]">
+              暂不考虑这件衣服？
+            </h2>
+            <p className="mt-3 leading-7 text-[#7b5b51]">
+              确认后，这件衣服将从决策清单中删除。你仍可在对应聊天记录中查看完整分析。
+            </p>
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                disabled={isDismissing}
+                onClick={() => setDismissalCandidateId(null)}
+                className="h-10 rounded-[10px] border border-[#ead9d0] px-4 text-sm text-[#7b5b51] transition hover:bg-[#fbf3ef] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                disabled={isDismissing}
+                onClick={() => void confirmDismissal()}
+                className="h-10 rounded-[10px] bg-[#c75f60] px-4 text-sm font-medium text-white transition hover:bg-[#ad4f50] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isDismissing ? "处理中" : "确认暂不考虑"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -6403,18 +6517,18 @@ function DecisionCard({
           {isSelected && <Check className="size-5" />}
         </button>
       )}
-      <div className="grid gap-5 xl:grid-cols-[220px_minmax(260px,0.9fr)_minmax(380px,1.15fr)]">
+      <div className="grid gap-5 lg:grid-cols-[293px_minmax(0,1fr)]">
         <div className="flex gap-4 xl:block">
           {item.imageUrl ? (
             <button
               type="button"
               onClick={() => onPreviewImage(item.imageUrl as string)}
-              className="h-44 w-36 rounded-[12px] bg-[#f8f3ef] bg-cover bg-center text-left transition hover:scale-[1.01] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#cf6f70] xl:w-full"
+              className="h-56 w-48 rounded-[12px] bg-white bg-contain bg-center bg-no-repeat text-left transition hover:scale-[1.01] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#cf6f70] xl:h-[277px] xl:w-full"
               style={{ backgroundImage: `url(${item.imageUrl})` }}
               aria-label="查看商品图片大图"
             />
           ) : (
-            <MockProductImage palette={item.palette} className="h-44 w-36 xl:w-full" />
+            <MockProductImage palette={item.palette} className="h-56 w-48 xl:h-[277px] xl:w-full" />
           )}
           <div className="min-w-0 flex-1 xl:mt-4">
             <h3 className="line-clamp-2 text-lg font-semibold leading-7 text-[#3d281f]">
@@ -6433,35 +6547,17 @@ function DecisionCard({
                   onDetailsChange(item.id, { price: parseDecisionPriceInput(value) })
                 }
               />
-              <div className="grid grid-cols-2 gap-3">
-                <EditableDecisionField
-                  label="颜色"
-                  value={item.color === "待确认" ? "" : item.color}
-                  placeholder="待确认"
-                  onCommit={(value) => onDetailsChange(item.id, { color: value })}
-                />
-                <EditableDecisionField
-                  label="尺码"
-                  value={item.size === "待确认" ? "" : item.size}
-                  placeholder="待确认"
-                  onCommit={(value) => onDetailsChange(item.id, { size: value })}
-                />
-              </div>
+              <button
+                onClick={() => onOpenReport(item)}
+                className="inline-flex items-center gap-1 text-sm font-medium text-[#b2605e] transition hover:text-[#8f4748]"
+              >
+                查看完整分析
+                <ChevronRight className="size-4" />
+              </button>
             </div>
           </div>
         </div>
-        <div className="border-l border-[#f0e1da] pl-5">
-          <p className="font-medium text-[#3d281f]">AI 建议总结</p>
-          <p className="mt-3 leading-7 text-[#7b5b51]">{item.summary}</p>
-          <button
-            onClick={() => onOpenReport(item)}
-            className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-[#b2605e] transition hover:text-[#8f4748]"
-          >
-            查看完整分析
-            <ChevronRight className="size-4" />
-          </button>
-        </div>
-        <div className="border-l border-[#f0e1da] pl-5">
+        <div className="border-t border-[#f0e1da] pt-5 lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0">
           <DecisionOutfitPreview item={item} onPreviewImage={onPreviewImage} />
         </div>
       </div>
@@ -6603,25 +6699,16 @@ function DecisionOutfitPreview({
   item: DecisionItem;
   onPreviewImage: (imageUrl: string) => void;
 }) {
-  const outfits =
-    item.outfitCombinations
-      ?.map((outfit) => ({
-        ...outfit,
-        visualItems: (outfit.visualItems ?? []).filter(
-          (visualItem) =>
-            visualItem.name !== item.productName &&
-            !/待买|候选|本次|商品/.test(`${visualItem.role ?? ""}${visualItem.badge ?? ""}`),
-        ),
-      }))
-      .filter((outfit) => outfit.visualItems.length) ?? [];
+  const outfits = item.outfitCombinations ?? [];
   const [activeIndex, setActiveIndex] = useState(0);
 
   if (!outfits.length) {
     return (
       <div>
-        <p className="font-medium text-[#3d281f]">搭配卡片</p>
+        <p className="font-medium text-[#3d281f]">穿搭效果</p>
         <div className="mt-3 rounded-[14px] border border-dashed border-[#ead9d0] bg-[#fffaf7] p-5 text-sm leading-6 text-[#8b6258]">
-          这条记录暂时没有保存可视化搭配卡。可以点击完整分析回到原对话查看当时的建议。
+          <span className="font-medium text-[#6e5148]">暂无真人效果</span>
+          <br />这条历史记录保留了来源单品与搭配说明，可以点击完整分析回看当时的建议。
         </div>
       </div>
     );
@@ -6634,7 +6721,7 @@ function DecisionOutfitPreview({
     <div>
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="font-medium text-[#3d281f]">核心搭配卡</p>
+          <p className="font-medium text-[#3d281f]">穿搭效果</p>
           <p className="mt-1 text-xs text-[#a08278]">
             第 {currentIndex + 1} / {outfits.length} 套 · {outfit.scenario || "日常搭配"}
           </p>
@@ -6672,8 +6759,40 @@ function DecisionOutfitPreview({
             </div>
           </div>
 
-          <div className="mt-3 grid gap-2 sm:grid-cols-2">
-            {outfit.visualItems.slice(0, 4).map((visualItem) => (
+          {(() => {
+            const tryOn = selectDecisionTryOnResult(item.tryOnResults, outfit.outfitId, currentIndex);
+            const tryOnImageUrl = tryOn?.imageUrl;
+            const sourceItems = (outfit.visualItems ?? []).filter(
+              (visualItem) =>
+                visualItem.name !== item.productName &&
+                !/待买|候选|本次|商品/.test(`${visualItem.role ?? ""}${visualItem.badge ?? ""}`),
+            );
+            return (
+              <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(180px,0.95fr)_minmax(220px,1.05fr)]">
+                <div className="aspect-square overflow-hidden rounded-[12px] bg-white">
+                  {hasDecisionTryOnImage(tryOn) && tryOnImageUrl ? (
+                    <button
+                      type="button"
+                      onClick={() => onPreviewImage(tryOnImageUrl)}
+                      className="h-full w-full bg-[#f3ebe5] bg-contain bg-center bg-no-repeat"
+                      style={{ backgroundImage: `url(${tryOnImageUrl})` }}
+                      aria-label={`查看方案 ${currentIndex + 1} 真人搭配大图`}
+                    />
+                  ) : (
+                    <div className="flex h-full items-center justify-center px-6 text-center text-sm leading-6 text-[#9a8178]">
+                      暂无真人效果
+                    </div>
+                  )}
+                </div>
+                <div className="flex flex-col gap-2 lg:h-full lg:justify-between lg:gap-0">
+                  <SourceDecisionItem
+                    name={item.productName}
+                    category="待买单品"
+                    imageUrl={item.imageUrl}
+                    role="待买单品"
+                    onPreviewImage={onPreviewImage}
+                  />
+                  {sourceItems.slice(0, 3).map((visualItem) => (
               <div key={visualItem.id} className="rounded-[12px] bg-white p-2">
                 <div className="flex gap-2">
                   {visualItem.imageUrl ? (
@@ -6697,14 +6816,12 @@ function DecisionOutfitPreview({
                     <p className="text-xs text-[#8b6258]">{visualItem.category}</p>
                   </div>
                 </div>
-                {visualItem.reason && (
-                  <p className="mt-2 line-clamp-2 text-xs leading-5 text-[#7b5b51]">
-                    {visualItem.reason}
-                  </p>
-                )}
               </div>
-            ))}
-          </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
 
           {outfit.summary && (
             <p className="mt-3 rounded-[10px] bg-white px-3 py-2 text-xs leading-5 text-[#7b5b51]">
@@ -6712,6 +6829,41 @@ function DecisionOutfitPreview({
             </p>
           )}
         </div>
+      </div>
+    </div>
+  );
+}
+
+function SourceDecisionItem({
+  name,
+  category,
+  imageUrl,
+  role,
+  onPreviewImage,
+}: {
+  name: string;
+  category: string;
+  imageUrl?: string;
+  role: string;
+  onPreviewImage: (imageUrl: string) => void;
+}) {
+  return (
+    <div className="flex gap-2 rounded-[12px] bg-white p-2">
+      {imageUrl ? (
+        <button
+          type="button"
+          onClick={() => onPreviewImage(imageUrl)}
+          className="h-20 w-16 shrink-0 rounded-[10px] bg-[#f3ebe5] bg-contain bg-center bg-no-repeat"
+          style={{ backgroundImage: `url(${imageUrl})` }}
+          aria-label={`查看${name}大图`}
+        />
+      ) : (
+        <MockProductImage palette="from-[#c9a58e] to-[#f4ded4]" className="h-20 w-16 shrink-0" />
+      )}
+      <div className="min-w-0 flex-1">
+        <span className="inline-flex rounded-full bg-[#fbf0ec] px-2 py-0.5 text-[11px] text-[#8b6258]">{role}</span>
+        <p className="mt-1 truncate text-sm font-semibold text-[#3d281f]">{name}</p>
+        <p className="text-xs text-[#8b6258]">{category}</p>
       </div>
     </div>
   );
