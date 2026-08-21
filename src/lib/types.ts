@@ -94,6 +94,12 @@ export type DecisionItem = {
   summary: string;
   outfitTips: string[];
   outfitCombinations?: DecisionOutfitCombination[];
+  tryOnResults?: Array<{
+    outfitId: string;
+    position: number;
+    status: "ready" | "failed";
+    imageUrl?: string;
+  }>;
   risks: string[];
   lastAskedAt: string;
   reminderAt?: string;
