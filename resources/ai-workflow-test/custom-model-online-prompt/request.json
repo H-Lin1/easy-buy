@@ -1,0 +1,12 @@
+{
+  "promptVersion": "outfit-try-on-v4-autonomous-styling",
+  "provider": "tripo",
+  "model": "gpt-image-2",
+  "imageOrder": [
+    "/Users/hlin/Documents/seasy-buy/outputs/outfit-try-on-model-reference-v3-fair-skin.png",
+    "/var/folders/f5/zvwb2ls571n1zd09jhshd_z80000gn/T/codex-clipboard-69960b47-b86b-49b9-8557-f21a12f84a1f.png",
+    "/var/folders/f5/zvwb2ls571n1zd09jhshd_z80000gn/T/codex-clipboard-8d16fde6-79ac-42c0-b21c-a9f5e63ecf18.png"
+  ],
+  "elapsedMs": 53897,
+  "bytes": 1193169
+}

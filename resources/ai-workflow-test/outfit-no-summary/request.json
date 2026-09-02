@@ -1,0 +1,17 @@
+{
+  "promptVersion": "outfit-try-on-v3-lifestyle-structure-fidelity",
+  "summaryIncluded": false,
+  "inputOrder": [
+    "public/images/outfit-try-on-model-reference.png",
+    "/var/folders/f5/zvwb2ls571n1zd09jhshd_z80000gn/T/codex-clipboard-c9e20bcb-7522-486b-8c92-293a6f5fed7b.png",
+    "/var/folders/f5/zvwb2ls571n1zd09jhshd_z80000gn/T/codex-clipboard-34812352-3958-4d16-aad3-d83e00a92002.png"
+  ],
+  "model": "gpt-image-2",
+  "provider": "tripo",
+  "elapsedMs": 57766,
+  "output": {
+    "width": 1024,
+    "height": 1024,
+    "bytes": 1219689
+  }
+}

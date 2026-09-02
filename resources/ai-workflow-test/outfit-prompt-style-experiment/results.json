@@ -1,0 +1,66 @@
+{
+  "generatedAt": "2026-08-16T12:19:53.136Z",
+  "totalElapsedMs": 96263,
+  "results": [
+    {
+      "id": "control-current-v4",
+      "label": "当前 v4 控制组",
+      "direction": "STYLE VARIANT — CURRENT V4 CONTROL: Follow the base lifestyle fashion direction without adding a separate art direction. Make the outfit look naturally wearable and quietly attractive through believable proportions, realistic drape, and a clean everyday composition. Do not force a specific tuck, pose, accessory, or layering treatment; let the garments determine the most natural styling.",
+      "hypothesis": "基准：只使用当前生产 prompt，观察模型默认的时尚表达。",
+      "status": "ready",
+      "outputPath": "resources/ai-workflow-test/outfit-prompt-style-experiment/control-current-v4.png",
+      "elapsedMs": 45590,
+      "width": 1024,
+      "height": 1024,
+      "bytes": 1213998
+    },
+    {
+      "id": "quiet-luxury-editorial",
+      "label": "Quiet Luxury 精致编辑感",
+      "direction": "STYLE DIRECTION — QUIET LUXURY EDITORIAL: Create a refined contemporary fashion editorial in a sunlit minimalist apartment with warm stone, pale wood, and soft geometric shadows. Use a calm neutral palette, clean vertical composition, elegant relaxed posture, subtle asymmetry, and premium-looking proportion and drape. Make the outfit feel intentionally styled and sophisticated through restraint, material contrast, and clear silhouette hierarchy, while keeping every supplied garment faithful. Do not force a specific tuck, pose, accessory, or layering treatment; let the garments determine the most natural styling.",
+      "hypothesis": "用克制、材质和比例制造高级感，预计最适合通勤和长期主义产品定位。",
+      "status": "ready",
+      "outputPath": "resources/ai-workflow-test/outfit-prompt-style-experiment/quiet-luxury-editorial.png",
+      "elapsedMs": 89004,
+      "width": 1024,
+      "height": 1024,
+      "bytes": 1271688
+    },
+    {
+      "id": "contemporary-street-editorial",
+      "label": "Contemporary Street 城市街拍",
+      "direction": "STYLE DIRECTION — CONTEMPORARY STREET EDITORIAL: Create a polished street-style fashion photograph in a modern city entryway with concrete, glass, and directional late-afternoon light. Use a confident but believable walking pause, relaxed shoulders, slight asymmetry, and a candid editorial frame with controlled energy. Let the overshirt fall naturally as an optional layer according to the supplied garments; do not invent styling details. Keep the image fashionable and dynamic without an exaggerated runway pose, while preserving every garment exactly.",
+      "hypothesis": "增加街拍动势和场景叙事，预计时尚感最强，但可能牺牲部分服装可读性。",
+      "status": "ready",
+      "outputPath": "resources/ai-workflow-test/outfit-prompt-style-experiment/contemporary-street-editorial.png",
+      "elapsedMs": 96222,
+      "width": 1024,
+      "height": 1024,
+      "bytes": 1220216
+    },
+    {
+      "id": "soft-lifestyle-fashion",
+      "label": "Soft Lifestyle 生活方式",
+      "direction": "STYLE DIRECTION — SOFT LIFESTYLE FASHION: Create an approachable lifestyle fashion photograph in a bright contemporary apartment near a large window, with soft natural daylight and warm neutral furnishings. Capture a candid moment as if the person is about to leave home, with relaxed hands, a natural expression, and an easy everyday posture. Prioritize wearable realism, flattering but believable proportions, gentle fabric texture, and an attractive outfit that feels easy to copy in real life. Do not force a specific tuck, pose, accessory, or layering treatment; let the garments determine the most natural styling.",
+      "hypothesis": "强调用户可复刻和真实生活感，预计最容易让用户相信“穿在身上会好看”。",
+      "status": "ready",
+      "outputPath": "resources/ai-workflow-test/outfit-prompt-style-experiment/soft-lifestyle-fashion.png",
+      "elapsedMs": 53295,
+      "width": 1024,
+      "height": 1024,
+      "bytes": 1210686
+    },
+    {
+      "id": "art-directed-lookbook",
+      "label": "Art-directed Lookbook 艺术画册",
+      "direction": "STYLE DIRECTION — ART-DIRECTED LOOKBOOK: Create a contemporary fashion lookbook photograph in a quiet gallery-like interior with sculptural daylight, controlled negative space, and subtle architectural lines. Use a slightly off-center composition, a poised natural standing posture, and fashion-magazine polish without becoming theatrical. Let the contrast between the white ribbed top, deep mauve trousers, and muted gray shirt lead the visual story. Emphasize silhouette, texture, and intentional styling while preserving every supplied garment and avoiding invented accessories.",
+      "hypothesis": "用画册式构图强化服装轮廓和色彩关系，预计最有品牌视觉感，但生活化程度最低。",
+      "status": "ready",
+      "outputPath": "resources/ai-workflow-test/outfit-prompt-style-experiment/art-directed-lookbook.png",
+      "elapsedMs": 53040,
+      "width": 1024,
+      "height": 1024,
+      "bytes": 1191711
+    }
+  ]
+}
