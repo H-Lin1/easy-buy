@@ -15,8 +15,10 @@ import {
 } from "@/lib/ai/image-provider";
 import {
   getEligibleTryOnOutfits,
+  MAX_TRY_ON_ATTEMPTS,
   needsTryOnGeneration,
   settleTryOnJobs,
+  shouldRetryTryOn,
 } from "@/lib/ai/outfit-try-on";
 import {
   buildOutfitTryOnNegativePrompt,
@@ -122,21 +124,30 @@ export async function generatePersistedDecisionRunTryOns(
   await ensureTryOnRows(supabase, run, report.id, outfits);
   await recoverRowsOwnedByOlderRunLease(supabase, run);
 
-  const initialRows = await loadTryOnRows(supabase, report.id);
-  const rowsByOutfitId = new Map(initialRows.map((row) => [row.outfit_id, row]));
-  const tasks = outfits.map((outfit, position) => ({
-    outfit,
-    position,
-    row: requireTryOnRow(rowsByOutfitId.get(outfit.outfitId)),
-  }));
-  const pendingTasks = tasks.filter((task) =>
-    needsTryOnGeneration({
-      status: task.row.status,
-      imagePath: task.row.image_path,
-    }),
-  );
+  let tasks: TryOnTask[] = [];
+  let candidateImage: Buffer | undefined;
+  let modelImage: Buffer | undefined;
+  let closetSourcesById = new Map<string, ClosetSourceRow>();
+  let imageEditModel: string | undefined;
 
-  if (pendingTasks.length) {
+  for (let attempt = 0; attempt < MAX_TRY_ON_ATTEMPTS; attempt += 1) {
+    const currentRows = await loadTryOnRows(supabase, report.id);
+    const rowsByOutfitId = new Map(currentRows.map((row) => [row.outfit_id, row]));
+    tasks = outfits.map((outfit, position) => ({
+      outfit,
+      position,
+      row: requireTryOnRow(rowsByOutfitId.get(outfit.outfitId)),
+    }));
+    const pendingTasks = tasks.filter((task) => {
+      const row = {
+        status: task.row.status,
+        imagePath: task.row.image_path,
+      };
+      return attempt === 0 ? needsTryOnGeneration(row) : shouldRetryTryOn(attempt - 1, row);
+    });
+
+    if (!pendingTasks.length) break;
+
     await lease.renewLease();
     if (!hasImageEditConfig() || !getAiCapabilityConfig("imageEdit").model) {
       await settleTryOnJobs(
@@ -144,40 +155,42 @@ export async function generatePersistedDecisionRunTryOns(
           failTryOnWithoutProvider(supabase, run, task, lease),
         ),
       );
-    } else {
-      const imageEditConfig = getAiCapabilityConfig("imageEdit");
+      continue;
+    }
+
+    const imageEditConfig = getAiCapabilityConfig("imageEdit");
+    if (!candidateImage || !modelImage || !imageEditModel) {
+      imageEditModel = imageEditConfig.model as string;
       const sourceIds = Array.from(
         new Set(pendingTasks.flatMap((task) => task.outfit.closetItemIds ?? [])),
       );
-      const [candidateImage, modelImage, closetSources] = await Promise.all([
+      [candidateImage, modelImage] = await Promise.all([
         downloadStorageImage(
           supabase,
           "purchase-screenshots",
           candidate.screenshot_path,
         ),
         readFile(modelReferencePath),
-        loadClosetSources(supabase, run.user_id, sourceIds),
       ]);
-      const closetSourcesById = new Map(
-        closetSources.map((source) => [source.id, source]),
-      );
-
-      await settleTryOnJobs(
-        pendingTasks.map((task) => () =>
-          generateTryOn({
-            supabase,
-            run,
-            candidate,
-            candidateImage,
-            modelImage,
-            closetSourcesById,
-            task,
-            model: imageEditConfig.model as string,
-            lease,
-          }),
-        ),
-      );
+      const closetSources = await loadClosetSources(supabase, run.user_id, sourceIds);
+      closetSourcesById = new Map(closetSources.map((source) => [source.id, source]));
     }
+
+    await settleTryOnJobs(
+      pendingTasks.map((task) => () =>
+        generateTryOn({
+          supabase,
+          run,
+          candidate,
+          candidateImage: candidateImage as Buffer,
+          modelImage: modelImage as Buffer,
+          closetSourcesById,
+          task,
+          model: imageEditModel as string,
+          lease,
+        }),
+      ),
+    );
   }
 
   const finalRows = await loadTryOnRows(supabase, report.id);

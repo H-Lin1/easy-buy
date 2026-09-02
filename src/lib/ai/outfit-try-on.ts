@@ -1,6 +1,7 @@
 import type { OutfitCombination, PurchaseDecisionReport } from "./types";
 
 export const MAX_OUTFIT_TRY_ONS = 3;
+export const MAX_TRY_ON_ATTEMPTS = 2;
 
 export function withStableOutfitIds(outfits: OutfitCombination[]): OutfitCombination[] {
   return outfits.map((outfit, position) => ({
@@ -35,6 +36,13 @@ export function settleTryOnJobs<T>(jobs: Array<() => Promise<T>>) {
 
 export function needsTryOnGeneration(row: { status: string; imagePath?: string | null }) {
   return row.status !== "ready" || !row.imagePath;
+}
+
+export function shouldRetryTryOn(
+  attempt: number,
+  row: { status: string; imagePath?: string | null },
+) {
+  return attempt + 1 < MAX_TRY_ON_ATTEMPTS && needsTryOnGeneration(row);
 }
 
 function createStableOutfitId(outfit: OutfitCombination, position: number) {

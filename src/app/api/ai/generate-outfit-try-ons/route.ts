@@ -15,6 +15,7 @@ import {
 } from "@/lib/ai/image-provider";
 import {
   getEligibleTryOnOutfits,
+  MAX_TRY_ON_ATTEMPTS,
   needsTryOnGeneration,
   settleTryOnJobs,
 } from "@/lib/ai/outfit-try-on";
@@ -75,6 +76,7 @@ type TryOnRow = {
   image_path: string | null;
   status: "pending" | "processing" | "ready" | "failed";
   failure_kind: string | null;
+  attempt_count: number;
 };
 
 type TryOnTask = {
@@ -84,7 +86,7 @@ type TryOnTask = {
 };
 
 const tryOnRowSelect =
-  "id,outfit_id,position,closet_item_ids,image_path,status,failure_kind";
+  "id,outfit_id,position,closet_item_ids,image_path,status,failure_kind,attempt_count";
 const modelReferencePath = path.join(
   process.cwd(),
   "public/images/outfit-try-on-model-reference.png",
@@ -158,7 +160,10 @@ export async function POST(request: NextRequest) {
       row: requireTryOnRow(initialRowsByOutfitId.get(outfit.outfitId)),
     }));
 
-    if (!tasks.every((task) => !needsTryOnGeneration({ status: task.row.status, imagePath: task.row.image_path }))) {
+    if (!tasks.every((task) =>
+      !needsTryOnGeneration({ status: task.row.status, imagePath: task.row.image_path }) ||
+      task.row.attempt_count >= MAX_TRY_ON_ATTEMPTS,
+    )) {
       if (!hasImageEditConfig()) {
         await markUnreadyRowsFailed(supabase, tasks, "image_edit_not_configured");
       } else {
@@ -178,7 +183,8 @@ export async function POST(request: NextRequest) {
 
           await settleTryOnJobs(
             tasks.map((task) => () =>
-              !needsTryOnGeneration({ status: task.row.status, imagePath: task.row.image_path })
+                !needsTryOnGeneration({ status: task.row.status, imagePath: task.row.image_path }) ||
+                task.row.attempt_count >= MAX_TRY_ON_ATTEMPTS
                 ? Promise.resolve()
                 : generateTryOn({
                     supabase,

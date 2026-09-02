@@ -1,0 +1,36 @@
+{
+  "promptVersion": "outfit-try-on-v4-autonomous-styling",
+  "provider": "tripo",
+  "model": "gpt-image-2",
+  "inputOrder": [
+    {
+      "index": 1,
+      "role": "固定通用成年模特：只提供身份、面部、发型和身体比例",
+      "path": "public/images/outfit-try-on-model-reference.png"
+    },
+    {
+      "index": 2,
+      "role": "待买商品：白色罗纹圆领背心",
+      "path": "resources/closet/微信图片_20260610124201_329_2.jpg"
+    },
+    {
+      "index": 3,
+      "role": "衣橱来源单品：深灰紫高腰褶裥直筒西装裤",
+      "path": "resources/closet/微信图片_20260610124204_333_2.jpg"
+    },
+    {
+      "index": 4,
+      "role": "衣橱来源单品：灰卡其长袖翻领衬衫（作为外层候选）",
+      "path": "resources/closet/微信图片_20260610124157_324_2.jpg"
+    }
+  ],
+  "outfit": {
+    "candidate": "白色罗纹圆领背心",
+    "closet": [
+      "深灰紫高腰褶裥直筒西装裤",
+      "灰卡其长袖翻领衬衫"
+    ],
+    "scenario": "夏季城市日常与轻通勤"
+  },
+  "experiment": "固定输入、固定 v4 基础约束，仅改变时尚表达层；不向生图模型传入决策 summary。"
+}
